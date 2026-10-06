@@ -417,19 +417,8 @@
               <span class="umspec-profile-badge">🎓 Academic Programme</span>
               <span class="umspec-profile-year" id="umspec-profile-year">Detecting...</span>
             </div>
-            <div class="umspec-profile-major-container">
-              <select id="umspec-profile-major-select" class="umspec-major-select" title="Change degree programme if needed">
-                <option value="Bachelor of Computer Science (Artificial Intelligence)">🤖 Bachelor of Computer Science (Artificial Intelligence)</option>
-                <option value="Bachelor of Computer Science (Software Engineering)">💻 Bachelor of Computer Science (Software Engineering)</option>
-                <option value="Bachelor of Computer Science (Data Science)">📊 Bachelor of Computer Science (Data Science)</option>
-                <option value="Bachelor of Computer Science (Computer Systems and Networking)">🌐 Bachelor of Computer Science (Computer Systems & Networking)</option>
-                <option value="Bachelor of Information Technology (Information Systems)">🏢 Bachelor of Information Technology (Information Systems)</option>
-                <option value="Bachelor of Information Science (Library Management)">📚 Bachelor of Information Science (Library Management)</option>
-                <option value="Bachelor of Engineering">⚙️ Bachelor of Engineering</option>
-                <option value="Bachelor Degree Programme">🎓 Other Bachelor Degree Programme</option>
-              </select>
-            </div>
-            <div class="umspec-profile-faculty" id="umspec-profile-faculty">Faculty of Computer Science & Information Technology (FSKTM)</div>
+            <div class="umspec-profile-major" id="umspec-profile-major">Detecting programme...</div>
+            <div class="umspec-profile-faculty" id="umspec-profile-faculty">Universiti Malaya</div>
           </div>
 
           <!-- Course Overview Section -->
@@ -491,18 +480,6 @@
       renderCoursesList();
     };
 
-    const majorSelect = document.getElementById('umspec-profile-major-select');
-    if (majorSelect) {
-      majorSelect.onchange = (e) => {
-        const val = e.target.value;
-        if (studentProfile) studentProfile.bachelor = val;
-        localStorage.setItem('umspec_saved_degree', val);
-        if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-          chrome.storage.local.set({ 'umspec_saved_degree': val });
-        }
-      };
-    }
-
     document.getElementById('umspec-start-btn').onclick = runZeroTouchExport;
   }
 
@@ -533,9 +510,9 @@
   function updateProfileUI() {
     if (!studentProfile) return;
     document.getElementById('umspec-profile-year').innerText = studentProfile.yearSem;
-    const majorSelect = document.getElementById('umspec-profile-major-select');
-    if (majorSelect) {
-      majorSelect.value = studentProfile.bachelor;
+    const majorEl = document.getElementById('umspec-profile-major');
+    if (majorEl) {
+      majorEl.innerText = studentProfile.bachelor;
     }
     document.getElementById('umspec-profile-faculty').innerText = studentProfile.faculty;
   }
