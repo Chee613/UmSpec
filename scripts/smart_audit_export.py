@@ -42,7 +42,26 @@ def format_course_folder(full_name, short_name=''):
 
     return sanitize_name(f"{code} {clean_title}".strip())
 
-def detect_academic_profile(courses, user_name):
+def map_department_to_degree(text):
+    if not text: return None
+    t = text.lower()
+    if 'artificial intelligence' in t or 'kecerdasan buatan' in t:
+        return 'Bachelor of Computer Science (Artificial Intelligence)'
+    if 'software engineering' in t or 'kejuruteraan perisian' in t:
+        return 'Bachelor of Computer Science (Software Engineering)'
+    if 'data science' in t or 'sains data' in t:
+        return 'Bachelor of Computer Science (Data Science)'
+    if 'computer system' in t or 'networking' in t or 'sistem komputer' in t:
+        return 'Bachelor of Computer Science (Computer Systems and Networking)'
+    if 'information system' in t or 'sistem maklumat' in t:
+        return 'Bachelor of Information Technology (Information Systems)'
+    if 'library' in t or 'sains maklumat' in t:
+        return 'Bachelor of Information Science (Library Management)'
+    if 'engineering' in t or 'kejuruteraan' in t:
+        return 'Bachelor of Engineering'
+    return None
+
+def detect_academic_profile(courses, user_name, session=None):
     codes = []
     for c in courses:
         m = re.search(r'([A-Z]{3})(\d)(\d{3})', c['fullName'], re.I)
@@ -54,35 +73,53 @@ def detect_academic_profile(courses, user_name):
             })
 
     faculty = 'Universiti Malaya'
-    bachelor = 'Bachelor Degree Programme'
+    bachelor = None
+    detection_source = 'Curriculum Heuristic'
 
-    fsktm_cnt = sum(1 for c in codes if c['prefix'] in ['WIA', 'WIB', 'WIC', 'WID', 'WIX'])
+    # Check SPeCTRUM profile metadata via active session
+    if session:
+        try:
+            p_res = session.get(f"{BASE_URL}/user/profile.php", timeout=15)
+            if p_res.status_code == 200:
+                p_soup = BeautifulSoup(p_res.text, 'html.parser')
+                p_text = " ".join(dd.get_text(strip=True) for dd in p_soup.select('.profile_tree dd, .profile_tree dt, dl dt, dl dd'))
+                from_p = map_department_to_degree(p_text)
+                if from_p:
+                    bachelor = from_p
+                    detection_source = 'SPeCTRUM Profile Metadata (/user/profile.php)'
+        except Exception:
+            pass
+
+    fsktm_cnt = sum(1 for c in codes if c['prefix'] in ['WIA', 'WIB', 'WIC', 'WID', 'WIE', 'WIF', 'WIX'])
     eng_cnt = sum(1 for c in codes if c['prefix'] in ['KIE', 'KKA', 'KMK', 'KBE'])
     arts_cnt = sum(1 for c in codes if c['prefix'] in ['AIA', 'AIB', 'GIG'])
 
-    if fsktm_cnt >= 2:
-        faculty = 'Faculty of Computer Science & Information Technology (FSKTM)'
-        full_list = [c['fullCode'] for c in codes]
-        all_titles = " ".join(c.get('fullName', '').lower() for c in courses)
+    if not bachelor:
+        if fsktm_cnt >= 2:
+            faculty = 'Faculty of Computer Science & Information Technology (FSKTM)'
+            full_list = [c['fullCode'] for c in codes]
+            all_titles = " ".join(c.get('fullName', '').lower() for c in courses)
 
-        if any(c.startswith('WIC') for c in full_list) or 'artificial intelligence' in all_titles or 'machine learning' in all_titles or 'WIA2003' in full_list:
-            bachelor = 'Bachelor of Computer Science (Artificial Intelligence)'
-        elif any(c.startswith('WID') for c in full_list) or 'data science' in all_titles:
-            bachelor = 'Bachelor of Computer Science (Data Science)'
-        elif any(c.startswith('WIE') for c in full_list) or 'software architecture' in all_titles:
-            bachelor = 'Bachelor of Computer Science (Software Engineering)'
-        elif any(c.startswith('WIF') for c in full_list) or 'network' in all_titles:
-            bachelor = 'Bachelor of Computer Science (Computer Systems and Networking)'
-        elif any(c.startswith('WIB') for c in full_list) or 'information system' in all_titles:
-            bachelor = 'Bachelor of Information Technology (Information Systems)'
+            if any(c.startswith('WIC') for c in full_list) or 'artificial intelligence' in all_titles or 'machine learning' in all_titles or 'WIA2003' in full_list:
+                bachelor = 'Bachelor of Computer Science (Artificial Intelligence)'
+            elif any(c.startswith('WID') for c in full_list) or 'data science' in all_titles:
+                bachelor = 'Bachelor of Computer Science (Data Science)'
+            elif any(c.startswith('WIE') for c in full_list) or 'software architecture' in all_titles:
+                bachelor = 'Bachelor of Computer Science (Software Engineering)'
+            elif any(c.startswith('WIF') for c in full_list) or 'network' in all_titles:
+                bachelor = 'Bachelor of Computer Science (Computer Systems and Networking)'
+            elif any(c.startswith('WIB') for c in full_list) or 'information system' in all_titles:
+                bachelor = 'Bachelor of Information Technology (Information Systems)'
+            else:
+                bachelor = 'Bachelor of Computer Science (Artificial Intelligence)'
+        elif eng_cnt >= 2:
+            faculty = 'Faculty of Engineering (FK)'
+            bachelor = 'Bachelor of Engineering'
+        elif arts_cnt >= 2:
+            faculty = 'Faculty of Arts and Social Sciences (FASS)'
+            bachelor = 'Bachelor of Arts / Social Sciences'
         else:
             bachelor = 'Bachelor of Computer Science (Artificial Intelligence)'
-    elif eng_cnt >= 2:
-        faculty = 'Faculty of Engineering (FK)'
-        bachelor = 'Bachelor of Engineering'
-    elif arts_cnt >= 2:
-        faculty = 'Faculty of Arts and Social Sciences (FASS)'
-        bachelor = 'Bachelor of Arts / Social Sciences'
 
     years = [c['year'] for c in codes if 1 <= c['year'] <= 4]
     avg_year = round(sum(years) / len(years)) if years else 1
@@ -92,7 +129,8 @@ def detect_academic_profile(courses, user_name):
         'faculty': faculty,
         'bachelor': bachelor,
         'yearSem': f"Year {avg_year}, Semester 1",
-        'totalCourses': len(courses)
+        'totalCourses': len(courses),
+        'source': detection_source
     }
 
 def classify_adaptive_category(item_name, section_name, ext=''):
@@ -185,8 +223,8 @@ def run_smart_audit_and_export(cookie, output_dir=None):
                         'folderName': format_course_folder(name, name)
                     })
 
-    # 3. Academic Profile Heuristic
-    profile = detect_academic_profile(courses, user_name)
+    # 3. Academic Profile Detection
+    profile = detect_academic_profile(courses, user_name, session=session)
     print("\n" + "-"*65)
     print("📋 STUDENT ACADEMIC PROFILE DETECTED:")
     print(f" • Student:      {profile['studentName']}")
@@ -194,6 +232,7 @@ def run_smart_audit_and_export(cookie, output_dir=None):
     print(f" • Programme:    {profile['bachelor']}")
     print(f" • Period:       {profile['yearSem']}")
     print(f" • Total Courses: {profile['totalCourses']} Enrolled Subjects")
+    print(f" • Source:       {profile.get('source', 'Curriculum')}")
     print("-"*65)
 
     print("\n[+] ENROLLED COURSES:")

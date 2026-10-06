@@ -56,29 +56,159 @@
     return sanitizeName(code ? `${code} ${cleanTitle}` : cleanTitle);
   }
 
-  // Detect Bachelor's Degree & Year/Semester from Course List
-  function detectAcademicProfile(courses, userName) {
-    const savedDegree = localStorage.getItem('umspec_saved_degree');
+  // Department / Keyword to Standard Degree Mapper
+  function mapDepartmentToDegree(text) {
+    if (!text) return null;
+    const t = text.toLowerCase();
 
+    if (t.includes('artificial intelligence') || t.includes('kecerdasan buatan')) {
+      return 'Bachelor of Computer Science (Artificial Intelligence)';
+    }
+    if (t.includes('software engineering') || t.includes('kejuruteraan perisian')) {
+      return 'Bachelor of Computer Science (Software Engineering)';
+    }
+    if (t.includes('data science') || t.includes('sains data')) {
+      return 'Bachelor of Computer Science (Data Science)';
+    }
+    if (t.includes('computer system') || t.includes('networking') || t.includes('sistem komputer') || t.includes('rangkaian')) {
+      return 'Bachelor of Computer Science (Computer Systems and Networking)';
+    }
+    if (t.includes('information system') || t.includes('sistem maklumat')) {
+      return 'Bachelor of Information Technology (Information Systems)';
+    }
+    if (t.includes('library') || t.includes('perpustakaan') || t.includes('sains maklumat')) {
+      return 'Bachelor of Information Science (Library Management)';
+    }
+    if (t.includes('engineering') || t.includes('kejuruteraan')) {
+      return 'Bachelor of Engineering';
+    }
+    return null;
+  }
+
+  // Calculate Average Academic Year
+  function calculateYearSemester(courses) {
     const codes = courses.map(c => {
       const m = c.fullName.match(/([A-Z]{3})(\d)(\d{3})/i);
-      return m ? { prefix: m[1].toUpperCase(), year: parseInt(m[2]), fullCode: m[0].toUpperCase(), title: c.fullName.toLowerCase() } : null;
-    }).filter(Boolean);
+      return m ? parseInt(m[2]) : null;
+    }).filter(y => y && y > 0 && y <= 4);
 
-    let faculty = 'Universiti Malaya';
-    let bachelor = savedDegree || 'Bachelor of Computer Science (Artificial Intelligence)';
+    const avgYear = codes.length ? Math.round(codes.reduce((a, b) => a + b, 0) / codes.length) : 2;
+    return `Year ${avgYear}, Semester 1`;
+  }
 
-    const fsktmCount = codes.filter(c => ['WIA', 'WIB', 'WIC', 'WID', 'WIE', 'WIF', 'WIX'].includes(c.prefix)).length;
-    const engCount = codes.filter(c => ['KIE', 'KKA', 'KMK', 'KBE'].includes(c.prefix)).length;
-    const artsCount = codes.filter(c => ['AIA', 'AIB', 'GIG'].includes(c.prefix)).length;
+  // Multi-Source Integrated Academic Profile Detection Pipeline
+  async function detectAcademicProfile(courses, userName) {
+    // TIER 0: Saved User Choice in Local Storage / Extension Storage
+    const savedDegree = localStorage.getItem('umspec_saved_degree');
+    if (savedDegree) {
+      return {
+        studentName: userName || 'UM Student',
+        faculty: 'Faculty of Computer Science & Information Technology (FSKTM)',
+        bachelor: savedDegree,
+        yearSem: calculateYearSemester(courses),
+        totalCourses: courses.length,
+        detectionSource: 'Saved User Preference'
+      };
+    }
 
-    if (fsktmCount >= 2) {
-      faculty = 'Faculty of Computer Science & Information Technology (FSKTM)';
-      if (!savedDegree) {
+    let detectedBachelor = null;
+    let detectedFaculty = 'Universiti Malaya';
+    let detectionSource = 'Heuristic';
+
+    const sesskey = getSesskey();
+
+    // TIER 1: Moodle AJAX WebService API (core_user_get_users_by_field)
+    if (sesskey) {
+      try {
+        const userId = window.M?.cfg?.userId || document.querySelector('a[href*="/user/profile.php?id="], a[href*="/user/view.php?id="]')?.href?.match(/id=(\d+)/)?.[1];
+        if (userId) {
+          const apiRes = await fetch(`https://spectrum.um.edu.my/lib/ajax/service.php?sesskey=${sesskey}&info=core_user_get_users_by_field`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify([{
+              index: 0,
+              methodname: 'core_user_get_users_by_field',
+              args: { field: 'id', values: [Number(userId)] }
+            }])
+          });
+          const apiData = await apiRes.json();
+          if (Array.isArray(apiData) && apiData[0]?.data?.[0]) {
+            const u = apiData[0].data[0];
+            const deptDegree = mapDepartmentToDegree(u.department || '');
+            if (deptDegree) {
+              detectedBachelor = deptDegree;
+              detectedFaculty = u.institution || 'Faculty of Computer Science & Information Technology (FSKTM)';
+              detectionSource = 'Moodle WebService API (LDAP Sync)';
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[UmSpec] WebService user profile check skipped:', e);
+      }
+    }
+
+    // TIER 2: SPeCTRUM User Profile Page Scraping (/user/profile.php)
+    if (!detectedBachelor) {
+      try {
+        const pRes = await fetch('https://spectrum.um.edu.my/user/profile.php', { credentials: 'include' });
+        if (pRes.ok) {
+          const pHtml = await pRes.text();
+          const pDoc = new DOMParser().parseFromString(pHtml, 'text/html');
+
+          const profileNodes = Array.from(pDoc.querySelectorAll('.profile_tree dd, .profile_tree dt, .node_category, dl dt, dl dd'));
+          const nodeTexts = profileNodes.map(n => n.innerText.trim()).join(' ');
+
+          const fromProfile = mapDepartmentToDegree(nodeTexts);
+          if (fromProfile) {
+            detectedBachelor = fromProfile;
+            detectedFaculty = nodeTexts.toLowerCase().includes('computer science') || nodeTexts.toLowerCase().includes('fsktm')
+              ? 'Faculty of Computer Science & Information Technology (FSKTM)'
+              : detectedFaculty;
+            detectionSource = 'SPeCTRUM Profile Metadata (/user/profile.php)';
+          }
+        }
+      } catch (e) {
+        console.warn('[UmSpec] Profile page scrape skipped:', e);
+      }
+    }
+
+    // TIER 3: Course Category Tree Breadcrumbs
+    if (!detectedBachelor && courses.length > 0) {
+      try {
+        const firstCid = courses[0].id;
+        const cRes = await fetch(`https://spectrum.um.edu.my/course/view.php?id=${firstCid}`, { credentials: 'include' });
+        if (cRes.ok) {
+          const cHtml = await cRes.text();
+          const cDoc = new DOMParser().parseFromString(cHtml, 'text/html');
+          const breadcrumbs = Array.from(cDoc.querySelectorAll('.breadcrumb-item, .breadcrumb a, nav[aria-label="Navigation bar"] a'))
+            .map(el => el.innerText.trim())
+            .join(' > ');
+
+          const fromBreadcrumb = mapDepartmentToDegree(breadcrumbs);
+          if (fromBreadcrumb) {
+            detectedBachelor = fromBreadcrumb;
+            detectedFaculty = 'Faculty of Computer Science & Information Technology (FSKTM)';
+            detectionSource = 'Moodle Category Tree (Breadcrumbs)';
+          }
+        }
+      } catch (e) {
+        console.warn('[UmSpec] Course breadcrumbs check skipped:', e);
+      }
+    }
+
+    // TIER 4: Intelligent Curriculum Heuristic Fallback
+    if (!detectedBachelor) {
+      const codes = courses.map(c => {
+        const m = c.fullName.match(/([A-Z]{3})(\d)(\d{3})/i);
+        return m ? { prefix: m[1].toUpperCase(), year: parseInt(m[2]), fullCode: m[0].toUpperCase(), title: c.fullName.toLowerCase() } : null;
+      }).filter(Boolean);
+
+      const fsktmCount = codes.filter(c => ['WIA', 'WIB', 'WIC', 'WID', 'WIE', 'WIF', 'WIX'].includes(c.prefix)).length;
+      if (fsktmCount >= 2) {
+        detectedFaculty = 'Faculty of Computer Science & Information Technology (FSKTM)';
         const fullList = codes.map(c => c.fullCode);
         const allTitles = codes.map(c => c.title).join(' ');
 
-        // 1. Artificial Intelligence (WIC courses, or Probability/Stats core WIA2003, or AI keywords)
         if (
           fullList.some(c => c.startsWith('WIC')) ||
           allTitles.includes('artificial intelligence') ||
@@ -86,45 +216,33 @@
           allTitles.includes('deep learning') ||
           fullList.includes('WIA2003')
         ) {
-          bachelor = 'Bachelor of Computer Science (Artificial Intelligence)';
+          detectedBachelor = 'Bachelor of Computer Science (Artificial Intelligence)';
+        } else if (fullList.some(c => c.startsWith('WID')) || allTitles.includes('data science')) {
+          detectedBachelor = 'Bachelor of Computer Science (Data Science)';
+        } else if (fullList.some(c => c.startsWith('WIE')) || allTitles.includes('software architecture')) {
+          detectedBachelor = 'Bachelor of Computer Science (Software Engineering)';
+        } else if (fullList.some(c => c.startsWith('WIF')) || allTitles.includes('computer network')) {
+          detectedBachelor = 'Bachelor of Computer Science (Computer Systems and Networking)';
+        } else if (fullList.some(c => c.startsWith('WIB')) || allTitles.includes('information system')) {
+          detectedBachelor = 'Bachelor of Information Technology (Information Systems)';
+        } else {
+          detectedBachelor = 'Bachelor of Computer Science (Artificial Intelligence)';
         }
-        // 2. Data Science (WID prefix or Data Science keywords)
-        else if (fullList.some(c => c.startsWith('WID')) || allTitles.includes('data science')) {
-          bachelor = 'Bachelor of Computer Science (Data Science)';
-        }
-        // 3. Software Engineering (WIE prefix or explicit Software Engineering specialization courses)
-        else if (fullList.some(c => c.startsWith('WIE')) || allTitles.includes('software architecture') || allTitles.includes('software requirements')) {
-          bachelor = 'Bachelor of Computer Science (Software Engineering)';
-        }
-        // 4. Computer Systems & Networking (WIF prefix or Networking keywords)
-        else if (fullList.some(c => c.startsWith('WIF')) || allTitles.includes('computer network') || allTitles.includes('operating systems')) {
-          bachelor = 'Bachelor of Computer Science (Computer Systems and Networking)';
-        }
-        // 5. Information Systems (WIB prefix)
-        else if (fullList.some(c => c.startsWith('WIB')) || allTitles.includes('information system')) {
-          bachelor = 'Bachelor of Information Technology (Information Systems)';
-        }
-        else {
-          bachelor = 'Bachelor of Computer Science (Artificial Intelligence)';
-        }
+        detectionSource = 'Curriculum Heuristic Fallback';
+      } else {
+        detectedBachelor = 'Bachelor of Computer Science (Artificial Intelligence)';
       }
-    } else if (engCount >= 2) {
-      faculty = 'Faculty of Engineering (FK)';
-      if (!savedDegree) bachelor = 'Bachelor of Engineering';
-    } else if (artsCount >= 2) {
-      faculty = 'Faculty of Arts and Social Sciences (FASS)';
-      if (!savedDegree) bachelor = 'Bachelor of Arts / Social Sciences';
     }
 
-    const yearNumbers = codes.map(c => c.year).filter(y => y > 0 && y <= 4);
-    const avgYear = yearNumbers.length ? Math.round(yearNumbers.reduce((a, b) => a + b, 0) / yearNumbers.length) : 1;
+    console.log(`[UmSpec] Degree Detected via [${detectionSource}]: ${detectedBachelor}`);
 
     return {
       studentName: userName || 'UM Student',
-      faculty,
-      bachelor,
-      yearSem: `Year ${avgYear}, Semester 1`,
-      totalCourses: courses.length
+      faculty: detectedFaculty,
+      bachelor: detectedBachelor,
+      yearSem: calculateYearSemester(courses),
+      totalCourses: courses.length,
+      detectionSource
     };
   }
 
@@ -252,7 +370,7 @@
 
     const userEl = document.querySelector('.usertext, .usermenu, .user-name');
     const userName = userEl ? userEl.innerText.trim() : 'UM Student';
-    studentProfile = detectAcademicProfile(courses, userName);
+    studentProfile = await detectAcademicProfile(courses, userName);
 
     return courses;
   }
