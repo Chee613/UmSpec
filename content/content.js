@@ -48,36 +48,62 @@
 
   // Detect Bachelor's Degree & Year/Semester from Course List
   function detectAcademicProfile(courses, userName) {
+    const savedDegree = localStorage.getItem('umspec_saved_degree');
+
     const codes = courses.map(c => {
       const m = c.fullName.match(/([A-Z]{3})(\d)(\d{3})/i);
-      return m ? { prefix: m[1].toUpperCase(), year: parseInt(m[2]), fullCode: m[0].toUpperCase() } : null;
+      return m ? { prefix: m[1].toUpperCase(), year: parseInt(m[2]), fullCode: m[0].toUpperCase(), title: c.fullName.toLowerCase() } : null;
     }).filter(Boolean);
 
     let faculty = 'Universiti Malaya';
-    let bachelor = 'Bachelor Degree Programme';
+    let bachelor = savedDegree || 'Bachelor of Computer Science (Artificial Intelligence)';
 
-    const fsktmCount = codes.filter(c => ['WIA', 'WIB', 'WIC', 'WID', 'WIX'].includes(c.prefix)).length;
+    const fsktmCount = codes.filter(c => ['WIA', 'WIB', 'WIC', 'WID', 'WIE', 'WIF', 'WIX'].includes(c.prefix)).length;
     const engCount = codes.filter(c => ['KIE', 'KKA', 'KMK', 'KBE'].includes(c.prefix)).length;
     const artsCount = codes.filter(c => ['AIA', 'AIB', 'GIG'].includes(c.prefix)).length;
 
     if (fsktmCount >= 2) {
       faculty = 'Faculty of Computer Science & Information Technology (FSKTM)';
-      const fullList = codes.map(c => c.fullCode);
-      if (fullList.includes('WIA2007') || fullList.includes('WIA2006')) {
-        bachelor = 'Bachelor of Computer Science (Software Engineering)';
-      } else if (fullList.some(c => c.startsWith('WID'))) {
-        bachelor = 'Bachelor of Computer Science (Data Science / AI)';
-      } else if (fullList.some(c => c.startsWith('WIB'))) {
-        bachelor = 'Bachelor of Information Technology (Information Systems)';
-      } else {
-        bachelor = 'Bachelor of Computer Science / IT';
+      if (!savedDegree) {
+        const fullList = codes.map(c => c.fullCode);
+        const allTitles = codes.map(c => c.title).join(' ');
+
+        // 1. Artificial Intelligence (WIC courses, or Probability/Stats core WIA2003, or AI keywords)
+        if (
+          fullList.some(c => c.startsWith('WIC')) ||
+          allTitles.includes('artificial intelligence') ||
+          allTitles.includes('machine learning') ||
+          allTitles.includes('deep learning') ||
+          fullList.includes('WIA2003')
+        ) {
+          bachelor = 'Bachelor of Computer Science (Artificial Intelligence)';
+        }
+        // 2. Data Science (WID prefix or Data Science keywords)
+        else if (fullList.some(c => c.startsWith('WID')) || allTitles.includes('data science')) {
+          bachelor = 'Bachelor of Computer Science (Data Science)';
+        }
+        // 3. Software Engineering (WIE prefix or explicit Software Engineering specialization courses)
+        else if (fullList.some(c => c.startsWith('WIE')) || allTitles.includes('software architecture') || allTitles.includes('software requirements')) {
+          bachelor = 'Bachelor of Computer Science (Software Engineering)';
+        }
+        // 4. Computer Systems & Networking (WIF prefix or Networking keywords)
+        else if (fullList.some(c => c.startsWith('WIF')) || allTitles.includes('computer network') || allTitles.includes('operating systems')) {
+          bachelor = 'Bachelor of Computer Science (Computer Systems and Networking)';
+        }
+        // 5. Information Systems (WIB prefix)
+        else if (fullList.some(c => c.startsWith('WIB')) || allTitles.includes('information system')) {
+          bachelor = 'Bachelor of Information Technology (Information Systems)';
+        }
+        else {
+          bachelor = 'Bachelor of Computer Science (Artificial Intelligence)';
+        }
       }
     } else if (engCount >= 2) {
       faculty = 'Faculty of Engineering (FK)';
-      bachelor = 'Bachelor of Engineering';
+      if (!savedDegree) bachelor = 'Bachelor of Engineering';
     } else if (artsCount >= 2) {
       faculty = 'Faculty of Arts and Social Sciences (FASS)';
-      bachelor = 'Bachelor of Arts / Social Sciences';
+      if (!savedDegree) bachelor = 'Bachelor of Arts / Social Sciences';
     }
 
     const yearNumbers = codes.map(c => c.year).filter(y => y > 0 && y <= 4);
@@ -260,11 +286,22 @@
           <!-- Student Academic Profile Card -->
           <div class="umspec-profile-card" id="umspec-profile-card">
             <div class="umspec-profile-header">
-              <span class="umspec-profile-badge">🎓 Academic Profile Detected</span>
+              <span class="umspec-profile-badge">🎓 Academic Programme</span>
               <span class="umspec-profile-year" id="umspec-profile-year">Detecting...</span>
             </div>
-            <div class="umspec-profile-major" id="umspec-profile-major">Analyzing enrolled curriculum...</div>
-            <div class="umspec-profile-faculty" id="umspec-profile-faculty">Universiti Malaya</div>
+            <div class="umspec-profile-major-container">
+              <select id="umspec-profile-major-select" class="umspec-major-select" title="Change degree programme if needed">
+                <option value="Bachelor of Computer Science (Artificial Intelligence)">🤖 Bachelor of Computer Science (Artificial Intelligence)</option>
+                <option value="Bachelor of Computer Science (Software Engineering)">💻 Bachelor of Computer Science (Software Engineering)</option>
+                <option value="Bachelor of Computer Science (Data Science)">📊 Bachelor of Computer Science (Data Science)</option>
+                <option value="Bachelor of Computer Science (Computer Systems and Networking)">🌐 Bachelor of Computer Science (Computer Systems & Networking)</option>
+                <option value="Bachelor of Information Technology (Information Systems)">🏢 Bachelor of Information Technology (Information Systems)</option>
+                <option value="Bachelor of Information Science (Library Management)">📚 Bachelor of Information Science (Library Management)</option>
+                <option value="Bachelor of Engineering">⚙️ Bachelor of Engineering</option>
+                <option value="Bachelor Degree Programme">🎓 Other Bachelor Degree Programme</option>
+              </select>
+            </div>
+            <div class="umspec-profile-faculty" id="umspec-profile-faculty">Faculty of Computer Science & Information Technology (FSKTM)</div>
           </div>
 
           <!-- Course Overview Section -->
@@ -326,6 +363,18 @@
       renderCoursesList();
     };
 
+    const majorSelect = document.getElementById('umspec-profile-major-select');
+    if (majorSelect) {
+      majorSelect.onchange = (e) => {
+        const val = e.target.value;
+        if (studentProfile) studentProfile.bachelor = val;
+        localStorage.setItem('umspec_saved_degree', val);
+        if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+          chrome.storage.local.set({ 'umspec_saved_degree': val });
+        }
+      };
+    }
+
     document.getElementById('umspec-start-btn').onclick = runZeroTouchExport;
   }
 
@@ -356,7 +405,10 @@
   function updateProfileUI() {
     if (!studentProfile) return;
     document.getElementById('umspec-profile-year').innerText = studentProfile.yearSem;
-    document.getElementById('umspec-profile-major').innerText = studentProfile.bachelor;
+    const majorSelect = document.getElementById('umspec-profile-major-select');
+    if (majorSelect) {
+      majorSelect.value = studentProfile.bachelor;
+    }
     document.getElementById('umspec-profile-faculty').innerText = studentProfile.faculty;
   }
 

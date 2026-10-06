@@ -53,14 +53,20 @@ def detect_academic_profile(courses, user_name):
     if fsktm_cnt >= 2:
         faculty = 'Faculty of Computer Science & Information Technology (FSKTM)'
         full_list = [c['fullCode'] for c in codes]
-        if 'WIA2007' in full_list or 'WIA2006' in full_list:
+        all_titles = " ".join(c.get('fullName', '').lower() for c in courses)
+
+        if any(c.startswith('WIC') for c in full_list) or 'artificial intelligence' in all_titles or 'machine learning' in all_titles or 'WIA2003' in full_list:
+            bachelor = 'Bachelor of Computer Science (Artificial Intelligence)'
+        elif any(c.startswith('WID') for c in full_list) or 'data science' in all_titles:
+            bachelor = 'Bachelor of Computer Science (Data Science)'
+        elif any(c.startswith('WIE') for c in full_list) or 'software architecture' in all_titles:
             bachelor = 'Bachelor of Computer Science (Software Engineering)'
-        elif any(c.startswith('WID') for c in full_list):
-            bachelor = 'Bachelor of Computer Science (Data Science / AI)'
-        elif any(c.startswith('WIB') for c in full_list):
+        elif any(c.startswith('WIF') for c in full_list) or 'network' in all_titles:
+            bachelor = 'Bachelor of Computer Science (Computer Systems and Networking)'
+        elif any(c.startswith('WIB') for c in full_list) or 'information system' in all_titles:
             bachelor = 'Bachelor of Information Technology (Information Systems)'
         else:
-            bachelor = 'Bachelor of Computer Science / IT'
+            bachelor = 'Bachelor of Computer Science (Artificial Intelligence)'
     elif eng_cnt >= 2:
         faculty = 'Faculty of Engineering (FK)'
         bachelor = 'Bachelor of Engineering'
