@@ -403,8 +403,7 @@
           <div class="umspec-header-title">
             <span style="font-size: 26px;">⚡</span>
             <div>
-              <h2>UmSpec Smart Course Exporter</h2>
-              <p>Zero-touch automatic download, taxonomy classification & ZIP packaging</p>
+              <h2>UmSpec Exporter</h2>
             </div>
           </div>
           <button class="umspec-close-btn" id="umspec-close-modal" title="Close">&times;</button>
