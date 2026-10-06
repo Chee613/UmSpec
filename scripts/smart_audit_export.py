@@ -242,15 +242,55 @@ def run_smart_audit_and_export(cookie, output_dir=None):
                         if r.status_code != 200: continue
                         ct = r.headers.get('Content-Type', '').lower()
                         if 'text/html' in ct:
-                            # Embedded file check
                             h_soup = BeautifulSoup(r.text, 'html.parser')
-                            emb = h_soup.select_one('.resourceworkaround a, .resourcecontent object, a[href*="pluginfile.php"]')
-                            if emb:
-                                next_url = emb.get('data') or emb.get('src') or emb.get('href')
-                                if next_url and 'pluginfile.php' in next_url:
-                                    r = session.get(next_url, stream=True, timeout=40)
+                            if item['type'] == 'assign':
+                                assign_files = h_soup.select('#intro a[href*="pluginfile.php"], .intro a[href*="pluginfile.php"], .fileuploadsubmission a[href*="pluginfile.php"]')
+                                for af in assign_files:
+                                    af_url = af.get('href')
+                                    if not af_url: continue
+                                    with session.get(af_url, stream=True, timeout=40) as ar:
+                                        if ar.status_code != 200: continue
+                                        cd = ar.headers.get('Content-Disposition', '')
+                                        m_utf = re.search(r"filename\*=UTF-8''([^;\r\n]+)", cd, re.I)
+                                        m_std = re.search(r'filename="([^"]+)"', cd, re.I)
+                                        if m_utf: af_name = urllib.parse.unquote(m_utf.group(1))
+                                        elif m_std: af_name = m_std.group(1)
+                                        else: af_name = af.get_text(strip=True) or sanitize_name(item['name']) + '.pdf'
+                                        af_name = sanitize_name(af_name)
+                                        zf.writestr(f"{course['folderName']}/{item['cat_id']}/{af_name}", ar.content)
+                                        c_downloaded += 1
+                                        total_files += 1
+                                        total_bytes += len(ar.content)
+                                        print(f"       + [{item['cat_id']}] (Assign File) {af_name}")
+                                continue
+                            elif item['type'] == 'folder':
+                                folder_files = h_soup.select('a[href*="pluginfile.php"]')
+                                for ff in folder_files:
+                                    ff_url = ff.get('href')
+                                    if not ff_url: continue
+                                    with session.get(ff_url, stream=True, timeout=40) as fr:
+                                        if fr.status_code != 200: continue
+                                        cd = fr.headers.get('Content-Disposition', '')
+                                        m_utf = re.search(r"filename\*=UTF-8''([^;\r\n]+)", cd, re.I)
+                                        m_std = re.search(r'filename="([^"]+)"', cd, re.I)
+                                        if m_utf: ff_name = urllib.parse.unquote(m_utf.group(1))
+                                        elif m_std: ff_name = m_std.group(1)
+                                        else: ff_name = ff.get_text(strip=True) or sanitize_name(item['name']) + '.pdf'
+                                        ff_name = sanitize_name(ff_name)
+                                        zf.writestr(f"{course['folderName']}/{item['cat_id']}/{ff_name}", fr.content)
+                                        c_downloaded += 1
+                                        total_files += 1
+                                        total_bytes += len(fr.content)
+                                        print(f"       + [{item['cat_id']}] (Folder File) {ff_name}")
+                                continue
+                            else:
+                                emb = h_soup.select_one('.resourceworkaround a, .resourcecontent object, a[href*="pluginfile.php"]')
+                                if emb:
+                                    next_url = emb.get('data') or emb.get('src') or emb.get('href')
+                                    if next_url and 'pluginfile.php' in next_url:
+                                        r = session.get(next_url, stream=True, timeout=40)
+                                    else: continue
                                 else: continue
-                            else: continue
 
                         # Filename resolution
                         cd = r.headers.get('Content-Disposition', '')

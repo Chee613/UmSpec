@@ -535,6 +535,20 @@
                   courseDownloadedCount++;
                 }
               }
+            } else if (item.type === 'assign') {
+              const aRes = await fetch(item.url, { credentials: 'include' });
+              const aHtml = await aRes.text();
+              const aDoc = new DOMParser().parseFromString(aHtml, 'text/html');
+              const aLinks = aDoc.querySelectorAll('#intro a[href*="pluginfile.php"], .intro a[href*="pluginfile.php"], .fileuploadsubmission a[href*="pluginfile.php"]');
+              for (const al of aLinks) {
+                const aData = await fetchBinary(al.href, al.innerText.trim() || item.name);
+                if (aData) {
+                  zip.file(`${course.folderName}/${item.category}/${aData.filename}`, aData.data);
+                  totalFiles++;
+                  totalBytes += aData.data.byteLength;
+                  courseDownloadedCount++;
+                }
+              }
             } else {
               const fData = await fetchBinary(item.url, item.name);
               if (fData) {
