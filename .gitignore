@@ -1,0 +1,14 @@
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# Editor artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.zip
+*.log
