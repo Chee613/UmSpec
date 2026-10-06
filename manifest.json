@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "UmSpec - SPeCTRUM Course Exporter",
+  "version": "1.0.0",
+  "description": "One-click course materials exporter for Universiti Malaya (UM) SPeCTRUM. Download all enrolled courses into a structured ZIP file.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "UmSpec Course Exporter",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://spectrum.um.edu.my/*"
+      ],
+      "js": [
+        "lib/jszip.min.js",
+        "content/content.js"
+      ],
+      "css": [
+        "content/content.css"
+      ],
+      "run_at": "document_end"
+    }
+  ],
+  "host_permissions": [
+    "https://spectrum.um.edu.my/*"
+  ],
+  "permissions": [
+    "storage"
+  ]
+}

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UmSpec</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="umspec-popup-container">
+    <div class="umspec-popup-header">
+      <div class="umspec-brand">
+        <span class="umspec-logo">📦</span>
+        <div>
+          <h1>UmSpec</h1>
+          <p>SPeCTRUM Course Exporter</p>
+        </div>
+      </div>
+      <span class="umspec-version">v1.0.0</span>
+    </div>
+
+    <div class="umspec-popup-body">
+      <div class="umspec-status-card" id="status-card">
+        <div class="umspec-status-indicator" id="status-indicator"></div>
+        <div class="umspec-status-details">
+          <div class="umspec-status-title" id="status-title">Checking Tab...</div>
+          <div class="umspec-status-desc" id="status-desc">Detecting SPeCTRUM session</div>
+        </div>
+      </div>
+
+      <div class="umspec-features">
+        <div class="umspec-feature-item">
+          <span>⚡</span>
+          <div>
+            <strong>1-Click Export</strong>
+            <p>Export all enrolled courses into a single ZIP</p>
+          </div>
+        </div>
+        <div class="umspec-feature-item">
+          <span>🗂️</span>
+          <div>
+            <strong>Standardized Hierarchy</strong>
+            <p>Slides, Tutorials, Labs, Assignments, References</p>
+          </div>
+        </div>
+        <div class="umspec-feature-item">
+          <span>🔒</span>
+          <div>
+            <strong>100% Client-Side</strong>
+            <p>Zero data collection, private in-browser zipping</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="umspec-action-section">
+        <button class="umspec-action-btn" id="action-btn">
+          <span>Open SPeCTRUM Dashboard</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="umspec-popup-footer">
+      <span>Built for UM Students</span>
+      <a href="https://github.com/Chee613/UmSpec" target="_blank">GitHub Repo</a>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
