@@ -198,6 +198,37 @@
   justify-content: space-between;
 }
 
+/* Selection Tools in Section Header */
+.umspec-selection-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.umspec-link-btn {
+  background: none;
+  border: none;
+  color: #1565c0;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  text-decoration: underline;
+}
+
+.umspec-link-btn:hover {
+  color: #0d47a1;
+  background: #e3f2fd;
+  text-decoration: none;
+}
+
+.umspec-sep {
+  color: #cbd5e1;
+  font-size: 10px;
+}
+
 /* Courses List */
 .umspec-courses-list {
   display: flex;
@@ -217,12 +248,33 @@
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
   transition: all 0.2s;
 }
 
 .umspec-course-row:hover {
   background: #f1f5f9;
   border-color: #cbd5e1;
+}
+
+.umspec-course-checkbox {
+  width: 17px;
+  height: 17px;
+  cursor: pointer;
+  accent-color: #0d47a1;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+.umspec-course-row.umspec-row-unselected {
+  opacity: 0.5;
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
+.umspec-course-row.umspec-row-unselected:hover {
+  opacity: 0.85;
 }
 
 .umspec-course-info {

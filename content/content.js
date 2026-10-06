@@ -13,6 +13,7 @@
 
   // State
   let detectedCourses = [];
+  let selectedCourseIds = new Set();
   let studentProfile = null;
   let isExporting = false;
   let sesskey = null;
@@ -268,8 +269,12 @@
 
           <!-- Course Overview Section -->
           <div class="umspec-section-label">
-            <span>Enrolled Subjects (<span id="umspec-course-count">0</span> detected)</span>
-            <span style="font-size: 11px; color: #16a34a; font-weight: 700;">✓ Auto-Selected</span>
+            <span>Enrolled Subjects (<span id="umspec-selected-count">0</span>/<span id="umspec-course-count">0</span> selected)</span>
+            <div class="umspec-selection-tools">
+              <button type="button" class="umspec-link-btn" id="umspec-select-all">Select All</button>
+              <span class="umspec-sep">•</span>
+              <button type="button" class="umspec-link-btn" id="umspec-deselect-all">Deselect All</button>
+            </div>
           </div>
 
           <div class="umspec-courses-list" id="umspec-courses-container">
@@ -309,6 +314,18 @@
       if (e.target === overlay && !isExporting) closeModal();
     };
 
+    document.getElementById('umspec-select-all').onclick = () => {
+      if (isExporting) return;
+      selectedCourseIds = new Set(detectedCourses.map(c => c.id));
+      renderCoursesList();
+    };
+
+    document.getElementById('umspec-deselect-all').onclick = () => {
+      if (isExporting) return;
+      selectedCourseIds.clear();
+      renderCoursesList();
+    };
+
     document.getElementById('umspec-start-btn').onclick = runZeroTouchExport;
   }
 
@@ -320,6 +337,7 @@
 
     if (detectedCourses.length === 0) {
       detectedCourses = await discoverCourses();
+      selectedCourseIds = new Set(detectedCourses.map(c => c.id));
       updateProfileUI();
       renderCoursesList();
     }
@@ -342,6 +360,31 @@
     document.getElementById('umspec-profile-faculty').innerText = studentProfile.faculty;
   }
 
+  // Update Selection UI & Button Text
+  function updateSelectionUI() {
+    const selectedCountEl = document.getElementById('umspec-selected-count');
+    const totalCountEl = document.getElementById('umspec-course-count');
+    const startBtn = document.getElementById('umspec-start-btn');
+    if (!startBtn) return;
+
+    const count = selectedCourseIds.size;
+    const total = detectedCourses.length;
+
+    if (selectedCountEl) selectedCountEl.innerText = count;
+    if (totalCountEl) totalCountEl.innerText = total;
+
+    if (count === 0) {
+      startBtn.disabled = true;
+      startBtn.innerHTML = `<span>⚠️ Select at least 1 course</span>`;
+    } else if (count === total) {
+      startBtn.disabled = false;
+      startBtn.innerHTML = `<span>⚡ Export All Courses (${total})</span>`;
+    } else {
+      startBtn.disabled = false;
+      startBtn.innerHTML = `<span>⚡ Export Selected (${count} of ${total})</span>`;
+    }
+  }
+
   // Render Courses List
   function renderCoursesList() {
     const container = document.getElementById('umspec-courses-container');
@@ -354,23 +397,58 @@
           No enrolled courses found. Please ensure you are logged into SPeCTRUM.
         </div>
       `;
-      countEl.innerText = '0';
+      if (countEl) countEl.innerText = '0';
+      updateSelectionUI();
       return;
     }
 
-    countEl.innerText = detectedCourses.length;
-    container.innerHTML = detectedCourses.map(c => `
-      <div class="umspec-course-row" id="umspec-row-${c.id}">
-        <div class="umspec-course-info">
-          <span class="umspec-bullet">📚</span>
-          <div>
-            <div class="umspec-course-title">${c.fullName}</div>
-            <span class="umspec-course-code">${c.folderName}</span>
+    container.innerHTML = detectedCourses.map(c => {
+      const isSelected = selectedCourseIds.has(c.id);
+      return `
+        <div class="umspec-course-row ${isSelected ? '' : 'umspec-row-unselected'}" id="umspec-row-${c.id}" data-id="${c.id}">
+          <div class="umspec-course-info">
+            <input type="checkbox" class="umspec-course-checkbox" data-id="${c.id}" ${isSelected ? 'checked' : ''} />
+            <span class="umspec-bullet">📚</span>
+            <div>
+              <div class="umspec-course-title">${c.fullName}</div>
+              <span class="umspec-course-code">${c.folderName}</span>
+            </div>
           </div>
+          <span class="umspec-course-status" id="umspec-status-${c.id}">Ready</span>
         </div>
-        <span class="umspec-course-status" id="umspec-status-${c.id}">Ready</span>
-      </div>
-    `).join('');
+      `;
+    }).join('');
+
+    // Attach row toggle handlers
+    container.querySelectorAll('.umspec-course-row').forEach(row => {
+      const id = row.getAttribute('data-id');
+      const chk = row.querySelector('.umspec-course-checkbox');
+
+      const toggleRow = (select) => {
+        if (isExporting) return;
+        if (select) {
+          selectedCourseIds.add(id);
+          row.classList.remove('umspec-row-unselected');
+          chk.checked = true;
+        } else {
+          selectedCourseIds.delete(id);
+          row.classList.add('umspec-row-unselected');
+          chk.checked = false;
+        }
+        updateSelectionUI();
+      };
+
+      chk.addEventListener('change', (e) => {
+        toggleRow(e.target.checked);
+      });
+
+      row.addEventListener('click', (e) => {
+        if (e.target === chk) return;
+        toggleRow(!selectedCourseIds.has(id));
+      });
+    });
+
+    updateSelectionUI();
   }
 
   // Helper: Fetch binary data
@@ -424,6 +502,12 @@
       return;
     }
 
+    const coursesToExport = detectedCourses.filter(c => selectedCourseIds.has(c.id));
+    if (coursesToExport.length === 0) {
+      alert('Please select at least one course to export.');
+      return;
+    }
+
     isExporting = true;
     window.onbeforeunload = () => 'Export in progress. Exiting will abort download.';
 
@@ -446,17 +530,17 @@
     const discoveredCategories = new Set();
 
     try {
-      for (let i = 0; i < detectedCourses.length; i++) {
+      for (let i = 0; i < coursesToExport.length; i++) {
         if (!isExporting) break;
 
-        const course = detectedCourses[i];
+        const course = coursesToExport[i];
         const statusBadge = document.getElementById(`umspec-status-${course.id}`);
         if (statusBadge) {
           statusBadge.innerText = 'Scanning...';
           statusBadge.style.color = '#1976d2';
         }
 
-        statusEl.innerText = `Analyzing course ${i + 1}/${detectedCourses.length}: ${course.fullName}...`;
+        statusEl.innerText = `Analyzing course ${i + 1}/${coursesToExport.length}: ${course.fullName}...`;
 
         const cRes = await fetch(`https://spectrum.um.edu.my/course/view.php?id=${course.id}`, { credentials: 'include' });
         const cHtml = await cRes.text();
@@ -516,7 +600,7 @@
           const item = itemsToDownload[j];
           statusEl.innerText = `[${course.folderName}] (${j + 1}/${itemsToDownload.length}) ${item.name}`;
 
-          const progressVal = Math.round(((i + (j / Math.max(1, itemsToDownload.length))) / detectedCourses.length) * 100);
+          const progressVal = Math.round(((i + (j / Math.max(1, itemsToDownload.length))) / coursesToExport.length) * 100);
           fillEl.style.width = `${progressVal}%`;
           percentEl.innerText = `${progressVal}%`;
 
@@ -588,6 +672,11 @@
         auditRows.push(`| **${course.folderName}** | ${course.fullName} | ${courseDownloadedCount} files | ${courseStatus} |`);
       }
 
+      // Record any unselected/excluded courses in audit table
+      detectedCourses.filter(c => !selectedCourseIds.has(c.id)).forEach(c => {
+        auditRows.push(`| **${c.folderName}** | ${c.fullName} | 0 files | ⚪ Excluded by User |`);
+      });
+
       // Generate Executive Academic Audit Report
       const auditReport = `# 🎓 Universiti Malaya - SPeCTRUM Semester Academic Audit
 
@@ -601,7 +690,7 @@
 * **Faculty:** ${studentProfile?.faculty || 'Faculty of Computer Science & Information Technology'}
 * **Detected Programme:** ${studentProfile?.bachelor || 'Bachelor of Computer Science'}
 * **Academic Period:** ${studentProfile?.yearSem || 'Year 2, Semester 1'}
-* **Total Enrolled Courses:** ${detectedCourses.length} Courses
+* **Total Enrolled Courses:** ${detectedCourses.length} Courses (${coursesToExport.length} Exported)
 
 ---
 

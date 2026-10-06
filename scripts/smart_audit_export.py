@@ -180,8 +180,21 @@ def run_smart_audit_and_export(cookie, output_dir=None):
     print(f" • Total Courses: {profile['totalCourses']} Enrolled Subjects")
     print("-"*65)
 
-    # 4. Crawl materials & Audit
-    print("\n[3/5] Performing adaptive material taxonomy crawl...")
+    print("\n[+] ENROLLED COURSES:")
+    for idx, c in enumerate(courses, 1):
+        print(f"  [{idx}] {c['folderName']} - {c['fullName']}")
+
+    selected_indices = None
+    try:
+        user_choice = input("\nSelect courses to export (e.g. 1,3,5 or press Enter for ALL): ").strip()
+        if user_choice:
+            selected_indices = [int(x.strip()) for x in user_choice.split(',') if x.strip().isdigit()]
+    except (EOFError, KeyboardInterrupt):
+        selected_indices = None
+
+    target_courses = [courses[i - 1] for i in selected_indices if 1 <= i <= len(courses)] if selected_indices else courses
+    print(f"\n[3/5] Performing adaptive material crawl for {len(target_courses)} selected course(s)...")
+
     date_str = datetime.now().strftime('%Y-%m-%d')
     zip_path = os.path.join(output_dir, f"SPeCTRUM_Smart_Export_{date_str}.zip")
     
@@ -191,8 +204,8 @@ def run_smart_audit_and_export(cookie, output_dir=None):
     discovered_taxonomies = set()
 
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for idx, course in enumerate(courses, 1):
-            print(f"\n  -> [{idx}/{len(courses)}] Crawling: {course['folderName']} - {course['fullName']}")
+        for idx, course in enumerate(target_courses, 1):
+            print(f"\n  -> [{idx}/{len(target_courses)}] Crawling: {course['folderName']} - {course['fullName']}")
             c_url = f'{BASE_URL}/course/view.php?id={course["id"]}'
             try:
                 c_resp = session.get(c_url, timeout=30)
@@ -331,6 +344,11 @@ def run_smart_audit_and_export(cookie, output_dir=None):
 
             status_text = "🟢 Active" if c_downloaded > 0 else "⚠️ Empty on SPeCTRUM"
             audit_rows.append(f"| **{course['folderName']}** | {course['fullName']} | {c_downloaded} files | {status_text} |")
+
+        target_ids = {c['id'] for c in target_courses}
+        for c in courses:
+            if c['id'] not in target_ids:
+                audit_rows.append(f"| **{c['folderName']}** | {c['fullName']} | 0 files | ⚪ Excluded by User |")
 
         # 5. Generate Academic Audit Report
         print("\n[4/5] Generating SEMESTER_AUDIT_REPORT.md...")
