@@ -1,30 +1,21 @@
 /**
- * UmSpec - SPeCTRUM Course Exporter
- * Client-side extension content script for Universiti Malaya SPeCTRUM.
+ * UmSpec - SPeCTRUM Course Exporter (Zero-Touch Smart Edition)
+ * Client-side browser extension for Universiti Malaya (UM) SPeCTRUM.
  */
 
 (function () {
   'use strict';
 
-  // Prevent multiple injections
   if (window.__umspec_injected) return;
   window.__umspec_injected = true;
 
-  console.log('[UmSpec] Extension initialized on SPeCTRUM');
+  console.log('[UmSpec] Zero-Touch Smart Exporter initialized on SPeCTRUM');
 
   // State
   let detectedCourses = [];
+  let studentProfile = null;
   let isExporting = false;
   let sesskey = null;
-
-  // Categories config
-  const CATEGORIES = [
-    { id: '1.Lecture Slide', label: '📖 1. Lecture Slides & Notes', default: true },
-    { id: '2.Tutorial', label: '📝 2. Tutorials & Problem Sets', default: true },
-    { id: '3.Lab', label: '💻 3. Labs & Practicals', default: true },
-    { id: '4.Assignment', label: '📂 4. Assignments & Project Briefs', default: true },
-    { id: '5.Reference', label: '📚 5. References & Textbooks', default: true }
-  ];
 
   // Helper: Sanitize folder/file names
   function sanitizeName(name) {
@@ -33,22 +24,20 @@
       .replace(/[\\/*?:"<>|]/g, '_')
       .replace(/\s+/g, ' ')
       .trim()
-      .slice(0, 150);
+      .slice(0, 160);
   }
 
-  // Helper: Extract course short folder name (e.g. "WIA2007 MAD")
+  // Helper: Extract clean course folder name (e.g. "WIA2007 MAD")
   function formatCourseFolder(fullName, shortName) {
     const codeMatch = fullName.match(/([A-Z]{3}\d{4})/i);
     const code = codeMatch ? codeMatch[1].toUpperCase() : 'COURSE';
-    
-    // Generate clean short title
+
     let title = fullName
       .replace(/([A-Z]{3}\d{4}\/[A-Z]{3}\d{4}|[A-Z]{3}\d{4})/gi, '')
       .replace(/[^\w\s]/gi, ' ')
       .replace(/\s+/g, ' ')
       .trim();
-      
-    // Acronym or short name
+
     const words = title.split(' ').filter(w => w.length > 2);
     let acronym = words.map(w => w[0]).join('').slice(0, 5).toUpperCase();
     if (!acronym) acronym = 'MATERIALS';
@@ -56,37 +45,105 @@
     return sanitizeName(`${code} ${acronym}`);
   }
 
-  // Helper: Classify item into category
-  function classifyCategory(itemName, sectionName) {
+  // Detect Bachelor's Degree & Year/Semester from Course List
+  function detectAcademicProfile(courses, userName) {
+    const codes = courses.map(c => {
+      const m = c.fullName.match(/([A-Z]{3})(\d)(\d{3})/i);
+      return m ? { prefix: m[1].toUpperCase(), year: parseInt(m[2]), fullCode: m[0].toUpperCase() } : null;
+    }).filter(Boolean);
+
+    let faculty = 'Universiti Malaya';
+    let bachelor = 'Bachelor Degree Programme';
+
+    const fsktmCount = codes.filter(c => ['WIA', 'WIB', 'WIC', 'WID', 'WIX'].includes(c.prefix)).length;
+    const engCount = codes.filter(c => ['KIE', 'KKA', 'KMK', 'KBE'].includes(c.prefix)).length;
+    const artsCount = codes.filter(c => ['AIA', 'AIB', 'GIG'].includes(c.prefix)).length;
+
+    if (fsktmCount >= 2) {
+      faculty = 'Faculty of Computer Science & Information Technology (FSKTM)';
+      const fullList = codes.map(c => c.fullCode);
+      if (fullList.includes('WIA2007') || fullList.includes('WIA2006')) {
+        bachelor = 'Bachelor of Computer Science (Software Engineering)';
+      } else if (fullList.some(c => c.startsWith('WID'))) {
+        bachelor = 'Bachelor of Computer Science (Data Science / AI)';
+      } else if (fullList.some(c => c.startsWith('WIB'))) {
+        bachelor = 'Bachelor of Information Technology (Information Systems)';
+      } else {
+        bachelor = 'Bachelor of Computer Science / IT';
+      }
+    } else if (engCount >= 2) {
+      faculty = 'Faculty of Engineering (FK)';
+      bachelor = 'Bachelor of Engineering';
+    } else if (artsCount >= 2) {
+      faculty = 'Faculty of Arts and Social Sciences (FASS)';
+      bachelor = 'Bachelor of Arts / Social Sciences';
+    }
+
+    const yearNumbers = codes.map(c => c.year).filter(y => y > 0 && y <= 4);
+    const avgYear = yearNumbers.length ? Math.round(yearNumbers.reduce((a, b) => a + b, 0) / yearNumbers.length) : 1;
+
+    return {
+      studentName: userName || 'UM Student',
+      faculty,
+      bachelor,
+      yearSem: `Year ${avgYear}, Semester 1`,
+      totalCourses: courses.length
+    };
+  }
+
+  // Adaptive Dynamic Category Classifier
+  function classifyAdaptiveCategory(itemName, sectionName, fileExt) {
     const n = (itemName || '').toLowerCase();
     const s = (sectionName || '').toLowerCase();
+    const ext = (fileExt || '').toLowerCase();
 
+    // 1. Past Year Questions (PYQ)
+    if (n.includes('pyq') || n.includes('past year') || n.includes('exam paper') || n.includes('final exam') || s.includes('past year') || s.includes('pyq')) {
+      return { id: '5.Past Year Questions', label: 'Past Year Questions' };
+    }
+    // 2. Source Code & Starter Kits
+    if (['.java', '.py', '.c', '.cpp', '.sql', '.html', '.js', '.ipynb'].includes(ext) || n.includes('source code') || n.includes('starter kit') || s.includes('source code')) {
+      return { id: '6.Source Code', label: 'Source Code & Starter Kits' };
+    }
+    // 3. Datasets (SPSS, CSV)
+    if (['.sav', '.csv', '.xlsx', '.xls'].includes(ext) || n.includes('dataset') || n.includes('data file') || s.includes('dataset')) {
+      return { id: '7.Datasets', label: 'Datasets & Statistical Files' };
+    }
+    // 4. Video & Audio Lectures
+    if (['.mp4', '.wmv', '.mov', '.mkv', '.mp3'].includes(ext) || n.includes('recorded lecture') || n.includes('video') || s.includes('video recording')) {
+      return { id: '8.Video Lectures', label: 'Recorded Lectures & Videos' };
+    }
+    // 5. Tutorials
     if (n.includes('tutorial') || s.includes('tutorial')) {
-      return '2.Tutorial';
+      return { id: '2.Tutorial', label: 'Tutorials & Problem Sets' };
     }
+    // 6. Labs / Practicals
     if (n.includes('lab') || n.includes('practical') || n.includes('pbl') || s.includes('lab') || s.includes('practical')) {
-      return '3.Lab';
+      return { id: '3.Lab', label: 'Labs & Practical Guides' };
     }
+    // 7. Assignments & Project Briefs
     if (
       n.includes('assignment') || n.includes('assign') || n.includes('project') ||
       n.includes('case study') || n.includes('peer assessment') || n.includes('weekly progress') ||
-      s.includes('assignment') || s.includes('project')
+      n.includes('rubric') || n.includes('declaration form') || s.includes('assignment') || s.includes('group project')
     ) {
-      return '4.Assignment';
+      return { id: '4.Assignment', label: 'Assignments & Project Briefs' };
     }
+    // 8. References & Textbooks
     if (
       n.includes('book') || n.includes('reference') || n.includes('additional material') ||
       n.includes('extra note') || n.includes('guide') || s.includes('reference') || s.includes('additional')
     ) {
-      return '5.Reference';
+      return { id: '9.Reference', label: 'References & Textbooks' };
     }
-    return '1.Lecture Slide';
+    // 9. Default Lecture Slide / Notes
+    return { id: '1.Lecture Slide', label: 'Lecture Slides & Notes' };
   }
 
-  // Extract Moodle sesskey from page
+  // Extract Moodle sesskey
   function getSesskey() {
     if (sesskey) return sesskey;
-    if (window.M && window.M.cfg && window.M.cfg.sesskey) {
+    if (window.M?.cfg?.sesskey) {
       sesskey = window.M.cfg.sesskey;
       return sesskey;
     }
@@ -104,7 +161,7 @@
     return null;
   }
 
-  // Discover all enrolled courses
+  // Discover all enrolled courses via Moodle API
   async function discoverCourses() {
     const courses = [];
     const key = getSesskey();
@@ -132,11 +189,10 @@
           });
         }
       } catch (err) {
-        console.warn('[UmSpec] AJAX course discovery failed, falling back to DOM scan:', err);
+        console.warn('[UmSpec] AJAX discovery fallback:', err);
       }
     }
 
-    // Fallback or complement with DOM course links
     if (courses.length === 0) {
       const seen = new Set();
       document.querySelectorAll('a[href*="/course/view.php?id="]').forEach(a => {
@@ -157,26 +213,30 @@
       });
     }
 
+    const userEl = document.querySelector('.usertext, .usermenu, .user-name');
+    const userName = userEl ? userEl.innerText.trim() : 'UM Student';
+    studentProfile = detectAcademicProfile(courses, userName);
+
     return courses;
   }
 
-  // Create & Inject Floating Button
+  // Create Floating Trigger Button
   function injectTriggerButton() {
     if (document.getElementById('umspec-trigger-btn')) return;
 
     const btn = document.createElement('button');
     btn.id = 'umspec-trigger-btn';
     btn.innerHTML = `
-      <span class="umspec-icon">📦</span>
-      <span>Export Courses (ZIP)</span>
+      <span class="umspec-icon">⚡</span>
+      <span>1-Click Smart Export</span>
       <span class="umspec-badge">UmSpec</span>
     `;
-    btn.title = 'UmSpec: Download all enrolled course materials as a structured ZIP file';
+    btn.title = 'UmSpec: Zero-Touch Smart Export for all SPeCTRUM courses';
     btn.onclick = openModal;
     document.body.appendChild(btn);
   }
 
-  // Create & Inject Modal Dialog
+  // Create & Inject Modal DOM
   function createModalDOM() {
     if (document.getElementById('umspec-modal-overlay')) return;
 
@@ -186,68 +246,57 @@
       <div id="umspec-modal">
         <div class="umspec-modal-header">
           <div class="umspec-header-title">
-            <span style="font-size: 24px;">📦</span>
+            <span style="font-size: 26px;">⚡</span>
             <div>
-              <h2>SPeCTRUM Course Exporter</h2>
-              <p>Download and package your enrolled course materials into a single structured ZIP</p>
+              <h2>UmSpec Smart Course Exporter</h2>
+              <p>Zero-touch automatic download, taxonomy classification & ZIP packaging</p>
             </div>
           </div>
           <button class="umspec-close-btn" id="umspec-close-modal" title="Close">&times;</button>
         </div>
 
         <div class="umspec-modal-body">
-          <!-- Category Filter Section -->
-          <div class="umspec-section-label">
-            <span>Material Types to Include</span>
-            <div class="umspec-quick-actions">
-              <button class="umspec-link-btn" id="umspec-select-all-cats">All</button>
-              <span>|</span>
-              <button class="umspec-link-btn" id="umspec-deselect-all-cats">None</button>
+          <!-- Student Academic Profile Card -->
+          <div class="umspec-profile-card" id="umspec-profile-card">
+            <div class="umspec-profile-header">
+              <span class="umspec-profile-badge">🎓 Academic Profile Detected</span>
+              <span class="umspec-profile-year" id="umspec-profile-year">Detecting...</span>
             </div>
-          </div>
-          <div class="umspec-categories-grid" id="umspec-cats-container">
-            ${CATEGORIES.map(cat => `
-              <label class="umspec-cat-card">
-                <input type="checkbox" value="${cat.id}" ${cat.default ? 'checked' : ''} class="umspec-cat-cb">
-                <span>${cat.label}</span>
-              </label>
-            `).join('')}
+            <div class="umspec-profile-major" id="umspec-profile-major">Analyzing enrolled curriculum...</div>
+            <div class="umspec-profile-faculty" id="umspec-profile-faculty">Universiti Malaya</div>
           </div>
 
-          <!-- Courses Selection Section -->
+          <!-- Course Overview Section -->
           <div class="umspec-section-label">
-            <span>Select Courses (<span id="umspec-course-count">0</span>)</span>
-            <div class="umspec-quick-actions">
-              <button class="umspec-link-btn" id="umspec-select-all-courses">Select All</button>
-              <span>|</span>
-              <button class="umspec-link-btn" id="umspec-deselect-all-courses">Deselect All</button>
-            </div>
+            <span>Enrolled Subjects (<span id="umspec-course-count">0</span> detected)</span>
+            <span style="font-size: 11px; color: #16a34a; font-weight: 700;">✓ Auto-Selected</span>
           </div>
+
           <div class="umspec-courses-list" id="umspec-courses-container">
-            <div style="padding: 20px; text-align: center; color: #64748b;">
-              🔄 Scanning your enrolled courses...
+            <div style="padding: 24px; text-align: center; color: #64748b;">
+              🔄 Scanning SPeCTRUM session and course materials...
             </div>
           </div>
 
-          <!-- Progress Card -->
+          <!-- Progress & Audit Card -->
           <div class="umspec-progress-card" id="umspec-progress-card">
             <div class="umspec-progress-header">
-              <span id="umspec-progress-title">Exporting Materials...</span>
+              <span id="umspec-progress-title">Running Smart Export...</span>
               <span id="umspec-progress-percent">0%</span>
             </div>
             <div class="umspec-progress-bar-bg">
               <div class="umspec-progress-bar-fill" id="umspec-progress-fill"></div>
             </div>
-            <div class="umspec-status-text" id="umspec-progress-status">Initializing download...</div>
+            <div class="umspec-status-text" id="umspec-progress-status">Preparing materials...</div>
           </div>
         </div>
 
         <div class="umspec-modal-footer">
           <div class="umspec-footer-info" id="umspec-footer-stats">
-            Ready to export selected course materials
+            Zero configuration needed • 100% Client-side
           </div>
           <button class="umspec-btn-primary" id="umspec-start-btn">
-            <span>🚀 Start Export (ZIP)</span>
+            <span>⚡ Start 1-Click Export (ZIP)</span>
           </button>
         </div>
       </div>
@@ -255,27 +304,12 @@
 
     document.body.appendChild(overlay);
 
-    // Event listeners
     document.getElementById('umspec-close-modal').onclick = closeModal;
     overlay.onclick = (e) => {
       if (e.target === overlay && !isExporting) closeModal();
     };
 
-    document.getElementById('umspec-select-all-cats').onclick = () => {
-      document.querySelectorAll('.umspec-cat-cb').forEach(cb => cb.checked = true);
-    };
-    document.getElementById('umspec-deselect-all-cats').onclick = () => {
-      document.querySelectorAll('.umspec-cat-cb').forEach(cb => cb.checked = false);
-    };
-
-    document.getElementById('umspec-select-all-courses').onclick = () => {
-      document.querySelectorAll('.umspec-course-cb').forEach(cb => cb.checked = true);
-    };
-    document.getElementById('umspec-deselect-all-courses').onclick = () => {
-      document.querySelectorAll('.umspec-course-cb').forEach(cb => cb.checked = false);
-    };
-
-    document.getElementById('umspec-start-btn').onclick = startExportProcess;
+    document.getElementById('umspec-start-btn').onclick = runZeroTouchExport;
   }
 
   // Open & Populate Modal
@@ -286,22 +320,29 @@
 
     if (detectedCourses.length === 0) {
       detectedCourses = await discoverCourses();
+      updateProfileUI();
       renderCoursesList();
     }
   }
 
   function closeModal() {
     if (isExporting) {
-      if (!confirm('An export is currently in progress. Closing will stop the download. Continue?')) {
-        return;
-      }
+      if (!confirm('Export is running. Closing will cancel the download. Continue?')) return;
       isExporting = false;
     }
     const overlay = document.getElementById('umspec-modal-overlay');
     if (overlay) overlay.classList.remove('umspec-active');
   }
 
-  // Render Courses in Modal
+  // Update Profile UI
+  function updateProfileUI() {
+    if (!studentProfile) return;
+    document.getElementById('umspec-profile-year').innerText = studentProfile.yearSem;
+    document.getElementById('umspec-profile-major').innerText = studentProfile.bachelor;
+    document.getElementById('umspec-profile-faculty').innerText = studentProfile.faculty;
+  }
+
+  // Render Courses List
   function renderCoursesList() {
     const container = document.getElementById('umspec-courses-container');
     const countEl = document.getElementById('umspec-course-count');
@@ -309,8 +350,8 @@
 
     if (detectedCourses.length === 0) {
       container.innerHTML = `
-        <div style="padding: 20px; text-align: center; color: #ef4444;">
-          No enrolled courses detected. Please ensure you are logged into SPeCTRUM.
+        <div style="padding: 24px; text-align: center; color: #ef4444;">
+          No enrolled courses found. Please ensure you are logged into SPeCTRUM.
         </div>
       `;
       countEl.innerText = '0';
@@ -318,36 +359,29 @@
     }
 
     countEl.innerText = detectedCourses.length;
-    container.innerHTML = detectedCourses.map(c => {
-      // Uncheck administrative courses by default
-      const isSystem = c.fullName.toLowerCase().includes('turnitin') || c.fullName.toLowerCase().includes('leap');
-      return `
-        <div class="umspec-course-row" id="umspec-row-${c.id}">
-          <div class="umspec-course-info">
-            <input type="checkbox" value="${c.id}" class="umspec-course-cb" ${!isSystem ? 'checked' : ''}>
-            <div>
-              <div class="umspec-course-title">${c.fullName}</div>
-              <span class="umspec-course-code">${c.folderName}</span>
-            </div>
+    container.innerHTML = detectedCourses.map(c => `
+      <div class="umspec-course-row" id="umspec-row-${c.id}">
+        <div class="umspec-course-info">
+          <span class="umspec-bullet">📚</span>
+          <div>
+            <div class="umspec-course-title">${c.fullName}</div>
+            <span class="umspec-course-code">${c.folderName}</span>
           </div>
-          <span class="umspec-course-status" id="umspec-status-${c.id}">Pending</span>
         </div>
-      `;
-    }).join('');
+        <span class="umspec-course-status" id="umspec-status-${c.id}">Ready</span>
+      </div>
+    `).join('');
   }
 
-  // Helper: Fetch a single file binary with credentials
+  // Helper: Fetch binary data
   async function fetchBinary(url, defaultName) {
     const res = await fetch(url, { credentials: 'include' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const ct = (res.headers.get('Content-Type') || '').toLowerCase();
-    
-    // Check if HTML embedded page
     if (ct.includes('text/html')) {
       const html = await res.text();
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
+      const doc = new DOMParser().parseFromString(html, 'text/html');
       const realLink = doc.querySelector('.resourceworkaround a, .resourcecontent object, a[href*="pluginfile.php"]');
       if (realLink) {
         const nextUrl = realLink.getAttribute('data') || realLink.getAttribute('href');
@@ -355,22 +389,20 @@
           return fetchBinary(nextUrl, defaultName);
         }
       }
-      return null; // Skip non-binary wrapper
+      return null;
     }
 
-    // Determine filename
     let filename = defaultName;
     const cd = res.headers.get('Content-Disposition') || '';
     const mUtf = cd.match(/filename\*=UTF-8''([^;\r\n]+)/i);
     const mStd = cd.match(/filename="([^"]+)"/i);
     const mUnq = cd.match(/filename=([^;\s]+)/i);
-    
+
     if (mUtf) filename = decodeURIComponent(mUtf[1]);
     else if (mStd) filename = mStd[1];
     else if (mUnq) filename = mUnq[1].replace(/['"]/g, '');
     else {
-      const pathname = new URL(res.url).pathname;
-      const base = pathname.split('/').pop();
+      const base = new URL(res.url).pathname.split('/').pop();
       if (base && base.includes('.') && !base.includes('.php')) {
         filename = decodeURIComponent(base);
       }
@@ -380,31 +412,24 @@
     return { filename: sanitizeName(filename), data };
   }
 
-  // Main Export Pipeline
-  async function startExportProcess() {
+  // Zero-Touch Smart Export Pipeline
+  async function runZeroTouchExport() {
     if (typeof JSZip === 'undefined') {
-      alert('JSZip library is missing. Please reload the page.');
+      alert('JSZip library is missing. Please refresh the page.');
       return;
     }
 
-    const selectedCourseIds = Array.from(document.querySelectorAll('.umspec-course-cb:checked')).map(cb => cb.value);
-    if (selectedCourseIds.length === 0) {
-      alert('Please select at least one course to export.');
-      return;
-    }
-
-    const selectedCats = new Set(Array.from(document.querySelectorAll('.umspec-cat-cb:checked')).map(cb => cb.value));
-    if (selectedCats.size === 0) {
-      alert('Please select at least one material category to include.');
+    if (detectedCourses.length === 0) {
+      alert('No enrolled courses detected.');
       return;
     }
 
     isExporting = true;
-    window.onbeforeunload = () => 'An export is currently in progress. Are you sure you want to exit?';
+    window.onbeforeunload = () => 'Export in progress. Exiting will abort download.';
 
     const startBtn = document.getElementById('umspec-start-btn');
     startBtn.disabled = true;
-    startBtn.innerHTML = `<span>⏳ Exporting...</span>`;
+    startBtn.innerHTML = `<span>⏳ Smart Exporting...</span>`;
 
     const progressCard = document.getElementById('umspec-progress-card');
     progressCard.style.display = 'block';
@@ -417,31 +442,29 @@
     const zip = new JSZip();
     let totalFiles = 0;
     let totalBytes = 0;
-    const summaryList = [];
-
-    const selectedCourses = detectedCourses.filter(c => selectedCourseIds.includes(c.id));
+    const auditRows = [];
+    const discoveredCategories = new Set();
 
     try {
-      for (let i = 0; i < selectedCourses.length; i++) {
+      for (let i = 0; i < detectedCourses.length; i++) {
         if (!isExporting) break;
 
-        const course = selectedCourses[i];
+        const course = detectedCourses[i];
         const statusBadge = document.getElementById(`umspec-status-${course.id}`);
         if (statusBadge) {
           statusBadge.innerText = 'Scanning...';
           statusBadge.style.color = '#1976d2';
         }
 
-        statusEl.innerText = `Scanning course ${i + 1}/${selectedCourses.length}: ${course.fullName}...`;
+        statusEl.innerText = `Analyzing course ${i + 1}/${detectedCourses.length}: ${course.fullName}...`;
 
-        // 1. Fetch course page
         const cRes = await fetch(`https://spectrum.um.edu.my/course/view.php?id=${course.id}`, { credentials: 'include' });
         const cHtml = await cRes.text();
-        const parser = new DOMParser();
-        const cDoc = parser.parseFromString(cHtml, 'text/html');
+        const cDoc = new DOMParser().parseFromString(cHtml, 'text/html');
 
         const itemsToDownload = [];
         const seenUrls = new Set();
+        const externalLinks = [];
 
         const sections = cDoc.querySelectorAll('.course-content ul.topics > li, .course-content ul.weeks > li, .course-content .section');
         sections.forEach(sec => {
@@ -465,10 +488,18 @@
             if (seenUrls.has(actUrl)) return;
             seenUrls.add(actUrl);
 
-            const cat = classifyCategory(actName, secName);
-            if (!selectedCats.has(cat)) return;
+            // Adaptive category determination
+            const extMatch = actUrl.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
+            const ext = extMatch ? `.${extMatch[1]}` : '';
+            const cat = classifyAdaptiveCategory(actName, secName, ext);
+            discoveredCategories.add(cat.label);
 
-            itemsToDownload.push({ name: actName, url: actUrl, type: modType, category: cat, section: secName });
+            itemsToDownload.push({ name: actName, url: actUrl, type: modType, category: cat.id, section: secName });
+          });
+
+          // Check video/external links
+          sec.querySelectorAll('a[href*="youtu.be"], a[href*="youtube.com"], a[href*="drive.google.com"]').forEach(ea => {
+            externalLinks.push({ title: ea.innerText.trim() || 'External Lecture Link', url: ea.href, section: secName });
           });
         });
 
@@ -479,14 +510,13 @@
 
         let courseDownloadedCount = 0;
 
-        // 2. Download items
         for (let j = 0; j < itemsToDownload.length; j++) {
           if (!isExporting) break;
 
           const item = itemsToDownload[j];
           statusEl.innerText = `[${course.folderName}] (${j + 1}/${itemsToDownload.length}) ${item.name}`;
-          
-          const progressVal = Math.round(((i + (j / itemsToDownload.length)) / selectedCourses.length) * 100);
+
+          const progressVal = Math.round(((i + (j / Math.max(1, itemsToDownload.length))) / detectedCourses.length) * 100);
           fillEl.style.width = `${progressVal}%`;
           percentEl.innerText = `${progressVal}%`;
 
@@ -494,7 +524,7 @@
             if (item.type === 'folder') {
               const fRes = await fetch(item.url, { credentials: 'include' });
               const fHtml = await fRes.text();
-              const fDoc = parser.parseFromString(fHtml, 'text/html');
+              const fDoc = new DOMParser().parseFromString(fHtml, 'text/html');
               const fLinks = fDoc.querySelectorAll('a[href*="pluginfile.php"]');
               for (const fl of fLinks) {
                 const fData = await fetchBinary(fl.href, fl.innerText.trim() || item.name);
@@ -515,23 +545,77 @@
               }
             }
           } catch (e) {
-            console.warn(`[UmSpec] Failed to fetch item: ${item.name}`, e);
+            console.warn(`[UmSpec] Failed item ${item.name}:`, e);
           }
         }
 
-        if (statusBadge) {
-          statusBadge.innerText = `✅ Done (${courseDownloadedCount})`;
-          statusBadge.style.color = '#16a34a';
+        // Save external links markdown if present
+        if (externalLinks.length > 0) {
+          let linksMd = `# 🎥 ${course.fullName} - Lecture & Video Links\n\n`;
+          let curSec = null;
+          externalLinks.forEach(el => {
+            if (el.section !== curSec) {
+              curSec = el.section;
+              linksMd += `\n### ${curSec}\n\n`;
+            }
+            linksMd += `- [${el.title}](${el.url})\n`;
+          });
+          zip.file(`${course.folderName}/1.Lecture Slide/Lecture_Videos_and_Links.md`, linksMd);
+          courseDownloadedCount++;
+          totalFiles++;
         }
 
-        summaryList.push(`* **${course.folderName}**: ${course.fullName} (${courseDownloadedCount} files)`);
+        const courseStatus = courseDownloadedCount > 0 ? '🟢 Active' : '⚠️ Empty on SPeCTRUM';
+        if (statusBadge) {
+          statusBadge.innerText = courseDownloadedCount > 0 ? `✅ Done (${courseDownloadedCount})` : '⚠️ Empty';
+          statusBadge.style.color = courseDownloadedCount > 0 ? '#16a34a' : '#d97706';
+        }
+
+        auditRows.push(`| **${course.folderName}** | ${course.fullName} | ${courseDownloadedCount} files | ${courseStatus} |`);
       }
 
-      // Add README.md inside ZIP
-      const readmeContent = `# 📚 SPeCTRUM Course Materials Export\n\nGenerated on: ${new Date().toLocaleString()}\nTotal Files: ${totalFiles}\nTotal Size: ${(totalBytes / (1024 * 1024)).toFixed(2)} MB\n\n## Courses Included\n\n${summaryList.join('\n')}\n\n---\n*Exported seamlessly via UmSpec.*`;
-      zip.file('README.md', readmeContent);
+      // Generate Executive Academic Audit Report
+      const auditReport = `# 🎓 Universiti Malaya - SPeCTRUM Semester Academic Audit
 
-      // 3. Generate ZIP & Trigger Browser Download
+> **Auto-Generated by UmSpec Zero-Touch Engine** on ${new Date().toLocaleString()}
+
+---
+
+## 🧑‍🎓 Student Academic Profile
+
+* **Student:** ${studentProfile?.studentName || 'UM Student'}
+* **Faculty:** ${studentProfile?.faculty || 'Faculty of Computer Science & Information Technology'}
+* **Detected Programme:** ${studentProfile?.bachelor || 'Bachelor of Computer Science'}
+* **Academic Period:** ${studentProfile?.yearSem || 'Year 2, Semester 1'}
+* **Total Enrolled Courses:** ${detectedCourses.length} Courses
+
+---
+
+## 📊 Course Content & Material Health Check
+
+| Course Folder | Official Title | Materials Downloaded | Health Status |
+| :--- | :--- | :---: | :--- |
+${auditRows.join('\n')}
+
+---
+
+## 🗂️ Discovered Material Taxonomy
+
+The following categories were dynamically identified and organized across your courses:
+${Array.from(discoveredCategories).map(c => `* **${c}**`).join('\n')}
+
+---
+
+## 📦 Total Archive Statistics
+* **Total Files:** ${totalFiles}
+* **Total Uncompressed Size:** ${(totalBytes / (1024 * 1024)).toFixed(2)} MB
+
+*Preserve this audit report as your official semester archive index.*
+`;
+
+      zip.file('SEMESTER_AUDIT_REPORT.md', auditReport);
+
+      // Compress and Save ZIP
       statusEl.innerText = 'Compressing into ZIP archive...';
       fillEl.style.width = '100%';
       percentEl.innerText = '100%';
@@ -549,19 +633,19 @@
       const downloadLink = document.createElement('a');
       const dateStr = new Date().toISOString().slice(0, 10);
       downloadLink.href = downloadUrl;
-      downloadLink.download = `SPeCTRUM_Export_${dateStr}.zip`;
+      downloadLink.download = `SPeCTRUM_Smart_Export_${dateStr}.zip`;
       document.body.appendChild(downloadLink);
       downloadLink.click();
       setTimeout(() => URL.revokeObjectURL(downloadUrl), 60000);
 
-      statusEl.innerText = `✅ Export complete! Downloaded ${totalFiles} files (${(totalBytes / (1024 * 1024)).toFixed(1)} MB).`;
-      footerStats.innerText = `Saved SPeCTRUM_Export_${dateStr}.zip`;
-      startBtn.innerHTML = `<span>🎉 Completed</span>`;
+      statusEl.innerText = `✅ Export Complete! Processed ${totalFiles} files (${(totalBytes / (1024 * 1024)).toFixed(1)} MB).`;
+      footerStats.innerText = `Saved SPeCTRUM_Smart_Export_${dateStr}.zip`;
+      startBtn.innerHTML = `<span>🎉 Export Complete</span>`;
 
     } catch (err) {
-      console.error('[UmSpec] Export error:', err);
+      console.error('[UmSpec] Smart export error:', err);
       statusEl.innerText = `❌ Error: ${err.message}`;
-      alert(`Export failed: ${err.message}`);
+      alert(`Smart export failed: ${err.message}`);
     } finally {
       isExporting = false;
       window.onbeforeunload = null;
@@ -569,7 +653,7 @@
     }
   }
 
-  // Inject UI when SPeCTRUM page loads
+  // Inject UI on SPeCTRUM
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', injectTriggerButton);
   } else {
