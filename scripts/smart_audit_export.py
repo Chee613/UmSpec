@@ -23,14 +23,24 @@ def sanitize_name(name):
     name = re.sub(r'\s+', ' ', name).strip(' .')
     return name[:150] or 'unnamed'
 
-def format_course_folder(full_name, short_name):
-    m = re.search(r'([A-Z]{3}\d{4})', full_name, re.I)
-    code = m.group(1).upper() if m else 'COURSE'
-    title = re.sub(r'([A-Z]{3}\d{4}\/[A-Z]{3}\d{4}|[A-Z]{3}\d{4})', '', full_name, flags=re.I)
-    title = re.sub(r'[^\w\s]', ' ', title).strip()
-    words = [w for w in title.split() if len(w) > 2]
-    acronym = ''.join(w[0] for w in words)[:5].upper() or 'MATERIALS'
-    return sanitize_name(f"{code} {acronym}")
+def format_course_folder(full_name, short_name=''):
+    raw = full_name or short_name or 'Course Materials'
+    # 1. Extract course code (e.g. WIA2007)
+    code_m = re.search(r'([A-Z]{3}\d{4})', raw, re.I)
+    code = code_m.group(1).upper() if code_m else ''
+
+    # 2. Clean title: remove course codes, cross-listings, semester tags, brackets
+    title = raw
+    title = re.sub(r'[A-Z]{3}\d{4}(?:\s*/\s*[A-Z]{3}\d{4})*', ' ', title, flags=re.I)
+    title = re.sub(r'[\(\[\{].*?[\)\]\}]', ' ', title)
+    title = re.sub(r'\b(sem(?:ester)?\s*\d+|20\d\d\s*/\s*20\d\d|occ\s*\d+|sec(?:tion)?\s*\d+|kumpulan\s*\d+)\b', ' ', title, flags=re.I)
+    title = re.sub(r'[^\w\s]', ' ', title)
+    title = re.sub(r'\s+', ' ', title).strip()
+
+    title_words = [w.capitalize() for w in title.split() if len(w) > 0]
+    clean_title = ' '.join(title_words) or 'Course Materials'
+
+    return sanitize_name(f"{code} {clean_title}".strip())
 
 def detect_academic_profile(courses, user_name):
     codes = []

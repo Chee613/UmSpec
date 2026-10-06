@@ -28,22 +28,32 @@
       .slice(0, 160);
   }
 
-  // Helper: Extract clean course folder name (e.g. "WIA2007 MAD")
+  // Helper: Extract clean course folder name with full title in Title Case (e.g. "WIA2007 Mobile Application Development")
   function formatCourseFolder(fullName, shortName) {
-    const codeMatch = fullName.match(/([A-Z]{3}\d{4})/i);
-    const code = codeMatch ? codeMatch[1].toUpperCase() : 'COURSE';
+    const raw = fullName || shortName || 'Course Materials';
 
-    let title = fullName
-      .replace(/([A-Z]{3}\d{4}\/[A-Z]{3}\d{4}|[A-Z]{3}\d{4})/gi, '')
+    // 1. Extract course code (e.g. "WIA2007")
+    const codeMatch = raw.match(/([A-Z]{3}\d{4})/i) || (shortName || '').match(/([A-Z]{3}\d{4})/i);
+    const code = codeMatch ? codeMatch[1].toUpperCase() : '';
+
+    // 2. Clean title: remove course codes, cross-listings, semester tags, brackets, and extra noise
+    let title = raw
+      .replace(/[A-Z]{3}\d{4}(?:\s*\/\s*[A-Z]{3}\d{4})*/gi, ' ')
+      .replace(/[\(\[\{].*?[\)\]\}]/g, ' ')
+      .replace(/\b(sem(?:ester)?\s*\d+|20\d\d\s*\/\s*20\d\d|occ\s*\d+|sec(?:tion)?\s*\d+|kumpulan\s*\d+)\b/gi, ' ')
       .replace(/[^\w\s]/gi, ' ')
       .replace(/\s+/g, ' ')
       .trim();
 
-    const words = title.split(' ').filter(w => w.length > 2);
-    let acronym = words.map(w => w[0]).join('').slice(0, 5).toUpperCase();
-    if (!acronym) acronym = 'MATERIALS';
+    // 3. Capitalize first letter of every word (Title Case)
+    const titleWords = title
+      .split(' ')
+      .filter(w => w.length > 0)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 
-    return sanitizeName(`${code} ${acronym}`);
+    const cleanTitle = titleWords.join(' ') || 'Course Materials';
+
+    return sanitizeName(code ? `${code} ${cleanTitle}` : cleanTitle);
   }
 
   // Detect Bachelor's Degree & Year/Semester from Course List
