@@ -450,9 +450,7 @@
         </div>
 
         <div class="umspec-modal-footer">
-          <div class="umspec-footer-info" id="umspec-footer-stats">
-            Zero configuration needed • 100% Client-side
-          </div>
+          <div class="umspec-footer-info" id="umspec-footer-stats"></div>
           <button class="umspec-btn-primary" id="umspec-start-btn">
             <span>⚡ Start 1-Click Export (ZIP)</span>
           </button>
