@@ -18,6 +18,19 @@
   let isExporting = false;
   let sesskey = null;
 
+  // Lucide Line SVG Icons (2px monoline stroke)
+  const ICONS = {
+    zap: `<svg class="umspec-svg" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`,
+    zapLg: `<svg class="umspec-svg umspec-svg-lg" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>`,
+    graduationCap: `<svg class="umspec-svg" viewBox="0 0 24 24"><path d="M22 10v6M2 10l10-5 10 5-10 5z"></path><path d="M6 12v5c3 3 9 3 12 0v-5"></path></svg>`,
+    bookOpen: `<svg class="umspec-svg" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>`,
+    download: `<svg class="umspec-svg" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`,
+    loader: `<svg class="umspec-svg umspec-spin" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>`,
+    alertCircle: `<svg class="umspec-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`,
+    checkCircle: `<svg class="umspec-svg" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`,
+    folderArchive: `<svg class="umspec-svg" viewBox="0 0 24 24"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path><circle cx="12" cy="13" r="2"></circle></svg>`
+  };
+
   // Helper: Sanitize folder/file names
   function sanitizeName(name) {
     if (!name) return 'unnamed';
@@ -382,7 +395,7 @@
     const btn = document.createElement('button');
     btn.id = 'umspec-trigger-btn';
     btn.innerHTML = `
-      <span class="umspec-icon">⚡</span>
+      <span class="umspec-icon">${ICONS.zap}</span>
       <span>1-Click Smart Export</span>
       <span class="umspec-badge">UmSpec</span>
     `;
@@ -401,7 +414,7 @@
       <div id="umspec-modal">
         <div class="umspec-modal-header">
           <div class="umspec-header-title">
-            <span style="font-size: 26px;">⚡</span>
+            <span class="umspec-header-icon-box">${ICONS.zapLg}</span>
             <div>
               <h2>UmSpec Exporter</h2>
             </div>
@@ -413,7 +426,7 @@
           <!-- Student Academic Profile Card -->
           <div class="umspec-profile-card" id="umspec-profile-card">
             <div class="umspec-profile-header">
-              <span class="umspec-profile-badge">🎓 Academic Programme</span>
+              <span class="umspec-profile-badge">${ICONS.graduationCap} Academic Programme</span>
               <span class="umspec-profile-year" id="umspec-profile-year">Detecting...</span>
             </div>
             <div class="umspec-profile-major" id="umspec-profile-major">Detecting programme...</div>
@@ -431,8 +444,8 @@
           </div>
 
           <div class="umspec-courses-list" id="umspec-courses-container">
-            <div style="padding: 24px; text-align: center; color: #64748b;">
-              🔄 Scanning SPeCTRUM session and course materials...
+            <div style="padding: 24px; text-align: center; color: #64748b; display: flex; align-items: center; justify-content: center; gap: 8px;">
+              ${ICONS.loader} <span>Scanning SPeCTRUM session and course materials...</span>
             </div>
           </div>
 
@@ -452,7 +465,7 @@
         <div class="umspec-modal-footer">
           <div class="umspec-footer-info" id="umspec-footer-stats"></div>
           <button class="umspec-btn-primary" id="umspec-start-btn">
-            <span>⚡ Start 1-Click Export (ZIP)</span>
+            ${ICONS.download} <span>Start 1-Click Export (ZIP)</span>
           </button>
         </div>
       </div>
@@ -529,13 +542,13 @@
 
     if (count === 0) {
       startBtn.disabled = true;
-      startBtn.innerHTML = `<span>⚠️ Select at least 1 course</span>`;
+      startBtn.innerHTML = `${ICONS.alertCircle} <span>Select at least 1 course</span>`;
     } else if (count === total) {
       startBtn.disabled = false;
-      startBtn.innerHTML = `<span>⚡ Export All Courses (${total})</span>`;
+      startBtn.innerHTML = `${ICONS.download} <span>Export All Courses (${total})</span>`;
     } else {
       startBtn.disabled = false;
-      startBtn.innerHTML = `<span>⚡ Export Selected (${count} of ${total})</span>`;
+      startBtn.innerHTML = `${ICONS.download} <span>Export Selected (${count} of ${total})</span>`;
     }
   }
 
@@ -547,8 +560,8 @@
 
     if (detectedCourses.length === 0) {
       container.innerHTML = `
-        <div style="padding: 24px; text-align: center; color: #ef4444;">
-          No enrolled courses found. Please ensure you are logged into SPeCTRUM.
+        <div style="padding: 24px; text-align: center; color: #ef4444; display: flex; align-items: center; justify-content: center; gap: 8px;">
+          ${ICONS.alertCircle} <span>No enrolled courses found. Please ensure you are logged into SPeCTRUM.</span>
         </div>
       `;
       if (countEl) countEl.innerText = '0';
@@ -562,7 +575,7 @@
         <div class="umspec-course-row ${isSelected ? '' : 'umspec-row-unselected'}" id="umspec-row-${c.id}" data-id="${c.id}">
           <div class="umspec-course-info">
             <input type="checkbox" class="umspec-course-checkbox" data-id="${c.id}" ${isSelected ? 'checked' : ''} />
-            <span class="umspec-bullet">📚</span>
+            <span class="umspec-bullet">${ICONS.bookOpen}</span>
             <div>
               <div class="umspec-course-title">${c.fullName}</div>
               <span class="umspec-course-code">${c.folderName}</span>
@@ -667,7 +680,7 @@
 
     const startBtn = document.getElementById('umspec-start-btn');
     startBtn.disabled = true;
-    startBtn.innerHTML = `<span>⏳ Smart Exporting...</span>`;
+    startBtn.innerHTML = `${ICONS.loader} <span>Smart Exporting...</span>`;
 
     const progressCard = document.getElementById('umspec-progress-card');
     progressCard.style.display = 'block';
@@ -895,9 +908,9 @@ ${Array.from(discoveredCategories).map(c => `* **${c}**`).join('\n')}
       downloadLink.click();
       setTimeout(() => URL.revokeObjectURL(downloadUrl), 60000);
 
-      statusEl.innerText = `✅ Export Complete! Processed ${totalFiles} files (${(totalBytes / (1024 * 1024)).toFixed(1)} MB).`;
+      statusEl.innerText = `Export Complete! Processed ${totalFiles} files (${(totalBytes / (1024 * 1024)).toFixed(1)} MB).`;
       footerStats.innerText = `Saved SPeCTRUM_Smart_Export_${dateStr}.zip`;
-      startBtn.innerHTML = `<span>🎉 Export Complete</span>`;
+      startBtn.innerHTML = `${ICONS.checkCircle} <span>Export Complete</span>`;
 
     } catch (err) {
       console.error('[UmSpec] Smart export error:', err);

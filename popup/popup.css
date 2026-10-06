@@ -33,7 +33,33 @@ body {
 }
 
 .umspec-logo {
-  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+/* Lucide Line SVGs */
+.umspec-svg {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.umspec-svg-lg {
+  width: 20px;
+  height: 20px;
 }
 
 .umspec-brand h1 {
@@ -115,9 +141,17 @@ body {
   font-size: 12px;
 }
 
-.umspec-feature-item span {
-  font-size: 16px;
-  line-height: 1.2;
+.umspec-feature-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
 .umspec-feature-item strong {
