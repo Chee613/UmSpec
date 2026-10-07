@@ -34,7 +34,8 @@
     checkCircle: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>`,
     close: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`,
     folderArchive: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>`,
-    bolt: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>`
+    bolt: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>`,
+    chevronDown: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>`
   };
 
   // Official Chrome Dino Sprite Base64 Assets (Exact Chromium 1x Assets)
@@ -751,6 +752,9 @@
     console.log('[UmSpec] Aborting export...');
     isExporting = false;
 
+    // Restore course selection panel
+    setSelectionPanelCollapsed(false);
+
     if (abortController) {
       abortController.abort();
       abortController = null;
@@ -791,6 +795,40 @@
     });
   }
 
+  // Selection Panel Accordion Collapse / Expand Helpers
+  function setSelectionPanelCollapsed(collapsed) {
+    const section = document.getElementById('umspec-selection-section');
+    const header = document.getElementById('umspec-section-header');
+    const tools = document.getElementById('umspec-selection-tools');
+    const toggleBtn = document.getElementById('umspec-toggle-selection');
+    const toggleText = document.getElementById('umspec-toggle-text');
+    if (!section) return;
+
+    if (collapsed) {
+      section.classList.add('umspec-collapsed');
+      if (header) header.classList.add('umspec-clickable-header');
+      if (tools) tools.style.display = 'none';
+      if (toggleBtn) toggleBtn.style.display = 'inline-flex';
+      if (toggleText) toggleText.innerText = 'EXPAND';
+    } else {
+      section.classList.remove('umspec-collapsed');
+      if (header) {
+        if (isExporting) header.classList.add('umspec-clickable-header');
+        else header.classList.remove('umspec-clickable-header');
+      }
+      if (tools) tools.style.display = isExporting ? 'none' : 'flex';
+      if (toggleBtn) toggleBtn.style.display = isExporting ? 'inline-flex' : 'none';
+      if (toggleText) toggleText.innerText = 'COLLAPSE';
+    }
+  }
+
+  function toggleSelectionPanel() {
+    const section = document.getElementById('umspec-selection-section');
+    if (!section) return;
+    const isCurrentlyCollapsed = section.classList.contains('umspec-collapsed');
+    setSelectionPanelCollapsed(!isCurrentlyCollapsed);
+  }
+
   // Create & Inject Modal DOM
   function createModalDOM() {
     if (document.getElementById('umspec-modal-overlay')) return;
@@ -825,18 +863,26 @@
           </div>
 
           <!-- Course Overview Section -->
-          <div class="umspec-section-label">
-            <span>ENROLLED SUBJECTS // [<span id="umspec-selected-count">0</span>/<span id="umspec-course-count">0</span> SELECTED]</span>
-            <div class="umspec-selection-tools">
-              <button type="button" class="umspec-link-btn" id="umspec-select-all">SELECT ALL</button>
-              <span class="umspec-sep">//</span>
-              <button type="button" class="umspec-link-btn" id="umspec-deselect-all">DESELECT</button>
+          <div class="umspec-selection-section" id="umspec-selection-section">
+            <div class="umspec-section-label" id="umspec-section-header">
+              <div class="umspec-section-title-wrap">
+                <span>ENROLLED SUBJECTS // [<span id="umspec-selected-count">0</span>/<span id="umspec-course-count">0</span> SELECTED]</span>
+              </div>
+              <div class="umspec-selection-tools" id="umspec-selection-tools">
+                <button type="button" class="umspec-link-btn" id="umspec-select-all">SELECT ALL</button>
+                <span class="umspec-sep">//</span>
+                <button type="button" class="umspec-link-btn" id="umspec-deselect-all">DESELECT</button>
+              </div>
+              <button type="button" class="umspec-toggle-btn" id="umspec-toggle-selection" style="display: none;" title="Toggle selection list">
+                <span id="umspec-toggle-text">EXPAND</span>
+                <span class="umspec-toggle-chevron">${ICONS.chevronDown}</span>
+              </button>
             </div>
-          </div>
 
-          <div class="umspec-courses-list" id="umspec-courses-container">
-            <div style="padding: 24px; text-align: center; color: #64748b; display: flex; align-items: center; justify-content: center; gap: 8px;">
-              ${ICONS.loader} <span>SCANNING SPeCTRUM SESSION & MATERIALS...</span>
+            <div class="umspec-courses-list" id="umspec-courses-container">
+              <div style="padding: 24px; text-align: center; color: #64748b; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                ${ICONS.loader} <span>SCANNING SPeCTRUM SESSION & MATERIALS...</span>
+              </div>
             </div>
           </div>
 
@@ -904,6 +950,24 @@
       renderCoursesList();
     };
 
+    const toggleBtn = document.getElementById('umspec-toggle-selection');
+    if (toggleBtn) {
+      toggleBtn.onclick = (e) => {
+        e.stopPropagation();
+        toggleSelectionPanel();
+      };
+    }
+
+    const sectionHeader = document.getElementById('umspec-section-header');
+    if (sectionHeader) {
+      sectionHeader.onclick = (e) => {
+        if (e.target.closest('#umspec-selection-tools')) return;
+        if (isExporting || document.getElementById('umspec-selection-section')?.classList.contains('umspec-collapsed')) {
+          toggleSelectionPanel();
+        }
+      };
+    }
+
     document.getElementById('umspec-start-btn').onclick = runZeroTouchExport;
 
     // Academic Programme Inline Editor Listeners (No frame, text cursor only)
@@ -943,6 +1007,10 @@
     createModalDOM();
     const overlay = document.getElementById('umspec-modal-overlay');
     overlay.classList.add('umspec-active');
+
+    if (!isExporting) {
+      setSelectionPanelCollapsed(false);
+    }
 
     if (detectedCourses.length === 0) {
       detectedCourses = await discoverCourses();
@@ -1125,6 +1193,9 @@
     isExporting = true;
     abortController = new AbortController();
     window.onbeforeunload = () => 'Export in progress. Exiting will abort download.';
+
+    // Collapse the selection panel immediately to focus on Dino runner & progress telemetry
+    setSelectionPanelCollapsed(true);
 
     const startBtn = document.getElementById('umspec-start-btn');
     startBtn.disabled = true;

@@ -392,6 +392,12 @@
 /* --------------------------------------------------------------------------
    Section Header & Selection Tools
    -------------------------------------------------------------------------- */
+.umspec-selection-section {
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 .umspec-section-label {
   font-family: var(--umspec-font-mono);
   font-size: 11px;
@@ -403,6 +409,55 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  user-select: none;
+  transition: margin-bottom 0.25s ease, background 0.2s, color 0.2s;
+}
+
+.umspec-section-label.umspec-clickable-header {
+  cursor: pointer;
+  padding: 6px 10px;
+  margin: -6px -10px 8px -10px;
+  border-radius: 8px;
+}
+
+.umspec-section-label.umspec-clickable-header:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--umspec-text-high);
+}
+
+.umspec-toggle-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--umspec-text-high);
+  font-family: var(--umspec-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s;
+}
+
+.umspec-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.umspec-toggle-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.umspec-toggle-chevron svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
 }
 
 .umspec-selection-tools {
@@ -447,6 +502,30 @@
   max-height: 250px;
   overflow-y: auto;
   padding-right: 4px;
+  transition: max-height 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease, margin 0.3s ease;
+}
+
+/* When selection panel is collapsed */
+.umspec-selection-section.umspec-collapsed .umspec-courses-list {
+  max-height: 0 !important;
+  opacity: 0 !important;
+  margin: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+}
+
+.umspec-selection-section.umspec-collapsed .umspec-section-label {
+  margin-bottom: 4px;
+}
+
+.umspec-selection-section.umspec-collapsed .umspec-toggle-chevron {
+  transform: rotate(-90deg);
+}
+
+.umspec-selection-section.umspec-collapsed + .umspec-progress-card {
+  margin-top: 8px;
 }
 
 .umspec-courses-list::-webkit-scrollbar {
