@@ -73,43 +73,43 @@ def add_drop_shadow(canvas, img_rgba, x, y, shadow_blur=35, shadow_offset=(0, 15
     return canvas_rgba.convert('RGB')
 
 def draw_icon_badge(badge_type, theme_color=(59, 130, 246)):
-    badge = Image.new('RGBA', (38, 38), (0, 0, 0, 0))
+    badge = Image.new('RGBA', (36, 36), (0, 0, 0, 0))
     bdraw = ImageDraw.Draw(badge)
     bg_col = (theme_color[0]//5, theme_color[1]//5, theme_color[2]//5, 230)
     border_col = (theme_color[0], theme_color[1], theme_color[2], 220)
-    bdraw.rounded_rectangle((0, 0, 37, 37), radius=10, fill=bg_col, outline=border_col, width=1)
+    bdraw.rounded_rectangle((0, 0, 35, 35), radius=9, fill=bg_col, outline=border_col, width=1)
     
     col = (255, 255, 255, 245)
     if badge_type == 'bolt':
-        pts = [(21, 7), (13, 19), (19, 19), (16, 31), (26, 17), (20, 17)]
+        pts = [(20, 6), (12, 18), (18, 18), (15, 30), (25, 16), (19, 16)]
         bdraw.polygon(pts, fill=col)
     elif badge_type == 'folder':
-        bdraw.rounded_rectangle((8, 15, 30, 29), radius=3, fill=col)
-        bdraw.rounded_rectangle((8, 11, 18, 17), radius=2, fill=col)
+        bdraw.rounded_rectangle((8, 14, 28, 28), radius=2, fill=col)
+        bdraw.rounded_rectangle((8, 10, 17, 15), radius=2, fill=col)
     elif badge_type == 'gamepad':
-        bdraw.rounded_rectangle((8, 13, 30, 26), radius=5, fill=col)
-        bdraw.rectangle((13, 17, 15, 22), fill=theme_color)
-        bdraw.rectangle((11, 19, 17, 20), fill=theme_color)
-        bdraw.ellipse((22, 17, 24, 19), fill=theme_color)
-        bdraw.ellipse((25, 20, 27, 22), fill=theme_color)
+        bdraw.rounded_rectangle((8, 12, 28, 24), radius=5, fill=col)
+        bdraw.rectangle((12, 16, 14, 20), fill=theme_color)
+        bdraw.rectangle((10, 18, 16, 19), fill=theme_color)
+        bdraw.ellipse((21, 15, 23, 17), fill=theme_color)
+        bdraw.ellipse((24, 18, 26, 20), fill=theme_color)
     elif badge_type == 'shield':
-        pts = [(19, 8), (29, 12), (29, 21), (19, 30), (9, 21), (9, 12)]
+        pts = [(18, 7), (28, 11), (28, 20), (18, 29), (8, 20), (8, 11)]
         bdraw.polygon(pts, fill=col)
-        bdraw.line((19, 12, 19, 26), fill=theme_color, width=2)
+        bdraw.line((18, 11, 18, 25), fill=theme_color, width=2)
     elif badge_type == 'cap':
-        pts = [(19, 10), (30, 15), (19, 21), (8, 15)]
+        pts = [(18, 9), (29, 14), (18, 20), (7, 14)]
         bdraw.polygon(pts, fill=col)
-        bdraw.rectangle((13, 19, 25, 24), fill=col)
-        bdraw.line((28, 16, 28, 25), fill=col, width=2)
+        bdraw.rectangle((12, 18, 24, 23), fill=col)
+        bdraw.line((27, 15, 27, 24), fill=col, width=2)
     elif badge_type == 'chart':
-        bdraw.rectangle((10, 22, 13, 29), fill=col)
-        bdraw.rectangle((17, 17, 20, 29), fill=col)
-        bdraw.rectangle((24, 11, 27, 29), fill=col)
+        bdraw.rectangle((9, 21, 12, 28), fill=col)
+        bdraw.rectangle((16, 16, 19, 28), fill=col)
+        bdraw.rectangle((23, 10, 26, 28), fill=col)
     elif badge_type == 'cancel':
-        bdraw.ellipse((9, 9, 29, 29), outline=col, width=2)
-        bdraw.line((14, 14, 24, 24), fill=col, width=2)
+        bdraw.ellipse((8, 8, 28, 28), outline=col, width=2)
+        bdraw.line((13, 13, 23, 23), fill=col, width=2)
     elif badge_type == 'edit':
-        pts = [(25, 9), (29, 13), (17, 27), (12, 27), (12, 22)]
+        pts = [(24, 8), (28, 12), (16, 26), (11, 26), (11, 21)]
         bdraw.polygon(pts, fill=col)
         
     return badge
@@ -118,7 +118,7 @@ def draw_icon_badge(badge_type, theme_color=(59, 130, 246)):
 # SCREENSHOT 1: Main Overview & One-Click Batch Exporter
 # -------------------------------------------------------------
 def generate_screenshot_1():
-    print("Generating Screenshot 1 (Overview)...")
+    print("Generating Minimalist Screenshot 1 (Overview)...")
     canvas = create_gradient_bg(1280, 800, (11, 16, 26), (6, 9, 16), add_glow=True, glow_center=(960, 420), glow_color=(37, 99, 235))
     
     # Left Content Area (X: 80 to 620)
@@ -127,56 +127,45 @@ def generate_screenshot_1():
     # Category Pill
     pill_img = Image.new('RGBA', (1280, 800), (0, 0, 0, 0))
     pdraw = ImageDraw.Draw(pill_img)
-    pdraw.rounded_rectangle((80, 80, 410, 116), radius=18, fill=(30, 41, 59, 200), outline=(59, 130, 246, 220), width=1)
+    pdraw.rounded_rectangle((80, 110, 410, 146), radius=18, fill=(30, 41, 59, 200), outline=(59, 130, 246, 220), width=1)
     canvas = Image.alpha_composite(canvas.convert('RGBA'), pill_img).convert('RGB')
     draw = ImageDraw.Draw(canvas)
     
     f_pill = get_font(12, bold=True)
-    draw.text((102, 89), "UNIVERSITI MALAYA • SPECTRUM COMPANION", font=f_pill, fill=(96, 165, 250))
+    draw.text((102, 119), "UNIVERSITI MALAYA • SPECTRUM COMPANION", font=f_pill, fill=(96, 165, 250))
     
-    # Main Headline
-    f_h1 = get_font(42, bold=True)
-    draw.text((80, 138), "One-Click Batch", font=f_h1, fill=(255, 255, 255))
-    draw.text((80, 190), "Course Exporter", font=f_h1, fill=(96, 165, 250))
+    # Main Headline (Crisp, punchy, bold)
+    f_h1 = get_font(48, bold=True)
+    draw.text((80, 175), "One-Click Batch", font=f_h1, fill=(255, 255, 255))
+    draw.text((80, 235), "Course Exporter", font=f_h1, fill=(96, 165, 250))
     
-    # Subtitle
-    f_sub = get_font(17, bold=False)
-    sub_text = (
-        "Automatically scrape, organize, and package all your\n"
-        "semester slides, notes & assignments into a structured ZIP.\n"
-        "Zero manual clicks. Built specifically for UM students."
-    )
-    draw.text((80, 258), sub_text, font=f_sub, fill=(156, 163, 175))
-    
-    # Feature Cards with illuminated icon badges
+    # Clean minimalist feature pills (no verbose small descriptions)
     features = [
-        ("bolt", "Zero-Touch Batch Download", "Fetches course files across all modules simultaneously.", (59, 130, 246)),
-        ("folder", "Clean Taxonomy & Hierarchy", "Auto-sorts into tidy folders by faculty, degree & code.", (16, 185, 129)),
-        ("gamepad", "Interactive Dino Sync Engine", "Play the retro Chrome Dino runner while downloading.", (249, 115, 22)),
-        ("shield", "100% Client-Side Privacy", "Runs natively in browser. No credentials or data stored.", (168, 85, 247))
+        ("bolt", "Zero-Touch Batch Download", (59, 130, 246)),
+        ("folder", "Structured ZIP Folder Hierarchy", (16, 185, 129)),
+        ("gamepad", "Built-In Dino Sync Engine", (249, 115, 22)),
+        ("shield", "100% Client-Side & Private", (168, 85, 247))
     ]
     
-    card_y = 352
-    f_f_title = get_font(16, bold=True)
-    f_f_desc = get_font(13, bold=False)
+    card_y = 350
+    f_f_title = get_font(18, bold=True)
     
-    for icon_type, title, desc, col in features:
-        card_rect = (80, card_y, 610, card_y + 68)
+    for icon_type, title, col in features:
+        card_rect = (80, card_y, 570, card_y + 58)
         c_layer = Image.new('RGBA', (1280, 800), (0, 0, 0, 0))
         cdraw = ImageDraw.Draw(c_layer)
         cdraw.rounded_rectangle(card_rect, radius=14, fill=(17, 24, 39, 180), outline=(37, 49, 70, 190), width=1)
         
         # Draw badge icon
         badge = draw_icon_badge(icon_type, theme_color=col)
-        c_layer.alpha_composite(badge, (96, card_y + 15))
+        c_layer.alpha_composite(badge, (96, card_y + 11))
         
         canvas = Image.alpha_composite(canvas.convert('RGBA'), c_layer).convert('RGB')
         draw = ImageDraw.Draw(canvas)
         
-        draw.text((146, card_y + 14), title, font=f_f_title, fill=(243, 244, 246))
-        draw.text((146, card_y + 38), desc, font=f_f_desc, fill=(156, 163, 175))
+        draw.text((148, card_y + 16), title, font=f_f_title, fill=(243, 244, 246))
         
-        card_y += 80
+        card_y += 74
         
     # Floating Modal on right side
     card = extract_clean_modal()
@@ -193,68 +182,56 @@ def generate_screenshot_1():
 # SCREENSHOT 2: Chrome Dino Runner & Telemetry
 # -------------------------------------------------------------
 def generate_screenshot_2():
-    print("Generating Screenshot 2 (Dino Runner)...")
+    print("Generating Minimalist Screenshot 2 (Dino Runner)...")
     canvas = create_gradient_bg(1280, 800, (18, 16, 28), (9, 9, 18), add_glow=True, glow_center=(940, 410), glow_color=(234, 88, 12))
     draw = ImageDraw.Draw(canvas)
     
     # Pill Badge
     pill_img = Image.new('RGBA', (1280, 800), (0, 0, 0, 0))
     pdraw = ImageDraw.Draw(pill_img)
-    pdraw.rounded_rectangle((80, 80, 380, 116), radius=18, fill=(30, 24, 45, 200), outline=(249, 115, 22, 220), width=1)
+    pdraw.rounded_rectangle((80, 110, 380, 146), radius=18, fill=(30, 24, 45, 200), outline=(249, 115, 22, 220), width=1)
     canvas = Image.alpha_composite(canvas.convert('RGBA'), pill_img).convert('RGB')
     draw = ImageDraw.Draw(canvas)
     
     f_pill = get_font(12, bold=True)
-    draw.text((102, 89), "LIVE PROGRESS & ENTERTAINMENT", font=f_pill, fill=(251, 146, 60))
+    draw.text((102, 119), "LIVE PROGRESS & ENTERTAINMENT", font=f_pill, fill=(251, 146, 60))
     
     # Title
-    f_h1 = get_font(42, bold=True)
-    draw.text((80, 138), "Built-In Dino Runner", font=f_h1, fill=(255, 255, 255))
-    draw.text((80, 190), "& Live Telemetry", font=f_h1, fill=(251, 146, 60))
+    f_h1 = get_font(48, bold=True)
+    draw.text((80, 175), "Built-In Dino Runner", font=f_h1, fill=(255, 255, 255))
+    draw.text((80, 235), "& Live Telemetry", font=f_h1, fill=(251, 146, 60))
     
-    # Subtitle
-    f_sub = get_font(17, bold=False)
-    sub_text = (
-        "Say goodbye to boring, frozen progress bars.\n"
-        "Play the classic retro Chrome Dino game right inside\n"
-        "the exporter while your course materials sync."
-    )
-    draw.text((80, 258), sub_text, font=f_sub, fill=(156, 163, 175))
-    
-    # Features
+    # Clean minimalist feature pills (no verbose small descriptions)
     features = [
-        ("gamepad", "Spacebar & Tap Controls", "Responsive jump physics with high-DPI retro pixel art.", (249, 115, 22)),
-        ("chart", "Live Distance & High Score", "Tracks your current distance and personal best in real-time.", (234, 179, 8)),
-        ("bolt", "Real-Time Sync Telemetry", "Inspect exact file counts, batch status, and download speed.", (59, 130, 246)),
-        ("cancel", "Instant Cancel & Retry", "Full user control with graceful abort and one-click retry.", (239, 68, 68))
+        ("gamepad", "Spacebar & Tap Jump Physics", (249, 115, 22)),
+        ("chart", "Real-Time Distance & High Score", (234, 179, 8)),
+        ("bolt", "Live Download Sync Telemetry", (59, 130, 246)),
+        ("cancel", "Instant Cancel & One-Click Retry", (239, 68, 68))
     ]
     
-    card_y = 352
-    f_f_title = get_font(16, bold=True)
-    f_f_desc = get_font(13, bold=False)
+    card_y = 350
+    f_f_title = get_font(18, bold=True)
     
-    for icon_type, title, desc, col in features:
-        card_rect = (80, card_y, 610, card_y + 68)
+    for icon_type, title, col in features:
+        card_rect = (80, card_y, 570, card_y + 58)
         c_layer = Image.new('RGBA', (1280, 800), (0, 0, 0, 0))
         cdraw = ImageDraw.Draw(c_layer)
         cdraw.rounded_rectangle(card_rect, radius=14, fill=(25, 20, 35, 180), outline=(55, 45, 65, 190), width=1)
         
         badge = draw_icon_badge(icon_type, theme_color=col)
-        c_layer.alpha_composite(badge, (96, card_y + 15))
+        c_layer.alpha_composite(badge, (96, card_y + 11))
         
         canvas = Image.alpha_composite(canvas.convert('RGBA'), c_layer).convert('RGB')
         draw = ImageDraw.Draw(canvas)
         
-        draw.text((146, card_y + 14), title, font=f_f_title, fill=(243, 244, 246))
-        draw.text((146, card_y + 38), desc, font=f_f_desc, fill=(156, 163, 175))
+        draw.text((148, card_y + 16), title, font=f_f_title, fill=(243, 244, 246))
         
-        card_y += 80
+        card_y += 74
         
     # Right Side: Centered Spotlight on Dino Runner and Telemetry
     card = extract_clean_modal()
     cw, ch = card.size
     
-    # Crop the Dino runner card (from y: 440 to 735 of card)
     dino_crop = card.crop((18, 440, cw - 18, 735))
     dw, dh = dino_crop.size
     scale = 1.12
@@ -288,62 +265,51 @@ def generate_screenshot_2():
 # SCREENSHOT 3: Smart 16-Faculty Taxonomy & Clean Organization
 # -------------------------------------------------------------
 def generate_screenshot_3():
-    print("Generating Screenshot 3 (Smart Taxonomy)...")
+    print("Generating Minimalist Screenshot 3 (Smart Taxonomy)...")
     canvas = create_gradient_bg(1280, 800, (8, 22, 26), (5, 14, 18), add_glow=True, glow_center=(960, 420), glow_color=(13, 148, 136))
     draw = ImageDraw.Draw(canvas)
     
     # Pill Badge
     pill_img = Image.new('RGBA', (1280, 800), (0, 0, 0, 0))
     pdraw = ImageDraw.Draw(pill_img)
-    pdraw.rounded_rectangle((80, 80, 415, 116), radius=18, fill=(15, 30, 35, 200), outline=(20, 184, 166, 220), width=1)
+    pdraw.rounded_rectangle((80, 110, 415, 146), radius=18, fill=(15, 30, 35, 200), outline=(20, 184, 166, 220), width=1)
     canvas = Image.alpha_composite(canvas.convert('RGBA'), pill_img).convert('RGB')
     draw = ImageDraw.Draw(canvas)
     
     f_pill = get_font(12, bold=True)
-    draw.text((102, 89), "INTELLIGENT CURRICULUM CLASSIFICATION", font=f_pill, fill=(45, 212, 191))
+    draw.text((102, 119), "INTELLIGENT CURRICULUM CLASSIFICATION", font=f_pill, fill=(45, 212, 191))
     
     # Title
-    f_h1 = get_font(42, bold=True)
-    draw.text((80, 138), "All 16 UM Faculties", font=f_h1, fill=(255, 255, 255))
-    draw.text((80, 190), "Fully Supported", font=f_h1, fill=(45, 212, 191))
+    f_h1 = get_font(48, bold=True)
+    draw.text((80, 175), "All 16 UM Faculties", font=f_h1, fill=(255, 255, 255))
+    draw.text((80, 235), "Fully Supported", font=f_h1, fill=(45, 212, 191))
     
-    # Subtitle
-    f_sub = get_font(17, bold=False)
-    sub_text = (
-        "Automatically identifies your faculty and academic degree\n"
-        "by inspecting course code prefixes and syllabus data.\n"
-        "Supports undergraduate & postgraduate programmes across UM."
-    )
-    draw.text((80, 258), sub_text, font=f_sub, fill=(156, 163, 175))
-    
-    # Features
+    # Clean minimalist feature pills (no verbose small descriptions)
     features = [
-        ("cap", "16 Faculties Comprehensive Coverage", "FSKTM, Engineering, Business, Science, Medicine, Law, etc.", (20, 184, 166)),
-        ("chart", "Smart Degree Disambiguation", "Distinguishes AI, Software Eng, Data Science, and Networking.", (59, 130, 246)),
-        ("edit", "Customizable Programme Field", "Directly editable inline if you wish to personalize the title.", (234, 179, 8)),
-        ("folder", "Structured ZIP Organization", "Outputs clean directory trees matching your academic syllabus.", (16, 185, 129))
+        ("cap", "Complete UM 16-Faculty Coverage", (20, 184, 166)),
+        ("chart", "Smart Degree Disambiguation Engine", (59, 130, 246)),
+        ("edit", "Inline Customizable Programme Title", (234, 179, 8)),
+        ("folder", "Structured Academic Syllabus ZIP", (16, 185, 129))
     ]
     
-    card_y = 352
-    f_f_title = get_font(16, bold=True)
-    f_f_desc = get_font(13, bold=False)
+    card_y = 330
+    f_f_title = get_font(18, bold=True)
     
-    for icon_type, title, desc, col in features:
-        card_rect = (80, card_y, 610, card_y + 68)
+    for icon_type, title, col in features:
+        card_rect = (80, card_y, 570, card_y + 58)
         c_layer = Image.new('RGBA', (1280, 800), (0, 0, 0, 0))
         cdraw = ImageDraw.Draw(c_layer)
         cdraw.rounded_rectangle(card_rect, radius=14, fill=(13, 27, 32, 180), outline=(22, 60, 68, 190), width=1)
         
         badge = draw_icon_badge(icon_type, theme_color=col)
-        c_layer.alpha_composite(badge, (96, card_y + 15))
+        c_layer.alpha_composite(badge, (96, card_y + 11))
         
         canvas = Image.alpha_composite(canvas.convert('RGBA'), c_layer).convert('RGB')
         draw = ImageDraw.Draw(canvas)
         
-        draw.text((146, card_y + 14), title, font=f_f_title, fill=(243, 244, 246))
-        draw.text((146, card_y + 38), desc, font=f_f_desc, fill=(156, 163, 175))
+        draw.text((148, card_y + 16), title, font=f_f_title, fill=(243, 244, 246))
         
-        card_y += 80
+        card_y += 72
         
     # Left bottom: Faculty pill tags cloud
     f_tag = get_font(12, bold=True)
@@ -362,8 +328,8 @@ def generate_screenshot_3():
             tdraw.text((cur_x + 11, start_y + 5), t, font=f_tag, fill=(204, 251, 241))
             cur_x += tw + 10
             
-    render_tag_row(row1, 80, 688)
-    render_tag_row(row2, 80, 726)
+    render_tag_row(row1, 80, 642)
+    render_tag_row(row2, 80, 680)
     canvas = Image.alpha_composite(canvas.convert('RGBA'), t_layer).convert('RGB')
     
     # Right Side Modal
@@ -381,39 +347,36 @@ def generate_screenshot_3():
 # SMALL PROMO TILE (440 x 280 Canvas, RGB, No Alpha)
 # -------------------------------------------------------------
 def generate_small_promo():
-    print("Generating Small Promo Tile (440x280)...")
+    print("Generating Minimalist Small Promo Tile (440x280)...")
     canvas = create_gradient_bg(440, 280, (15, 23, 42), (8, 12, 22), add_glow=True, glow_center=(350, 140), glow_radius=180, glow_color=(37, 99, 235))
     draw = ImageDraw.Draw(canvas)
     
     # App Icon
     if os.path.exists(ICON_PATH):
-        icon = Image.open(ICON_PATH).convert('RGBA').resize((64, 64), Image.Resampling.LANCZOS)
+        icon = Image.open(ICON_PATH).convert('RGBA').resize((72, 72), Image.Resampling.LANCZOS)
         canvas_rgba = canvas.convert('RGBA')
         canvas_rgba.alpha_composite(icon, (35, 32))
         canvas = canvas_rgba.convert('RGB')
         draw = ImageDraw.Draw(canvas)
         
     # Title
-    f_h1 = get_font(28, bold=True)
-    draw.text((115, 34), "UmSpec", font=f_h1, fill=(255, 255, 255))
+    f_h1 = get_font(32, bold=True)
+    draw.text((122, 34), "UmSpec", font=f_h1, fill=(255, 255, 255))
     
-    f_tag = get_font(11, bold=True)
-    draw.text((117, 70), "UNIVERSITI MALAYA", font=f_tag, fill=(96, 165, 250))
+    f_tag = get_font(12, bold=True)
+    draw.text((124, 76), "UNIVERSITI MALAYA", font=f_tag, fill=(96, 165, 250))
     
-    # Subtitle
-    f_h2 = get_font(18, bold=True)
-    draw.text((35, 120), "Smart Course Exporter", font=f_h2, fill=(243, 244, 246))
-    
-    f_desc = get_font(13, bold=False)
-    draw.text((35, 150), "Batch download lecture notes, slides &\nmaterials from SPeCTRUM in one click.", font=f_desc, fill=(156, 163, 175))
+    # Large Headline
+    f_h2 = get_font(24, bold=True)
+    draw.text((35, 135), "Smart Course Exporter", font=f_h2, fill=(243, 244, 246))
     
     # Bottom Badge
-    f_badge = get_font(11, bold=True)
-    badge_rect = (35, 218, 260, 248)
+    f_badge = get_font(12, bold=True)
+    badge_rect = (35, 195, 310, 232)
     b_layer = Image.new('RGBA', (440, 280), (0, 0, 0, 0))
     bdraw = ImageDraw.Draw(b_layer)
-    bdraw.rounded_rectangle(badge_rect, radius=12, fill=(30, 41, 59, 190), outline=(59, 130, 246, 200), width=1)
-    bdraw.text((48, 225), "FAST BATCH ZIP  •  DINO RUNNER", font=f_badge, fill=(147, 197, 253))
+    bdraw.rounded_rectangle(badge_rect, radius=14, fill=(30, 41, 59, 190), outline=(59, 130, 246, 200), width=1)
+    bdraw.text((50, 204), "1-CLICK BATCH ZIP  •  DINO RUNNER", font=f_badge, fill=(147, 197, 253))
     canvas = Image.alpha_composite(canvas.convert('RGBA'), b_layer).convert('RGB')
     
     out_path = os.path.join(OUTPUT_DIR, 'small_promo_440x280.png')
@@ -424,7 +387,7 @@ def generate_small_promo():
 # MARQUEE PROMO TILE (1400 x 560 Canvas, RGB, No Alpha)
 # -------------------------------------------------------------
 def generate_marquee_promo():
-    print("Generating Marquee Promo Tile (1400x560)...")
+    print("Generating Minimalist Marquee Promo Tile (1400x560)...")
     canvas = create_gradient_bg(1400, 560, (11, 15, 25), (6, 9, 15), add_glow=True, glow_center=(1050, 280), glow_radius=400, glow_color=(37, 99, 235))
     draw = ImageDraw.Draw(canvas)
     
@@ -439,28 +402,24 @@ def generate_marquee_promo():
     f_h1 = get_font(52, bold=True)
     draw.text((195, 80), "UmSpec", font=f_h1, fill=(255, 255, 255))
     
-    f_pill = get_font(13, bold=True)
+    f_pill = get_font(14, bold=True)
     draw.text((198, 142), "THE OFFICIAL SPECTRUM BATCH EXPORTER COMPANION", font=f_pill, fill=(96, 165, 250))
     
     # Main Headline
-    f_h2 = get_font(32, bold=True)
-    draw.text((80, 210), "Archive All Your Semester Courses in One Click.", font=f_h2, fill=(243, 244, 246))
-    
-    # Subhead
-    f_sub = get_font(18, bold=False)
-    draw.text((80, 265), "Automated slide downloads, multi-faculty folder taxonomy,\nand the retro Chrome Dino Runner mini-game during live packaging.", font=f_sub, fill=(156, 163, 175))
+    f_h2 = get_font(38, bold=True)
+    draw.text((80, 220), "Archive All Semester Courses in 1-Click.", font=f_h2, fill=(243, 244, 246))
     
     # Badges
     pills = ["100% Client-Side", "Smart Folder Sorting", "16 UM Faculties", "Dino Runner Sync"]
-    f_p = get_font(13, bold=True)
-    px, py = 80, 360
+    f_p = get_font(15, bold=True)
+    px, py = 80, 310
     p_layer = Image.new('RGBA', (1400, 560), (0, 0, 0, 0))
     pdraw = ImageDraw.Draw(p_layer)
     for p in pills:
-        pw = int(pdraw.textlength(p, font=f_p)) + 26
-        pdraw.rounded_rectangle((px, py, px + pw, py + 38), radius=14, fill=(30, 41, 59, 180), outline=(59, 130, 246, 180), width=1)
-        pdraw.text((px + 13, py + 9), p, font=f_p, fill=(191, 219, 254))
-        px += pw + 16
+        pw = int(pdraw.textlength(p, font=f_p)) + 28
+        pdraw.rounded_rectangle((px, py, px + pw, py + 44), radius=16, fill=(30, 41, 59, 180), outline=(59, 130, 246, 180), width=1)
+        pdraw.text((px + 14, py + 11), p, font=f_p, fill=(191, 219, 254))
+        px += pw + 18
     canvas = Image.alpha_composite(canvas.convert('RGBA'), p_layer).convert('RGB')
     
     # Floating preview on the right
@@ -492,4 +451,4 @@ if __name__ == '__main__':
     generate_small_promo()
     generate_marquee_promo()
     generate_store_icon()
-    print("All refined store assets generated successfully!")
+    print("All minimalist store assets regenerated successfully!")
