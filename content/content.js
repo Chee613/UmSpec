@@ -80,52 +80,445 @@
     return sanitizeName(code ? `${code} ${cleanTitle}` : cleanTitle);
   }
 
-  // Department / Keyword to Standard Degree Mapper
+  // Comprehensive UM Multi-Faculty Curriculum Knowledge Base (All 16 UM Faculties)
+  const UM_CURRICULUM_CATALOG = {
+    // 1. Faculty of Computer Science & Information Technology (FSKTM)
+    'FSKTM_AI': {
+      faculty: 'Faculty of Computer Science & Information Technology (FSKTM)',
+      degree: 'Bachelor of Computer Science (Artificial Intelligence)',
+      prefixes: ['WIE'],
+      signatureCodes: ['WIE2001', 'WIE2002', 'WIE2003', 'WIE3001', 'WIE3002', 'WIE3003', 'WIE3004'],
+      facultyPrefix: 'WI'
+    },
+    'FSKTM_SE': {
+      faculty: 'Faculty of Computer Science & Information Technology (FSKTM)',
+      degree: 'Bachelor of Computer Science (Software Engineering)',
+      prefixes: ['WIA'],
+      signatureCodes: ['WIA2003', 'WIA2004', 'WIA2005', 'WIA3001', 'WIA3002', 'WIA3003', 'WIA3004'],
+      facultyPrefix: 'WI'
+    },
+    'FSKTM_DS': {
+      faculty: 'Faculty of Computer Science & Information Technology (FSKTM)',
+      degree: 'Bachelor of Computer Science (Data Science)',
+      prefixes: ['WID'],
+      signatureCodes: ['WID2001', 'WID2002', 'WID2003', 'WID3001', 'WID3002', 'WID3003'],
+      facultyPrefix: 'WI'
+    },
+    'FSKTM_CSN': {
+      faculty: 'Faculty of Computer Science & Information Technology (FSKTM)',
+      degree: 'Bachelor of Computer Science (Computer Systems and Networking)',
+      prefixes: ['WIC'],
+      signatureCodes: ['WIC2001', 'WIC2002', 'WIC2003', 'WIC3001', 'WIC3002', 'WIC3003'],
+      facultyPrefix: 'WI'
+    },
+    'FSKTM_IS': {
+      faculty: 'Faculty of Computer Science & Information Technology (FSKTM)',
+      degree: 'Bachelor of Information Technology (Information Systems)',
+      prefixes: ['WIB'],
+      signatureCodes: ['WIB2001', 'WIB2002', 'WIB2003', 'WIB3001', 'WIB3002', 'WIB3003'],
+      facultyPrefix: 'WI'
+    },
+    'FSKTM_MM': {
+      faculty: 'Faculty of Computer Science & Information Technology (FSKTM)',
+      degree: 'Bachelor of Science in Computer Science (Multimedia Computing)',
+      prefixes: ['WIF'],
+      signatureCodes: ['WIF2001', 'WIF2002', 'WIF2003', 'WIF3001', 'WIF3002'],
+      facultyPrefix: 'WI'
+    },
+
+    // 2. Faculty of Engineering (FK)
+    'FK_ELEC': {
+      faculty: 'Faculty of Engineering',
+      degree: 'Bachelor of Electrical Engineering',
+      prefixes: ['KKE'],
+      signatureCodes: ['KKE1001', 'KKE2001', 'KKE2002', 'KKE3001', 'KKE3002', 'KKE4001'],
+      facultyPrefix: 'KK'
+    },
+    'FK_MECH': {
+      faculty: 'Faculty of Engineering',
+      degree: 'Bachelor of Mechanical Engineering',
+      prefixes: ['KKM', 'KIG'],
+      signatureCodes: ['KKM1001', 'KKM2001', 'KKM2002', 'KKM3001', 'KIG2001', 'KIG3001'],
+      facultyPrefix: 'KK'
+    },
+    'FK_CIVIL': {
+      faculty: 'Faculty of Engineering',
+      degree: 'Bachelor of Civil Engineering',
+      prefixes: ['KKA'],
+      signatureCodes: ['KKA1001', 'KKA2001', 'KKA2002', 'KKA3001', 'KKA4001'],
+      facultyPrefix: 'KK'
+    },
+    'FK_CHEM': {
+      faculty: 'Faculty of Engineering',
+      degree: 'Bachelor of Chemical Engineering',
+      prefixes: ['KKC'],
+      signatureCodes: ['KKC1001', 'KKC2001', 'KKC2002', 'KKC3001', 'KKC4001'],
+      facultyPrefix: 'KK'
+    },
+    'FK_BIOMED': {
+      faculty: 'Faculty of Engineering',
+      degree: 'Bachelor of Biomedical Engineering',
+      prefixes: ['KKB'],
+      signatureCodes: ['KKB1001', 'KKB2001', 'KKB2002', 'KKB3001', 'KKB4001'],
+      facultyPrefix: 'KK'
+    },
+
+    // 3. Faculty of Science (FS)
+    'FS_MATH': {
+      faculty: 'Faculty of Science',
+      degree: 'Bachelor of Science in Mathematics',
+      prefixes: ['SIM'],
+      signatureCodes: ['SIM1001', 'SIM1002', 'SIM2001', 'SIM2002', 'SIM3001'],
+      facultyPrefix: 'SI'
+    },
+    'FS_ACTUARIAL': {
+      faculty: 'Faculty of Science',
+      degree: 'Bachelor of Actuarial Science',
+      prefixes: ['SIM'],
+      signatureCodes: ['SIM1003', 'SIM2003', 'SIM2004', 'SIM3003', 'SIM3004'],
+      facultyPrefix: 'SI'
+    },
+    'FS_CHEM': {
+      faculty: 'Faculty of Science',
+      degree: 'Bachelor of Science in Chemistry',
+      prefixes: ['SIC'],
+      signatureCodes: ['SIC1001', 'SIC1002', 'SIC2001', 'SIC2002', 'SIC3001'],
+      facultyPrefix: 'SI'
+    },
+    'FS_PHYS': {
+      faculty: 'Faculty of Science',
+      degree: 'Bachelor of Science in Physics',
+      prefixes: ['SIF'],
+      signatureCodes: ['SIF1001', 'SIF1002', 'SIF2001', 'SIF2002', 'SIF3001'],
+      facultyPrefix: 'SI'
+    },
+    'FS_BIO': {
+      faculty: 'Faculty of Science',
+      degree: 'Bachelor of Science in Biological Sciences & Biochemistry',
+      prefixes: ['SIB', 'SIJ', 'SIE'],
+      signatureCodes: ['SIB1001', 'SIJ1001', 'SIE1001', 'SIB2001', 'SIJ2001'],
+      facultyPrefix: 'SI'
+    },
+    'FS_GEOL': {
+      faculty: 'Faculty of Science',
+      degree: 'Bachelor of Science in Geology',
+      prefixes: ['SIG'],
+      signatureCodes: ['SIG1001', 'SIG1002', 'SIG2001', 'SIG2002', 'SIG3001'],
+      facultyPrefix: 'SI'
+    },
+
+    // 4. Faculty of Business and Economics (FPE)
+    'FPE_ACC': {
+      faculty: 'Faculty of Business and Economics',
+      degree: 'Bachelor of Accounting',
+      prefixes: ['CIA'],
+      signatureCodes: ['CIA1001', 'CIA2001', 'CIA2002', 'CIA3001', 'CIA3002'],
+      facultyPrefix: 'CI'
+    },
+    'FPE_FIN': {
+      faculty: 'Faculty of Business and Economics',
+      degree: 'Bachelor of Finance',
+      prefixes: ['CIB'],
+      signatureCodes: ['CIB1001', 'CIB2001', 'CIB2002', 'CIB3001', 'CIB3002'],
+      facultyPrefix: 'CI'
+    },
+    'FPE_BBA': {
+      faculty: 'Faculty of Business and Economics',
+      degree: 'Bachelor of Business Administration',
+      prefixes: ['CIC', 'CID'],
+      signatureCodes: ['CIC1001', 'CIC2001', 'CID2001', 'CIC3001', 'CID3001'],
+      facultyPrefix: 'CI'
+    },
+    'FPE_ECON': {
+      faculty: 'Faculty of Business and Economics',
+      degree: 'Bachelor of Economics',
+      prefixes: ['EIA', 'EIB', 'EIC'],
+      signatureCodes: ['EIA1001', 'EIA2001', 'EIB2001', 'EIC2001', 'EIA3001'],
+      facultyPrefix: 'EI'
+    },
+
+    // 5. Faculty of Built Environment (FAB)
+    'FAB_ARCH': {
+      faculty: 'Faculty of Built Environment',
+      degree: 'Bachelor of Science in Architecture',
+      prefixes: ['BIA'],
+      signatureCodes: ['BIA1001', 'BIA2001', 'BIA2002', 'BIA3001'],
+      facultyPrefix: 'BI'
+    },
+    'FAB_QS': {
+      faculty: 'Faculty of Built Environment',
+      degree: 'Bachelor of Quantity Surveying',
+      prefixes: ['BIE'],
+      signatureCodes: ['BIE1001', 'BIE2001', 'BIE2002', 'BIE3001'],
+      facultyPrefix: 'BI'
+    },
+    'FAB_BS': {
+      faculty: 'Faculty of Built Environment',
+      degree: 'Bachelor of Building Surveying',
+      prefixes: ['BIB'],
+      signatureCodes: ['BIB1001', 'BIB2001', 'BIB2002', 'BIB3001'],
+      facultyPrefix: 'BI'
+    },
+    'FAB_RE': {
+      faculty: 'Faculty of Built Environment',
+      degree: 'Bachelor of Real Estate',
+      prefixes: ['BIC'],
+      signatureCodes: ['BIC1001', 'BIC2001', 'BIC2002', 'BIC3001'],
+      facultyPrefix: 'BI'
+    },
+    'FAB_URP': {
+      faculty: 'Faculty of Built Environment',
+      degree: 'Bachelor of Urban and Regional Planning',
+      prefixes: ['BID'],
+      signatureCodes: ['BID1001', 'BID2001', 'BID2002', 'BID3001'],
+      facultyPrefix: 'BI'
+    },
+
+    // 6. Faculty of Law (FUU)
+    'FUU_LLB': {
+      faculty: 'Faculty of Law',
+      degree: 'Bachelor of Laws (LLB)',
+      prefixes: ['LXEB', 'LIA', 'LQC', 'LXGA', 'LXGB'],
+      signatureCodes: ['LXEB1001', 'LXEB2001', 'LXEB2002', 'LXEB3001', 'LXEB4001'],
+      facultyPrefix: 'LX'
+    },
+
+    // 7. Faculty of Medicine (FOM)
+    'FOM_MBBS': {
+      faculty: 'Faculty of Medicine',
+      degree: 'Bachelor of Medicine and Bachelor of Surgery (MBBS)',
+      prefixes: ['MIA', 'MID', 'MIE'],
+      signatureCodes: ['MIA1001', 'MID1001', 'MIE1001', 'MIA2001'],
+      facultyPrefix: 'MI'
+    },
+    'FOM_NURSING': {
+      faculty: 'Faculty of Medicine',
+      degree: 'Bachelor of Nursing Science',
+      prefixes: ['MIB', 'MNA'],
+      signatureCodes: ['MIB1001', 'MNA1001', 'MIB2001', 'MNA2001'],
+      facultyPrefix: 'MI'
+    },
+    'FOM_BIOMED': {
+      faculty: 'Faculty of Medicine',
+      degree: 'Bachelor of Biomedical Science',
+      prefixes: ['MIC'],
+      signatureCodes: ['MIC1001', 'MIC2001', 'MIC2002', 'MIC3001'],
+      facultyPrefix: 'MI'
+    },
+
+    // 8. Faculty of Pharmacy (FF)
+    'FF_PHARM': {
+      faculty: 'Faculty of Pharmacy',
+      degree: 'Bachelor of Pharmacy',
+      prefixes: ['PIA', 'PIB', 'PIC', 'PIX'],
+      signatureCodes: ['PIA1001', 'PIB1001', 'PIC1001', 'PIX1001', 'PIA2001'],
+      facultyPrefix: 'PI'
+    },
+
+    // 9. Faculty of Dentistry (FPG)
+    'FPG_BDS': {
+      faculty: 'Faculty of Dentistry',
+      degree: 'Bachelor of Dental Surgery (BDS)',
+      prefixes: ['DIA', 'DIB'],
+      signatureCodes: ['DIA1001', 'DIB1001', 'DIA2001', 'DIB2001'],
+      facultyPrefix: 'DI'
+    },
+
+    // 10. Faculty of Education (FP)
+    'FP_EDU': {
+      faculty: 'Faculty of Education',
+      degree: 'Bachelor of Education (TESL / Counselling)',
+      prefixes: ['PGA', 'PGB', 'PGC', 'PIX'],
+      signatureCodes: ['PGA1001', 'PGB1001', 'PGC1001', 'PIX1001'],
+      facultyPrefix: 'PG'
+    },
+
+    // 11. Faculty of Languages and Linguistics (FLL)
+    'FLL_LANG': {
+      faculty: 'Faculty of Languages and Linguistics',
+      degree: 'Bachelor of Arts in Linguistics / Languages',
+      prefixes: ['TIX', 'TIE', 'TIA', 'TIC', 'TIJ', 'TIG', 'TIF'],
+      signatureCodes: ['TIX1001', 'TIE1001', 'TIA1001', 'TIC1001', 'TIJ1001'],
+      facultyPrefix: 'TI'
+    },
+
+    // 12. Faculty of Arts and Social Sciences (FASS)
+    'FASS_ARTS': {
+      faculty: 'Faculty of Arts and Social Sciences',
+      degree: 'Bachelor of Arts (Social Sciences & Humanities)',
+      prefixes: ['AIX', 'AIA', 'AIB', 'AIC', 'AID', 'AIE', 'AIG', 'AIH'],
+      signatureCodes: ['AIA1001', 'AIB1001', 'AIE1001', 'AIG1001', 'AIX1001'],
+      facultyPrefix: 'AI'
+    },
+
+    // 13. Faculty of Creative Arts (FCA)
+    'FCA_ARTS': {
+      faculty: 'Faculty of Creative Arts',
+      degree: 'Bachelor of Performing / Visual Arts / Music',
+      prefixes: ['RIA', 'RIB', 'RIC', 'RID', 'RIE'],
+      signatureCodes: ['RIA1001', 'RIB1001', 'RIC1001', 'RID1001', 'RIE1001'],
+      facultyPrefix: 'RI'
+    },
+
+    // 14. Academy of Islamic Studies (API)
+    'API_ISLAMIC': {
+      faculty: 'Academy of Islamic Studies',
+      degree: 'Bachelor of Islamic Studies (Shariah / Usuluddin)',
+      prefixes: ['IIX', 'IIA', 'IIB', 'IIC'],
+      signatureCodes: ['IIX1001', 'IIA1001', 'IIB1001', 'IIC1001'],
+      facultyPrefix: 'II'
+    },
+
+    // 15. Academy of Malay Studies (APM)
+    'APM_MALAY': {
+      faculty: 'Academy of Malay Studies',
+      degree: 'Bachelor of Arts in Malay Studies',
+      prefixes: ['JIA', 'JIB'],
+      signatureCodes: ['JIA1001', 'JIB1001', 'JIA2001', 'JIB2001'],
+      facultyPrefix: 'JI'
+    },
+
+    // 16. Sports & Exercise Science (SES)
+    'SES_SPORT': {
+      faculty: 'Centre for Sport & Exercise Sciences',
+      degree: 'Bachelor of Sports Science',
+      prefixes: ['VIA', 'VIB', 'VIC'],
+      signatureCodes: ['VIA1001', 'VIB1001', 'VIC1001', 'VIA2001'],
+      facultyPrefix: 'VI'
+    }
+  };
+
+  // Department / Faculty Keyword to Standard Degree & Faculty Mapper
   function mapDepartmentToDegree(text) {
     if (!text) return null;
     const t = text.toLowerCase();
+
+    // 1. Computing / FSKTM
     if (t.includes('artificial intelligence') || t.includes('kecerdasan buatan')) {
-      return 'Bachelor of Computer Science (Artificial Intelligence)';
+      return { degree: 'Bachelor of Computer Science (Artificial Intelligence)', faculty: 'Faculty of Computer Science & Information Technology (FSKTM)' };
     }
     if (t.includes('software engineering') || t.includes('kejuruteraan perisian')) {
-      return 'Bachelor of Computer Science (Software Engineering)';
+      return { degree: 'Bachelor of Computer Science (Software Engineering)', faculty: 'Faculty of Computer Science & Information Technology (FSKTM)' };
     }
     if (t.includes('data science') || t.includes('sains data')) {
-      return 'Bachelor of Computer Science (Data Science)';
+      return { degree: 'Bachelor of Computer Science (Data Science)', faculty: 'Faculty of Computer Science & Information Technology (FSKTM)' };
     }
     if (t.includes('computer system') || t.includes('networking') || t.includes('sistem komputer') || t.includes('rangkaian')) {
-      return 'Bachelor of Computer Science (Computer Systems and Networking)';
+      return { degree: 'Bachelor of Computer Science (Computer Systems and Networking)', faculty: 'Faculty of Computer Science & Information Technology (FSKTM)' };
     }
     if (t.includes('information system') || t.includes('sistem maklumat')) {
-      return 'Bachelor of Information Technology (Information Systems)';
+      return { degree: 'Bachelor of Information Technology (Information Systems)', faculty: 'Faculty of Computer Science & Information Technology (FSKTM)' };
     }
-    if (t.includes('library') || t.includes('perpustakaan') || t.includes('sains maklumat')) {
-      return 'Bachelor of Information Science (Library Management)';
+    if (t.includes('multimedia')) {
+      return { degree: 'Bachelor of Science in Computer Science (Multimedia Computing)', faculty: 'Faculty of Computer Science & Information Technology (FSKTM)' };
     }
-    if (t.includes('engineering') || t.includes('kejuruteraan')) {
-      return 'Bachelor of Engineering';
+
+    // 2. Engineering
+    if (t.includes('electrical') || t.includes('elektrik')) {
+      return { degree: 'Bachelor of Electrical Engineering', faculty: 'Faculty of Engineering' };
     }
+    if (t.includes('mechanical') || t.includes('mekanikal')) {
+      return { degree: 'Bachelor of Mechanical Engineering', faculty: 'Faculty of Engineering' };
+    }
+    if (t.includes('civil') || t.includes('awam')) {
+      return { degree: 'Bachelor of Civil Engineering', faculty: 'Faculty of Engineering' };
+    }
+    if (t.includes('chemical') || t.includes('kimia') && t.includes('kejuruteraan')) {
+      return { degree: 'Bachelor of Chemical Engineering', faculty: 'Faculty of Engineering' };
+    }
+    if (t.includes('biomedical') || t.includes('bioperubatan')) {
+      return { degree: 'Bachelor of Biomedical Engineering', faculty: 'Faculty of Engineering' };
+    }
+
+    // 3. Business & Economics
+    if (t.includes('accounting') || t.includes('perakaunan')) {
+      return { degree: 'Bachelor of Accounting', faculty: 'Faculty of Business and Economics' };
+    }
+    if (t.includes('finance') || t.includes('kewangan')) {
+      return { degree: 'Bachelor of Finance', faculty: 'Faculty of Business and Economics' };
+    }
+    if (t.includes('business') || t.includes('perniagaan') || t.includes('pentadbiran perniagaan')) {
+      return { degree: 'Bachelor of Business Administration', faculty: 'Faculty of Business and Economics' };
+    }
+    if (t.includes('economics') || t.includes('ekonomi')) {
+      return { degree: 'Bachelor of Economics', faculty: 'Faculty of Business and Economics' };
+    }
+
+    // 4. Science
+    if (t.includes('actuarial') || t.includes('aktuari')) {
+      return { degree: 'Bachelor of Actuarial Science', faculty: 'Faculty of Science' };
+    }
+    if (t.includes('mathematics') || t.includes('matematik')) {
+      return { degree: 'Bachelor of Science in Mathematics', faculty: 'Faculty of Science' };
+    }
+    if (t.includes('physics') || t.includes('fizik')) {
+      return { degree: 'Bachelor of Science in Physics', faculty: 'Faculty of Science' };
+    }
+    if (t.includes('chemistry') || t.includes('kimia')) {
+      return { degree: 'Bachelor of Science in Chemistry', faculty: 'Faculty of Science' };
+    }
+
+    // 5. Law & Medicine
+    if (t.includes('law') || t.includes('undang')) {
+      return { degree: 'Bachelor of Laws (LLB)', faculty: 'Faculty of Law' };
+    }
+    if (t.includes('medicine') || t.includes('perubatan') || t.includes('mbbs')) {
+      return { degree: 'Bachelor of Medicine and Bachelor of Surgery (MBBS)', faculty: 'Faculty of Medicine' };
+    }
+    if (t.includes('pharmacy') || t.includes('farmasi')) {
+      return { degree: 'Bachelor of Pharmacy', faculty: 'Faculty of Pharmacy' };
+    }
+    if (t.includes('dentistry') || t.includes('pergigian')) {
+      return { degree: 'Bachelor of Dental Surgery (BDS)', faculty: 'Faculty of Dentistry' };
+    }
+
     return null;
   }
 
-  // Calculate Average Academic Year
+  // Calculate Average Academic Year and Active Semester
   function calculateYearSemester(courses) {
-    const codes = courses.map(c => {
-      const m = c.fullName.match(/([A-Z]{3})(\d)(\d{3})/i);
-      return m ? parseInt(m[2]) : null;
-    }).filter(y => y && y > 0 && y <= 4);
+    const validLevels = courses.map(c => {
+      const m = c.fullName.match(/\b[A-Z]{3,4}(\d)\d{3}\b/i);
+      return m ? parseInt(m[1]) : null;
+    }).filter(lvl => lvl && lvl >= 1 && lvl <= 5);
 
-    const avgYear = codes.length ? Math.round(codes.reduce((a, b) => a + b, 0) / codes.length) : 2;
-    return `Year ${avgYear}, Semester 1`;
+    let inferredYear = 1;
+    if (validLevels.length) {
+      const counts = {};
+      validLevels.forEach(lvl => { counts[lvl] = (counts[lvl] || 0) + 1; });
+      inferredYear = parseInt(Object.keys(counts).reduce((a, b) => counts[a] >= counts[b] ? a : b));
+    }
+
+    // UM Academic Calendar Semester Inference
+    // Sem 1: October to February | Sem 2: March to July | Special Sem: August to September
+    const month = new Date().getMonth() + 1;
+    let semStr = 'Semester 1';
+    if (month >= 3 && month <= 7) {
+      semStr = 'Semester 2';
+    } else if (month >= 8 && month <= 9) {
+      semStr = 'Special Semester';
+    } else {
+      semStr = 'Semester 1';
+    }
+
+    return `Year ${inferredYear}, ${semStr}`;
   }
 
   // Multi-Source Integrated Academic Profile Detection Pipeline
   async function detectAcademicProfile(courses, userName) {
+    // 1. Saved user preference takes absolute priority
     const savedDegree = localStorage.getItem('umspec_saved_degree');
     if (savedDegree) {
+      let faculty = 'Universiti Malaya';
+      for (const key of Object.keys(UM_CURRICULUM_CATALOG)) {
+        if (UM_CURRICULUM_CATALOG[key].degree === savedDegree) {
+          faculty = UM_CURRICULUM_CATALOG[key].faculty;
+          break;
+        }
+      }
       return {
         studentName: userName || 'UM Student',
-        faculty: 'Faculty of Computer Science & Information Technology (FSKTM)',
+        faculty: faculty,
         bachelor: savedDegree,
         yearSem: calculateYearSemester(courses),
         totalCourses: courses.length,
@@ -135,10 +528,10 @@
 
     let detectedBachelor = null;
     let detectedFaculty = 'Universiti Malaya';
-    let detectionSource = 'Heuristic';
+    let detectionSource = 'UM Multi-Faculty Curriculum Engine';
 
+    // 2. Query SPeCTRUM User Profile API if session is active
     const currentSesskey = getSesskey();
-
     if (currentSesskey) {
       try {
         const userId = window.M?.cfg?.userId || document.querySelector('a[href*="/user/profile.php?id="], a[href*="/user/view.php?id="]')?.href?.match(/id=(\d+)/)?.[1];
@@ -154,10 +547,12 @@
             if (u) {
               const deptDegree = mapDepartmentToDegree(u.department) || mapDepartmentToDegree(u.institution);
               if (deptDegree) {
-                detectedBachelor = deptDegree;
+                detectedBachelor = deptDegree.degree;
+                detectedFaculty = deptDegree.faculty;
                 detectionSource = 'SPeCTRUM Profile API';
+              } else if (u.department) {
+                detectedFaculty = u.department;
               }
-              if (u.department) detectedFaculty = u.department;
             }
           }
         }
@@ -166,40 +561,71 @@
       }
     }
 
+    // 3. Multi-Faculty Weighted Bayesian Curriculum Inference
     if (!detectedBachelor) {
-      const codeCounts = { 'AI': 0, 'SE': 0, 'DS': 0, 'CSN': 0, 'IS': 0 };
+      const scores = {};
+      for (const progKey of Object.keys(UM_CURRICULUM_CATALOG)) {
+        scores[progKey] = 0;
+      }
+
       courses.forEach(c => {
-        const f = c.fullName.toUpperCase();
-        if (f.includes('WIA2001') || f.includes('WIA2003') || f.includes('WIA2004') || f.includes('WIA2005')) codeCounts['SE']++;
-        if (f.includes('WIE2001') || f.includes('WIE2002') || f.includes('WIE2003')) codeCounts['AI']++;
-        if (f.includes('WID2001') || f.includes('WID2002') || f.includes('WID2003')) codeCounts['DS']++;
-        if (f.includes('WIC2001') || f.includes('WIC2002') || f.includes('WIC2003')) codeCounts['CSN']++;
-        if (f.includes('WIF2001') || f.includes('WIF2002') || f.includes('WIF2003')) codeCounts['IS']++;
+        const titleUpper = c.fullName.toUpperCase();
+        const match = titleUpper.match(/\b([A-Z]{3,4})([0-9]{4})\b/);
+        if (!match) return;
+
+        const fullCode = match[0];
+        const prefix = match[1];
+
+        // Filter general university courses so they don't skew degree classification
+        if (['GIG', 'GLT', 'GQX', 'GKN', 'GKA'].includes(prefix)) {
+          return;
+        }
+
+        // Score against every curriculum program in UM
+        for (const [progKey, prog] of Object.entries(UM_CURRICULUM_CATALOG)) {
+          // Exact signature specialization core (e.g. WIE2001 in AI, KKE1001 in Electrical) = 10 pts
+          if (prog.signatureCodes && prog.signatureCodes.includes(fullCode)) {
+            scores[progKey] += 10;
+          }
+          // Department prefix match (e.g. WIE in AI, CIA in Accounting) = 6 pts
+          else if (prog.prefixes && prog.prefixes.includes(prefix)) {
+            scores[progKey] += 6;
+          }
+          // Faculty-wide prefix match (e.g. WIX in FSKTM, KIX in FK, SIX in FS) = 2 pts
+          else if (prog.facultyPrefix && prefix.startsWith(prog.facultyPrefix)) {
+            scores[progKey] += 2;
+          }
+        }
       });
-      const topSpec = Object.keys(codeCounts).reduce((a, b) => codeCounts[a] > codeCounts[b] ? a : b);
-      if (codeCounts[topSpec] > 0) {
-        const specNames = {
-          'AI': 'Bachelor of Computer Science (Artificial Intelligence)',
-          'SE': 'Bachelor of Computer Science (Software Engineering)',
-          'DS': 'Bachelor of Computer Science (Data Science)',
-          'CSN': 'Bachelor of Computer Science (Computer Systems and Networking)',
-          'IS': 'Bachelor of Information Technology (Information Systems)'
-        };
-        detectedBachelor = specNames[topSpec];
-        detectionSource = 'Course Code Inference';
+
+      // Find best-matching degree programme
+      let bestProgKey = null;
+      let highestScore = 0;
+      for (const [key, score] of Object.entries(scores)) {
+        if (score > highestScore) {
+          highestScore = score;
+          bestProgKey = key;
+        }
+      }
+
+      if (bestProgKey && highestScore > 0) {
+        const best = UM_CURRICULUM_CATALOG[bestProgKey];
+        detectedBachelor = best.degree;
+        detectedFaculty = best.faculty;
+        detectionSource = 'Curriculum Matrix Inference';
       }
     }
 
+    // Default fallback if only university electives enrolled
     if (!detectedBachelor) {
       detectedBachelor = 'Bachelor of Computer Science (Software Engineering)';
+      detectedFaculty = 'Faculty of Computer Science & Information Technology (FSKTM)';
       detectionSource = 'Standard UM Default';
     }
 
     return {
       studentName: userName || 'UM Student',
-      faculty: detectedFaculty.includes('FSKTM') || detectedFaculty.includes('Computer Science')
-        ? 'Faculty of Computer Science & Information Technology (FSKTM)'
-        : detectedFaculty,
+      faculty: detectedFaculty,
       bachelor: detectedBachelor,
       yearSem: calculateYearSemester(courses),
       totalCourses: courses.length,
