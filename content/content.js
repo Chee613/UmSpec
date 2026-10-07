@@ -37,6 +37,15 @@
     bolt: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>`
   };
 
+  // Official Chrome Dino Sprite Base64 Assets (Exact Chromium 1x Assets)
+  const DINO_SPRITES = {
+    trex: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQgAAAAvAgMAAABiRrxWAAAADFBMVEX///9TU1P39/f///+TS9URAAAAAXRSTlMAQObYZgAAAPpJREFUeF7d0jFKRkEMhdGLMM307itNLALyVmHvJuzTDMjdn72E95PGFEZSmeoU4YMMgxhskvQec8YSVFX1NhGcS5ywtbmC8khcZeKq+ZWJ4F8Sr2+ZCErjkJFEfcjAc/6/BMlfcz6xHdhRthYzIZhIHMcTVY1scUUiAphK8CMSPUbieTBhvD9Lj0vyV4wklEGzHpciKGOJoBp7XDcFs4kWxxM7Ey3iZ8JbzASAvMS7XLOJHTTvEkEZSeQl7DMuwVyCasqK5+XzQRYLUJlMbPXjFcn3m8eKBSjWZMJwvGIOvViAzCbUj1VEDoqFOEQGE3SyInJQLOQMJL4B7enP1UbLXJQAAAAASUVORK5CYII=",
+    text: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAL8AAAAYAgMAAADWncTDAAAABlBMVEX///9TU1NYzE1OAAAAAXRSTlMAQObYZgAAAO1JREFUeF690TFqxUAQA1BNoRtk7jMu3E9Auv9Vgr/5A863Y9zEhVhkHmhZsEGkw4Lppmllh1tcLHx+aRj2YnEDuQFvcQW+EoZY0TQLCZbEVxRxAvY+i8ikW0C0bwFdbictG2zvu/4EcCuBF0B23IBsQHZBYgm1n86BN+BmyV5rQFyCJAiDJSTfgBV9BbjvXdzIcKchpMOYd3gO/jvCeuUGFALg95J0/SrtQlrzz+sAjDwCIQsbWAdgbqrQpKYRjmPuAfU5dMC+c0rxOTiO+T6ZlK4pbcDLI1DIRaf3GxDGALkQHnD+cGhMKeox+AEOL3mLO7TQZgAAAABJRU5ErkJggg==",
+    restart: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACQAAAAgCAQAAADQmBIFAAAAZklEQVR4Xu3WMQoAIAxDUe/Y+58jYwV1CwQJWQT5o/DAoaWjV2i/LRym/A5FjEsR41LPQchByEHwIVAEC4gZpghmSDP8egXpr/hQZaAKQFQe+pBOQAblDC336qrlPpSg0MEjInbWTLFFmwc8TpTAAAAAAElFTkSuQmCC",
+    cactusSmall: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGYAAAAjCAMAAABRlI+PAAAADFBMVEX////////39/dTU1PhglcSAAAAAXRSTlMAQObYZgAAAPNJREFUeF7tlkEKwzAMBLXr//+5iQhU7gRRQkyhZI+DhwH74jhmO+oIJBVwURljuAXagG5QqkSgBLqg3JnxJ1Cb8SmQ3o6gpO85owGlOB4m2BNKJ11BSd01owGlOHkcIAuHkz6UNpPKgozPM54dADHjJuNhZiJxdQCQgZJeBczgCAAy3yhPJvcnmdC9mZwBIsQMFV5AkzHBNknFgcKM+oyDIFcfCAoy03m+jSMIcmoVZkKqSjr1fghyahRmoKRUHYLiSI1SMlCq5CDgX6BXmKkfn+oQ0KEyyrzoy8GbXJ9xrM/YjhUZgl9nnsyTCe9rgSRdV15CwRcIEu8GGQAAAABJRU5ErkJggg==",
+    cactusLarge: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAJYAAAAyCAMAAACJUtIoAAAACVBMVEX////39/dTU1OabbyfAAAAAXRSTlMAQObYZgAAAXhJREFUeF7t2NGqAjEMANGM///RlwvaYQndULuFPJgHUYaEI6IPhgNAOA8HZ+3U6384F5y1U6YzAZTWG+dZamnFEstBFtCKJZSHWMADLJ18z+JqpQeLdKoDC8siC5iFCQs4znIxB5B1t6F3lQWkL4N0JsF+u6GXJdbI+FKW+yWr3lhgCZ2VSag3Nlk/FnRkIRbasLCO0oulikMsvmGpeiGLZ1jOMgtIP5bODivYYUXEIVbwFCt4khVssRgsgidZwQaLd2A8m7MYLGTl4KeQQs2y4kMAMGGlmQViDIb5O6xZnnLD485dIBzqDSE1yyFdL4Iqu4XJqUUWl/NVAFSZq1P6a5aqbAUM2epQbBioWflUBABiUyhYyZoCBev8XyMAObDNOhOAfiyxmHU0YNlldGAphGjFCjA3YkUn1o/1Y3EkZFZ5isCC6NUgwDBn1RuXH96doNfAhDXfsIyJ2AnolcCVhay0kcYbW0HvCO8OwIcJ3GzkORpkFuUP/1Ec8FW1qJkAAAAASUVORK5CYII="
+  };
+
   // Helper: Sanitize folder/file names
   function sanitizeName(name) {
     if (!name) return 'unnamed';
@@ -316,79 +325,144 @@
   }
 
   // ==========================================================================
-  // Chrome Dragon Runner (Jumping Over Cactus Animation Engine)
+  // Official Chrome Dino Engine (Identical to Native Chrome T-Rex Runner)
+  // Supports RUNNING, GAME OVER with [⟳] Restart, and SUCCESS completion
   // ==========================================================================
+  function loadInvertedImage(src) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const off = document.createElement('canvas');
+        off.width = img.width;
+        off.height = img.height;
+        const ctx = off.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        try {
+          const imgData = ctx.getImageData(0, 0, off.width, off.height);
+          const d = imgData.data;
+          for (let i = 0; i < d.length; i += 4) {
+            if (d[i + 3] > 10) {
+              d[i] = Math.min(255, (255 - d[i]) * 1.5);
+              d[i + 1] = Math.min(255, (255 - d[i + 1]) * 1.5);
+              d[i + 2] = Math.min(255, (255 - d[i + 2]) * 1.5);
+            }
+          }
+          ctx.putImageData(imgData, 0, 0);
+          resolve(off);
+        } catch (e) {
+          resolve(img);
+        }
+      };
+      img.src = src;
+    });
+  }
+
   class UmSpecDragonRunner {
     constructor(canvas, scoreEl) {
       this.canvas = canvas;
       this.ctx = canvas.getContext('2d');
       this.scoreEl = scoreEl;
-      this.isRunning = false;
+      this.state = 'IDLE'; // 'IDLE' | 'RUNNING' | 'GAME_OVER' | 'SUCCESS'
       this.score = 0;
+      this.highScore = '00055';
       this.speed = 4.2;
-      this.groundY = 70;
+      this.groundY = 94;
       this.width = canvas.width;
       this.height = canvas.height;
       this.dino = {
-        x: 36,
-        y: 70,
+        x: 48,
+        y: 47, // groundY - 47
+        w: 44,
+        h: 47,
         vy: 0,
         isJumping: false,
-        legFrame: 0,
+        legFrame: 88, // 88 or 132
         frameCounter: 0
       };
       this.cacti = [];
       this.clouds = [
-        { x: 50, y: 14, speed: 0.5 },
-        { x: 220, y: 10, speed: 0.35 },
-        { x: 390, y: 18, speed: 0.6 }
+        { x: 80, y: 16, speed: 0.5 },
+        { x: 260, y: 12, speed: 0.35 },
+        { x: 440, y: 22, speed: 0.6 }
       ];
       this.groundDots = [];
       this.nextCactusTimer = 75;
       this.animationId = null;
+      this.sprites = null;
+      this.spritesLoaded = false;
+      this.restartBounds = { x: 0, y: 0, w: 36, h: 32 };
+
       this.initGround();
 
       this.handleInput = (e) => {
         if (e) e.preventDefault();
-        this.jump();
+        if (this.state === 'RUNNING') {
+          this.jump();
+        } else if (this.state === 'GAME_OVER') {
+          // Check restart click or tap
+          runZeroTouchExport();
+        }
       };
 
       this.handleKey = (e) => {
         if (e.code === 'Space' || e.code === 'ArrowUp') {
           e.preventDefault();
-          this.jump();
+          if (this.state === 'RUNNING') {
+            this.jump();
+          } else if (this.state === 'GAME_OVER') {
+            runZeroTouchExport();
+          }
         }
       };
     }
 
+    async preloadSprites() {
+      if (this.spritesLoaded) return;
+      const [trex, text, restart, cactusSmall, cactusLarge] = await Promise.all([
+        loadInvertedImage(DINO_SPRITES.trex),
+        loadInvertedImage(DINO_SPRITES.text),
+        loadInvertedImage(DINO_SPRITES.restart),
+        loadInvertedImage(DINO_SPRITES.cactusSmall),
+        loadInvertedImage(DINO_SPRITES.cactusLarge)
+      ]);
+      this.sprites = { trex, text, restart, cactusSmall, cactusLarge };
+      this.spritesLoaded = true;
+    }
+
     initGround() {
       this.groundDots = [];
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 22; i++) {
         this.groundDots.push({
-          x: Math.random() * (this.width || 560),
-          offsetY: Math.floor(Math.random() * 3) + 2,
-          w: Math.floor(Math.random() * 4) + 2
+          x: Math.random() * (this.width || 580),
+          offsetY: (i % 2 === 0 ? 2 : 4),
+          w: (i % 3 === 0 ? 6 : 3)
         });
       }
     }
 
-    start() {
-      if (this.isRunning) return;
-      this.isRunning = true;
+    async start() {
+      await this.preloadSprites();
+      this.state = 'RUNNING';
       this.score = 0;
       this.speed = 4.2;
       this.cacti = [];
-      this.nextCactusTimer = 50;
-      this.dino.y = this.groundY;
+      this.nextCactusTimer = 55;
+      this.groundY = 94;
+      this.dino.y = this.groundY - 47;
       this.dino.vy = 0;
       this.dino.isJumping = false;
+      this.dino.legFrame = 88;
 
       this.resize();
+      this.canvas.removeEventListener('click', this.handleInput);
+      window.removeEventListener('keydown', this.handleKey);
       this.canvas.addEventListener('click', this.handleInput);
       window.addEventListener('keydown', this.handleKey);
 
+      if (this.animationId) cancelAnimationFrame(this.animationId);
+
       const loop = () => {
-        if (!this.isRunning) return;
+        if (this.state !== 'RUNNING') return;
         this.update();
         this.draw();
         this.animationId = requestAnimationFrame(loop);
@@ -396,31 +470,47 @@
       this.animationId = requestAnimationFrame(loop);
     }
 
-    stop(statusText) {
-      this.isRunning = false;
+    stop(stateType) {
       if (this.animationId) {
         cancelAnimationFrame(this.animationId);
         this.animationId = null;
       }
-      this.canvas.removeEventListener('click', this.handleInput);
-      window.removeEventListener('keydown', this.handleKey);
-      if (statusText && this.scoreEl) {
-        this.scoreEl.innerText = `${statusText} // ${String(this.score).padStart(5, '0')} M`;
+
+      if (stateType === 'ABORTED') {
+        this.state = 'GAME_OVER';
+        this.dino.isJumping = false;
+        this.dino.y = this.groundY - 47;
+        // Collided with cactus directly in front
+        this.cacti = [{ x: this.dino.x + 44, type: 'small', w: 17, h: 35 }];
+        this.drawGameOver();
+        if (this.scoreEl) {
+          this.scoreEl.innerText = `ABORTED // [CLICK ⟳ TO RETRY]`;
+        }
+      } else if (stateType === 'SUCCESS') {
+        this.state = 'SUCCESS';
+        this.dino.isJumping = false;
+        this.dino.y = this.groundY - 47;
+        this.drawSuccess();
+        if (this.scoreEl) {
+          this.scoreEl.innerText = `COMPLETED // ALL COURSES EXPORTED`;
+        }
+      } else {
+        this.state = 'IDLE';
       }
     }
 
     jump() {
-      if (!this.dino.isJumping) {
+      if (!this.dino.isJumping && this.state === 'RUNNING') {
         this.dino.isJumping = true;
-        this.dino.vy = -8.2;
+        this.dino.vy = -8.4;
       }
     }
 
     resize() {
       const rect = this.canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      const w = Math.floor(rect.width || 560);
-      const h = 92;
+      const w = Math.floor(rect.width || 580);
+      const h = 116;
       this.canvas.width = w * dpr;
       this.canvas.height = h * dpr;
       if (this.ctx.resetTransform) {
@@ -431,67 +521,70 @@
       this.ctx.scale(dpr, dpr);
       this.width = w;
       this.height = h;
-      this.groundY = 70;
-      this.dino.y = Math.min(this.dino.y, this.groundY);
+      this.groundY = 94;
+      this.dino.y = Math.min(this.dino.y, this.groundY - 47);
     }
 
     update() {
       this.score += Math.round(this.speed * 0.35);
+      const scoreStr = String(this.score).padStart(5, '0');
       if (this.scoreEl) {
-        this.scoreEl.innerText = `DIST // ${String(this.score).padStart(5, '0')} M`;
+        this.scoreEl.innerText = `DIST // ${scoreStr} M`;
       }
 
-      // Physics
+      // T-Rex Gravity & Jump
       if (this.dino.isJumping) {
         this.dino.y += this.dino.vy;
-        this.dino.vy += 0.46;
-        if (this.dino.y >= this.groundY) {
-          this.dino.y = this.groundY;
+        this.dino.vy += 0.48;
+        if (this.dino.y >= this.groundY - 47) {
+          this.dino.y = this.groundY - 47;
           this.dino.vy = 0;
           this.dino.isJumping = false;
         }
       } else {
         this.dino.frameCounter++;
         if (this.dino.frameCounter % 6 === 0) {
-          this.dino.legFrame = 1 - this.dino.legFrame;
+          this.dino.legFrame = (this.dino.legFrame === 88 ? 132 : 88);
         }
       }
 
-      // Auto-pilot jump AI (jumping over upcoming cactus)
+      // Autopilot AI Jump
       const nextCactus = this.cacti.find(c => c.x > this.dino.x);
       if (nextCactus) {
-        const dist = nextCactus.x - (this.dino.x + 32);
+        const dist = nextCactus.x - (this.dino.x + 40);
         if (dist > 0 && dist < (this.speed * 11 + 6) && !this.dino.isJumping) {
           this.jump();
         }
       }
 
-      // Spawn cacti
+      // Spawn Cacti
       this.nextCactusTimer--;
       if (this.nextCactusTimer <= 0) {
-        const type = Math.random() > 0.5 ? 'single' : (Math.random() > 0.6 ? 'double' : 'tall');
+        const isLarge = Math.random() > 0.65;
         this.cacti.push({
-          x: this.width + 20,
-          type: type
+          x: this.width + 30,
+          type: isLarge ? 'large' : 'small',
+          w: isLarge ? 25 : 17,
+          h: isLarge ? 50 : 35
         });
-        this.nextCactusTimer = Math.floor(Math.random() * 65) + 70;
+        this.nextCactusTimer = Math.floor(Math.random() * 60) + 75;
       }
 
-      // Move cacti
+      // Move Cacti
       for (let i = this.cacti.length - 1; i >= 0; i--) {
         this.cacti[i].x -= this.speed;
-        if (this.cacti[i].x < -50) {
+        if (this.cacti[i].x < -60) {
           this.cacti.splice(i, 1);
         }
       }
 
-      // Clouds
+      // Move Clouds
       for (const cl of this.clouds) {
         cl.x -= cl.speed;
         if (cl.x < -60) cl.x = this.width + Math.random() * 40;
       }
 
-      // Ground dots
+      // Move Ground Dots
       for (const dot of this.groundDots) {
         dot.x -= this.speed;
         if (dot.x < -10) dot.x = this.width + Math.random() * 20;
@@ -499,129 +592,142 @@
     }
 
     draw() {
+      if (!this.spritesLoaded) return;
       const ctx = this.ctx;
       ctx.clearRect(0, 0, this.width, this.height);
 
       // Clouds
       ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
       for (const cl of this.clouds) {
-        ctx.fillRect(cl.x, cl.y + 3, 24, 4);
-        ctx.fillRect(cl.x + 5, cl.y, 14, 4);
-        ctx.fillRect(cl.x + 3, cl.y + 1, 18, 4);
+        ctx.fillRect(cl.x, cl.y + 3, 26, 4);
+        ctx.fillRect(cl.x + 6, cl.y, 14, 4);
+        ctx.fillRect(cl.x + 3, cl.y + 1, 20, 4);
       }
 
-      // Ground line
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      // Ground Line
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(0, this.groundY + 4);
-      ctx.lineTo(this.width, this.groundY + 4);
+      ctx.moveTo(0, this.groundY);
+      ctx.lineTo(this.width, this.groundY);
       ctx.stroke();
 
-      // Ground dots
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+      // Ground Terrain Dashes
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
       for (const dot of this.groundDots) {
-        ctx.fillRect(dot.x, this.groundY + 4 + dot.offsetY, dot.w, 1);
+        ctx.fillRect(dot.x, this.groundY + dot.offsetY, dot.w, 1);
       }
 
-      // Cacti
-      ctx.fillStyle = '#ffffff';
+      // Cacti Obstacles
       for (const c of this.cacti) {
-        this.drawCactus(ctx, c.x, this.groundY + 4, c.type);
+        if (c.type === 'large') {
+          ctx.drawImage(this.sprites.cactusLarge, 0, 0, 25, 50, c.x, this.groundY - 50, 25, 50);
+        } else {
+          ctx.drawImage(this.sprites.cactusSmall, 0, 0, 17, 35, c.x, this.groundY - 35, 17, 35);
+        }
       }
 
-      // Chrome Dragon (T-Rex with wings & horns)
-      this.drawDragon(ctx, this.dino.x, this.dino.y);
+      // Official Chrome T-Rex Sprite
+      const frameX = this.dino.isJumping ? 0 : this.dino.legFrame;
+      ctx.drawImage(this.sprites.trex, frameX, 0, 44, 47, this.dino.x, this.dino.y, 44, 47);
+
+      // In-Game Score (Top Right)
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'right';
+      ctx.fillText(`HI ${this.highScore}  ${String(this.score).padStart(5, '0')}`, this.width - 16, 20);
     }
 
-    drawCactus(ctx, x, y, type) {
-      if (type === 'tall') {
-        ctx.fillRect(x + 5, y - 26, 4, 26);
-        ctx.fillRect(x + 1, y - 19, 4, 3);
-        ctx.fillRect(x + 1, y - 23, 2, 7);
-        ctx.fillRect(x + 9, y - 16, 4, 3);
-        ctx.fillRect(x + 11, y - 20, 2, 7);
-      } else if (type === 'double') {
-        ctx.fillRect(x + 5, y - 20, 4, 20);
-        ctx.fillRect(x + 1, y - 14, 4, 3);
-        ctx.fillRect(x + 1, y - 17, 2, 6);
-        ctx.fillRect(x + 9, y - 12, 4, 3);
-        ctx.fillRect(x + 11, y - 15, 2, 6);
+    // Exact Chrome Dino Game Over Screen (Identical to Native Chrome Screenshot)
+    drawGameOver() {
+      if (!this.spritesLoaded) return;
+      const ctx = this.ctx;
+      ctx.clearRect(0, 0, this.width, this.height);
 
-        ctx.fillRect(x + 17, y - 16, 4, 16);
-        ctx.fillRect(x + 14, y - 11, 3, 2);
-        ctx.fillRect(x + 14, y - 14, 2, 5);
-        ctx.fillRect(x + 21, y - 9, 3, 2);
-        ctx.fillRect(x + 22, y - 12, 2, 5);
-      } else {
-        ctx.fillRect(x + 5, y - 20, 4, 20);
-        ctx.fillRect(x + 1, y - 14, 4, 3);
-        ctx.fillRect(x + 1, y - 17, 2, 6);
-        ctx.fillRect(x + 9, y - 12, 4, 3);
-        ctx.fillRect(x + 11, y - 15, 2, 6);
+      // Ground Line
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, this.groundY);
+      ctx.lineTo(this.width, this.groundY);
+      ctx.stroke();
+
+      // Ground Dashes
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      for (let x = 12; x < this.width; x += 36) {
+        ctx.fillRect(x, this.groundY + 2, 6, 1);
+        ctx.fillRect(x + 14, this.groundY + 4, 3, 1);
       }
+
+      // 1. Official Crashed T-Rex (Shocked wide-open eye, Frame 5 at x=220)
+      ctx.drawImage(this.sprites.trex, 220, 0, 44, 47, this.dino.x, this.groundY - 47, 44, 47);
+
+      // 2. Cactus Collided in Front
+      ctx.drawImage(this.sprites.cactusSmall, 0, 0, 17, 35, this.dino.x + 44, this.groundY - 35, 17, 35);
+
+      // Extra scenery cacti
+      if (this.width > 480) {
+        ctx.drawImage(this.sprites.cactusSmall, 0, 0, 34, 35, this.width - 180, this.groundY - 35, 34, 35);
+      }
+      ctx.drawImage(this.sprites.cactusLarge, 0, 0, 25, 50, this.width - 40, this.groundY - 50, 25, 50);
+
+      // 3. Official GAME OVER Sprite Text (191 x 11)
+      const textX = Math.round((this.width - 191) / 2);
+      const textY = 22;
+      ctx.drawImage(this.sprites.text, 0, 13, 191, 11, textX, textY, 191, 11);
+
+      // 4. Official [ ⟳ ] Restart / Retry Button (36 x 32)
+      const restartX = Math.round((this.width - 36) / 2);
+      const restartY = 44;
+      this.restartBounds = { x: restartX, y: restartY, w: 36, h: 32 };
+      ctx.drawImage(this.sprites.restart, 0, 0, 36, 32, restartX, restartY, 36, 32);
+
+      // 5. High Score and Aborted Distance
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'right';
+      ctx.fillText(`HI ${this.highScore}  ${String(this.score).padStart(5, '0')}`, this.width - 16, 20);
     }
 
-    drawDragon(ctx, x, y) {
-      ctx.fillStyle = '#ffffff';
+    // Success State Screen (When download completes 100%)
+    drawSuccess() {
+      if (!this.spritesLoaded) return;
+      const ctx = this.ctx;
+      ctx.clearRect(0, 0, this.width, this.height);
 
-      // Horns
-      ctx.fillRect(x + 17, y - 34, 3, 3);
-      ctx.fillRect(x + 13, y - 32, 2, 2);
+      // Ground Line
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, this.groundY);
+      ctx.lineTo(this.width, this.groundY);
+      ctx.stroke();
 
-      // Head & Snout
-      ctx.fillRect(x + 18, y - 31, 16, 11);
-      ctx.fillRect(x + 22, y - 23, 12, 4);
-
-      // Eye
-      ctx.fillStyle = '#000000';
-      ctx.fillRect(x + 22, y - 29, 2.5, 2.5);
-      ctx.fillStyle = '#ffffff';
-
-      // Neck & Body
-      ctx.fillRect(x + 14, y - 21, 10, 8);
-      ctx.fillRect(x + 6, y - 16, 16, 14);
-
-      // Tail
-      ctx.fillRect(x, y - 14, 6, 4);
-      ctx.fillRect(x - 4, y - 10, 4, 4);
-      ctx.fillRect(x - 6, y - 6, 2, 3);
-
-      // Arms
-      ctx.fillRect(x + 24, y - 12, 4, 2);
-      ctx.fillRect(x + 26, y - 10, 2, 3);
-
-      // Flapping Dragon Wings
-      if (this.dino.isJumping) {
-        ctx.fillRect(x + 4, y - 28, 12, 3);
-        ctx.fillRect(x + 8, y - 32, 8, 4);
-        ctx.fillRect(x + 12, y - 35, 5, 3);
-        ctx.fillRect(x + 2, y - 25, 4, 3);
-      } else if (this.dino.legFrame === 0) {
-        ctx.fillRect(x + 6, y - 24, 9, 3);
-        ctx.fillRect(x + 10, y - 27, 6, 3);
-        ctx.fillRect(x + 13, y - 29, 4, 2);
-      } else {
-        ctx.fillRect(x + 6, y - 22, 9, 3);
-        ctx.fillRect(x + 11, y - 25, 6, 3);
-        ctx.fillRect(x + 14, y - 27, 4, 2);
+      // Ground Dashes
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      for (let x = 12; x < this.width; x += 36) {
+        ctx.fillRect(x, this.groundY + 2, 6, 1);
+        ctx.fillRect(x + 14, this.groundY + 4, 3, 1);
       }
 
-      // Running Legs
-      if (this.dino.isJumping) {
-        ctx.fillRect(x + 10, y - 2, 4, 4);
-        ctx.fillRect(x + 16, y - 2, 4, 4);
-      } else if (this.dino.legFrame === 0) {
-        ctx.fillRect(x + 10, y - 2, 3, 6);
-        ctx.fillRect(x + 10, y + 4, 4, 2);
-        ctx.fillRect(x + 16, y - 2, 3, 3);
-        ctx.fillRect(x + 18, y + 1, 3, 2);
-      } else {
-        ctx.fillRect(x + 10, y - 2, 3, 3);
-        ctx.fillRect(x + 8, y + 1, 3, 2);
-        ctx.fillRect(x + 16, y - 2, 3, 6);
-        ctx.fillRect(x + 16, y + 4, 4, 2);
-      }
+      // 1. Standing T-Rex in Victory Pose (Frame 0 at x=0)
+      ctx.drawImage(this.sprites.trex, 0, 0, 44, 47, this.dino.x, this.groundY - 47, 44, 47);
+
+      // 2. Success Banner
+      ctx.textAlign = 'center';
+      ctx.font = '700 13px ui-monospace, monospace';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('S U C C E S S // E X P O R T   C O M P L E T E', this.width / 2, 34);
+
+      ctx.font = '600 10.5px ui-monospace, monospace';
+      ctx.fillStyle = '#888888';
+      ctx.fillText('ALL COURSE MATERIALS ARCHIVED (100%)', this.width / 2, 54);
+
+      // 3. Top Right Score
+      ctx.textAlign = 'right';
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('HI 100%  DONE', this.width - 16, 20);
     }
   }
 
@@ -737,21 +843,21 @@
             </div>
           </div>
 
-          <!-- Progress & Chrome Dragon Runner Card -->
+          <!-- Progress & Chrome Dino Runner Card -->
           <div class="umspec-progress-card" id="umspec-progress-card">
-            <!-- Chrome Dragon Runner Animation Box -->
+            <!-- Chrome Dino Runner Animation Box -->
             <div class="umspec-runner-box" id="umspec-runner-box">
               <div class="umspec-runner-header">
                 <div class="umspec-runner-badge">
                   <span class="umspec-runner-pulse"></span>
-                  <span>SYNC ENGINE // CHROME DRAGON RUNNER</span>
+                  <span>SYNC ENGINE // CHROME DINO RUNNER</span>
                 </div>
                 <div class="umspec-runner-telemetry">
                   <span class="umspec-runner-score" id="umspec-runner-score">DIST // 00000 M</span>
                   <span class="umspec-runner-tip">[AUTO-JUMP ACTIVE • TAP TO JUMP]</span>
                 </div>
               </div>
-              <canvas id="umspec-runner-canvas" height="92"></canvas>
+              <canvas id="umspec-runner-canvas" height="116"></canvas>
             </div>
 
             <div class="umspec-progress-header">
@@ -876,7 +982,7 @@
     }
   }
 
-  // Render Courses List (Pristine Custom Nothing Checkbox, No Weird Diamond / Redundant Bullet)
+  // Render Courses List (Pristine Custom Nothing Checkbox)
   function renderCoursesList() {
     const container = document.getElementById('umspec-courses-container');
     const countEl = document.getElementById('umspec-course-count');
@@ -989,7 +1095,7 @@
     return { filename: sanitizeName(filename), data };
   }
 
-  // Zero-Touch Smart Export Pipeline with Live Dragon Runner & Abort Handling
+  // Zero-Touch Smart Export Pipeline with Live Dino Runner & Abort Handling
   async function runZeroTouchExport() {
     if (typeof JSZip === 'undefined') {
       alert('JSZip library is missing. Please refresh the page.');
@@ -1026,7 +1132,7 @@
     const statusEl = document.getElementById('umspec-progress-status');
     const footerStats = document.getElementById('umspec-footer-stats');
 
-    // Start Chrome Dragon Runner Animation
+    // Start Chrome Dino Runner Animation
     const canvasEl = document.getElementById('umspec-runner-canvas');
     const scoreEl = document.getElementById('umspec-runner-score');
     if (canvasEl) {
@@ -1122,7 +1228,7 @@
           percentEl.innerText = `${progressVal}%`;
 
           // Accelerate runner speed as download progresses
-          if (runnerInstance) {
+          if (runnerInstance && runnerInstance.state === 'RUNNING') {
             runnerInstance.speed = 4.2 + (progressVal / 100) * 2.8;
           }
 
@@ -1281,7 +1387,7 @@ ${Array.from(discoveredCategories).map(c => `* **${c}**`).join('\n')}
       startBtn.innerHTML = `${ICONS.checkCircle} <span>EXPORT COMPLETE</span>`;
 
       if (runnerInstance) {
-        runnerInstance.stop('SYNC COMPLETE');
+        runnerInstance.stop('SUCCESS');
       }
 
     } catch (err) {
