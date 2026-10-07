@@ -934,7 +934,7 @@
       const rect = this.canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
       const w = Math.floor(rect.width || 580);
-      const h = 116;
+      const h = Math.floor(rect.height || 100);
       this.canvas.width = w * dpr;
       this.canvas.height = h * dpr;
       if (this.ctx.resetTransform) {
@@ -945,7 +945,7 @@
       this.ctx.scale(dpr, dpr);
       this.width = w;
       this.height = h;
-      this.groundY = 94;
+      this.groundY = h - 22;
       this.dino.y = Math.min(this.dino.y, this.groundY - 47);
     }
 
