@@ -363,6 +363,21 @@
   margin: 6px 0 3px 0;
   letter-spacing: -0.01em;
   line-height: 1.3;
+  cursor: text;
+  outline: none;
+  border: none;
+  background: transparent;
+  caret-color: #ffffff;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.umspec-profile-major:hover,
+.umspec-profile-major:focus {
+  outline: none;
+  border: none;
+  box-shadow: none;
+  background: transparent;
 }
 
 .umspec-profile-faculty {

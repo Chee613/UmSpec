@@ -483,9 +483,6 @@
         // Collided with cactus directly in front
         this.cacti = [{ x: this.dino.x + 44, type: 'small', w: 17, h: 35 }];
         this.drawGameOver();
-        if (this.scoreEl) {
-          this.scoreEl.innerText = `ABORTED // [CLICK ⟳ TO RETRY]`;
-        }
       } else if (stateType === 'SUCCESS') {
         this.state = 'SUCCESS';
         this.dino.isJumping = false;
@@ -823,7 +820,7 @@
               <span class="umspec-profile-badge">${ICONS.graduationCap} ACADEMIC PROGRAMME</span>
               <span class="umspec-profile-year" id="umspec-profile-year">DETECTING...</span>
             </div>
-            <div class="umspec-profile-major" id="umspec-profile-major">DETECTING PROGRAMME...</div>
+            <div class="umspec-profile-major" id="umspec-profile-major" contenteditable="true" spellcheck="false" role="textbox" aria-label="Academic Programme" title="Click to edit programme">DETECTING PROGRAMME...</div>
             <div class="umspec-profile-faculty" id="umspec-profile-faculty">UNIVERSITI MALAYA</div>
           </div>
 
@@ -854,7 +851,6 @@
                 </div>
                 <div class="umspec-runner-telemetry">
                   <span class="umspec-runner-score" id="umspec-runner-score">DIST // 00000 M</span>
-                  <span class="umspec-runner-tip">[AUTO-JUMP ACTIVE • TAP TO JUMP]</span>
                 </div>
               </div>
               <canvas id="umspec-runner-canvas" height="116"></canvas>
@@ -880,7 +876,7 @@
               ${ICONS.close} <span>ABORT DOWNLOAD</span>
             </button>
             <button class="umspec-btn-primary" id="umspec-start-btn" type="button">
-              ${ICONS.download} <span>START 1-CLICK EXPORT (ZIP)</span>
+              ${ICONS.download} <span>EXPORT</span>
             </button>
           </div>
         </div>
@@ -909,6 +905,28 @@
     };
 
     document.getElementById('umspec-start-btn').onclick = runZeroTouchExport;
+
+    // Academic Programme Inline Editor Listeners (No frame, text cursor only)
+    const majorEl = document.getElementById('umspec-profile-major');
+    if (majorEl) {
+      const saveDegree = () => {
+        const val = majorEl.innerText.trim();
+        if (val && val !== 'DETECTING PROGRAMME...') {
+          if (studentProfile) {
+            studentProfile.bachelor = val;
+          }
+          localStorage.setItem('umspec_saved_degree', val);
+        }
+      };
+      majorEl.addEventListener('blur', saveDegree);
+      majorEl.addEventListener('input', saveDegree);
+      majorEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          majorEl.blur();
+        }
+      });
+    }
 
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
@@ -951,7 +969,7 @@
     if (!studentProfile) return;
     document.getElementById('umspec-profile-year').innerText = studentProfile.yearSem;
     const majorEl = document.getElementById('umspec-profile-major');
-    if (majorEl) {
+    if (majorEl && document.activeElement !== majorEl) {
       majorEl.innerText = studentProfile.bachelor;
     }
     document.getElementById('umspec-profile-faculty').innerText = studentProfile.faculty;
@@ -970,16 +988,8 @@
     if (selectedCountEl) selectedCountEl.innerText = count;
     if (totalCountEl) totalCountEl.innerText = total;
 
-    if (count === 0) {
-      startBtn.disabled = true;
-      startBtn.innerHTML = `${ICONS.alertCircle} <span>SELECT AT LEAST 1 COURSE</span>`;
-    } else if (count === total) {
-      startBtn.disabled = false;
-      startBtn.innerHTML = `${ICONS.download} <span>EXPORT ALL COURSES (${total})</span>`;
-    } else {
-      startBtn.disabled = false;
-      startBtn.innerHTML = `${ICONS.download} <span>EXPORT SELECTED (${count} OF ${total})</span>`;
-    }
+    startBtn.disabled = count === 0;
+    startBtn.innerHTML = `${ICONS.download} <span>EXPORT</span>`;
   }
 
   // Render Courses List (Pristine Custom Nothing Checkbox)
@@ -1014,7 +1024,6 @@
             </label>
             <div class="umspec-course-text-wrap">
               <div class="umspec-course-title" id="umspec-title-${c.id}">${c.fullName}</div>
-              <span class="umspec-course-code">${c.folderName}</span>
             </div>
           </div>
           <span class="umspec-course-status" id="umspec-status-${c.id}">READY</span>
