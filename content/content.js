@@ -20,15 +20,17 @@
   let isExporting = false;
   let sesskey = null;
 
-  // Solar Bold Duotone by 480 Design, recoloured; see README attribution.
+    // Solid Glyph SVG Icons (SVGRepo Glyph Collection)
   const ICONS = {
-    graduationCap: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.2172 3.49965C12.7962 2.83345 11.2037 2.83345 9.78272 3.49965L3.0916 6.63659C2.0156 7.14105 1.73507 8.56352 2.25 9.54666L2.25 14.5C2.25 14.9142 2.58579 15.25 3 15.25C3.41421 15.25 3.75 14.9142 3.75 14.5V10.672L9.78281 13.5003C11.2038 14.1665 12.7963 14.1665 14.2173 13.5003L20.9084 10.3634C22.3639 9.68105 22.3639 7.31899 20.9084 6.63664L14.2172 3.49965Z" fill="currentColor"/><path opacity="0.5" d="M5 11.2583L9.78281 13.5006C11.2038 14.1668 12.7963 14.1668 14.2173 13.5006L19 11.2583V16.6255C19 17.6335 18.4965 18.5773 17.6147 19.0656C16.1463 19.8788 13.796 21.0001 12 21.0001C10.204 21.0001 7.8537 19.8788 6.38533 19.0656C5.5035 18.5773 5 17.6335 5 16.6255V11.2583Z" fill="currentColor"/></svg>`,
-    bookOpen: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7.42598 18H20C19.9965 18.9296 19.9784 19.6228 19.8866 20.1706C19.7773 20.8228 19.5774 21.1682 19.2709 21.4142C18.9643 21.6602 18.5339 21.8206 17.7211 21.9083C16.8844 21.9986 15.7754 22 14.1854 22H9.75461C8.1646 22 7.05566 21.9986 6.21896 21.9083C5.40616 21.8206 4.97573 21.6602 4.66916 21.4142C4.36259 21.1682 4.16271 20.8228 4.05343 20.1706C4.04522 20.1216 4.03761 20.0714 4.03053 20.02C3.99045 19.7288 3.97041 19.5831 4.09696 19.2397C4.22351 18.8964 4.27837 18.8425 4.38811 18.7347C4.71351 18.4151 5.15982 18.1785 5.67321 18.0681C5.96352 18.0057 6.34236 18 7.42598 18Z" fill="currentColor"/><path opacity="0.5" d="M4.72718 2.73332C5.03258 2.42535 5.46135 2.22456 6.27103 2.11478C7.10452 2.00177 8.2092 2 9.7931 2H14.2069C15.7908 2 16.8955 2.00177 17.729 2.11478C18.5387 2.22456 18.9674 2.42535 19.2728 2.73332C19.5782 3.0413 19.7773 3.47368 19.8862 4.2902C19.9982 5.13073 20 6.24474 20 7.84202L20 18H7.42598C6.34236 18 5.96352 18.0057 5.67321 18.0681C5.15982 18.1785 4.71351 18.4151 4.38811 18.7347C4.27837 18.8425 4.22351 18.8964 4.09696 19.2397C4.02435 19.4367 4 19.5687 4 19.7003V7.84202C4 6.24474 4.00176 5.13073 4.11382 4.2902C4.22268 3.47368 4.42179 3.0413 4.72718 2.73332Z" fill="currentColor"/><path d="M7.25 7C7.25 6.58579 7.58579 6.25 8 6.25H16C16.4142 6.25 16.75 6.58579 16.75 7C16.75 7.41421 16.4142 7.75 16 7.75H8C7.58579 7.75 7.25 7.41421 7.25 7Z" fill="currentColor"/><path d="M8 9.75C7.58579 9.75 7.25 10.0858 7.25 10.5C7.25 10.9142 7.58579 11.25 8 11.25H13C13.4142 11.25 13.75 10.9142 13.75 10.5C13.75 10.0858 13.4142 9.75 13 9.75H8Z" fill="currentColor"/></svg>`,
-    download: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path opacity="0.5" d="M22 15.9998V14.9998C22 12.1714 21.9998 10.7576 21.1211 9.87891C20.2424 9.00023 18.8282 9.00023 15.9998 9.00023H7.99977C5.17135 9.00023 3.75713 9.00023 2.87845 9.87891C2 10.7574 2 12.1706 2 14.9976V14.9998V15.9998C2 18.8282 2 20.2424 2.87868 21.1211C3.75736 21.9998 5.17157 21.9998 8 21.9998H16H16C18.8284 21.9998 20.2426 21.9998 21.1213 21.1211C22 20.2424 22 18.8282 22 15.9998Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M12 1.25C11.5858 1.25 11.25 1.58579 11.25 2L11.25 12.9726L9.56943 11.0119C9.29986 10.6974 8.82639 10.661 8.51189 10.9306C8.1974 11.2001 8.16098 11.6736 8.43054 11.9881L11.4305 15.4881C11.573 15.6543 11.781 15.75 12 15.75C12.2189 15.75 12.4269 15.6543 12.5694 15.4881L15.5694 11.9881C15.839 11.6736 15.8026 11.2001 15.4881 10.9306C15.1736 10.661 14.7001 10.6974 14.4305 11.0119L12.75 12.9726L12.75 2C12.75 1.58579 12.4142 1.25 12 1.25Z" fill="currentColor"/></svg>`,
-    loader: `<svg class="umspec-svg umspec-spin" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path opacity="0.5" fill-rule="evenodd" clip-rule="evenodd" d="M6.87348 7.87338C9.01606 5.7308 12.1674 5.20902 14.8007 6.31041L15.9309 5.18019C12.6515 3.53111 8.55119 4.07435 5.81282 6.81272C2.39573 10.2298 2.39573 15.77 5.81282 19.1871C9.2299 22.6042 14.7701 22.6042 18.1872 19.1871C20.1746 17.1997 21.0057 14.4933 20.6819 11.9072C20.6304 11.4962 20.2555 11.2048 19.8445 11.2562C19.4335 11.3077 19.142 11.6826 19.1935 12.0936C19.4622 14.24 18.7727 16.4802 17.1265 18.1264C14.2952 20.9577 9.70478 20.9577 6.87348 18.1264C4.04217 15.2951 4.04217 10.7047 6.87348 7.87338Z" fill="currentColor"/><path d="M18.7212 4.20119C18.7212 3.89785 18.5384 3.62437 18.2582 3.50828C17.9779 3.3922 17.6553 3.45637 17.4408 3.67086L15.9314 5.18028L14.8012 6.3105L13.1982 7.9135C12.9837 8.128 12.9195 8.45059 13.0356 8.73085C13.1517 9.0111 13.4252 9.19383 13.7285 9.19383H17.9712C18.3854 9.19383 18.7212 8.85805 18.7212 8.44383V4.20119Z" fill="currentColor"/></svg>`,
-    alertCircle: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path opacity="0.5" d="M22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22C17.5228 22 22 17.5228 22 12Z" fill="currentColor"/><path d="M12 6.25C12.4142 6.25 12.75 6.58579 12.75 7V13C12.75 13.4142 12.4142 13.75 12 13.75C11.5858 13.75 11.25 13.4142 11.25 13V7C11.25 6.58579 11.5858 6.25 12 6.25Z" fill="currentColor"/><path d="M12 17C12.5523 17 13 16.5523 13 16C13 15.4477 12.5523 15 12 15C11.4477 15 11 15.4477 11 16C11 16.5523 11.4477 17 12 17Z" fill="currentColor"/></svg>`,
-    checkCircle: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path opacity="0.5" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z" fill="currentColor"/><path d="M16.0303 8.96967C16.3232 9.26256 16.3232 9.73744 16.0303 10.0303L11.0303 15.0303C10.7374 15.3232 10.2626 15.3232 9.96967 15.0303L7.96967 13.0303C7.67678 12.7374 7.67678 12.2626 7.96967 11.9697C8.26256 11.6768 8.73744 11.6768 9.03033 11.9697L10.5 13.4393L12.7348 11.2045L14.9697 8.96967C15.2626 8.67678 15.7374 8.67678 16.0303 8.96967Z" fill="currentColor"/></svg>`,
-    close: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path opacity="0.5" d="M22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12Z" fill="currentColor"/><path d="M8.96967 8.96967C9.26256 8.67678 9.73744 8.67678 10.0303 8.96967L12 10.9394L13.9697 8.96969C14.2626 8.6768 14.7374 8.6768 15.0303 8.96969C15.3232 9.26258 15.3232 9.73746 15.0303 10.0304L13.0607 12L15.0303 13.9696C15.3232 14.2625 15.3232 14.7374 15.0303 15.0303C14.7374 15.3232 14.2625 15.3232 13.9696 15.0303L12 13.0607L10.0304 15.0303C9.73746 15.3232 9.26258 15.3232 8.96969 15.0303C8.6768 14.7374 8.6768 14.2626 8.96969 13.9697L10.9394 12L8.96967 10.0303C8.67678 9.73744 8.67678 9.26256 8.96967 8.96967Z" fill="currentColor"/></svg>`
+    graduationCap: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2L1 7l11 5 9-4.09V17h2V7L12 2zm-7 8.18V16c0 3.31 3.13 6 7 6s7-2.69 7-6v-5.82l-7 3.18-7-3.18z"/></svg>`,
+    bookOpen: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 1H5a2 2 0 0 0-2 2v18a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2zm-1 18H6V4h12v15zm-2-8H8v-2h8v2zm0-4H8V5h8v2z"/></svg>`,
+    download: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>`,
+    loader: `<svg class="umspec-svg umspec-spin" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z" opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10h-2.5A7.5 7.5 0 0 0 12 4.5V2z"/></svg>`,
+    alertCircle: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>`,
+    checkCircle: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>`,
+    close: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`,
+    folderArchive: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>`,
+    bolt: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>`
   };
 
   // Helper: Sanitize folder/file names
@@ -395,9 +397,10 @@
     const btn = document.createElement('button');
     btn.id = 'umspec-trigger-btn';
     btn.innerHTML = `
+      <span class="umspec-trigger-dot"></span>
       <span class="umspec-icon">${SPEC_STACK_ICON}</span>
-      <span>1-Click Smart Export</span>
-      <span class="umspec-badge">UmSpec</span>
+      <span class="umspec-trigger-label">SMART EXPORT</span>
+      <span class="umspec-badge">UMSPEC // OS</span>
     `;
     btn.title = 'UmSpec: Zero-Touch Smart Export for all SPeCTRUM courses';
     btn.onclick = openModal;
@@ -416,56 +419,60 @@
           <div class="umspec-header-title">
             <span class="umspec-header-icon-box"><span class="umspec-icon">${SPEC_STACK_ICON}</span></span>
             <div>
-              <h2>UmSpec Exporter</h2>
+              <div class="umspec-header-sub">UMSPEC // ENGINE 4.0</div>
+              <h2>COURSE EXPORTER</h2>
             </div>
           </div>
-          <button class="umspec-close-btn" id="umspec-close-modal" title="Close" aria-label="Close exporter">${ICONS.close}</button>
+          <div class="umspec-header-meta">
+            <span class="umspec-live-pill"><span class="umspec-red-dot"></span> LIVE SPeCTRUM</span>
+            <button class="umspec-close-btn" id="umspec-close-modal" title="Close" aria-label="Close exporter">${ICONS.close}</button>
+          </div>
         </div>
 
         <div class="umspec-modal-body">
           <!-- Student Academic Profile Card -->
           <div class="umspec-profile-card" id="umspec-profile-card">
             <div class="umspec-profile-header">
-              <span class="umspec-profile-badge">${ICONS.graduationCap} Academic Programme</span>
-              <span class="umspec-profile-year" id="umspec-profile-year">Detecting...</span>
+              <span class="umspec-profile-badge">${ICONS.graduationCap} ACADEMIC PROGRAMME</span>
+              <span class="umspec-profile-year" id="umspec-profile-year">DETECTING...</span>
             </div>
-            <div class="umspec-profile-major" id="umspec-profile-major">Detecting programme...</div>
-            <div class="umspec-profile-faculty" id="umspec-profile-faculty">Universiti Malaya</div>
+            <div class="umspec-profile-major" id="umspec-profile-major">DETECTING PROGRAMME...</div>
+            <div class="umspec-profile-faculty" id="umspec-profile-faculty">UNIVERSITI MALAYA</div>
           </div>
 
           <!-- Course Overview Section -->
           <div class="umspec-section-label">
-            <span>Enrolled Subjects (<span id="umspec-selected-count">0</span>/<span id="umspec-course-count">0</span> selected)</span>
+            <span>ENROLLED SUBJECTS // [<span id="umspec-selected-count">0</span>/<span id="umspec-course-count">0</span> SELECTED]</span>
             <div class="umspec-selection-tools">
-              <button type="button" class="umspec-link-btn" id="umspec-select-all">Select All</button>
-              <span class="umspec-sep">•</span>
-              <button type="button" class="umspec-link-btn" id="umspec-deselect-all">Deselect All</button>
+              <button type="button" class="umspec-link-btn" id="umspec-select-all">SELECT ALL</button>
+              <span class="umspec-sep">//</span>
+              <button type="button" class="umspec-link-btn" id="umspec-deselect-all">DESELECT</button>
             </div>
           </div>
 
           <div class="umspec-courses-list" id="umspec-courses-container">
             <div style="padding: 24px; text-align: center; color: #64748b; display: flex; align-items: center; justify-content: center; gap: 8px;">
-              ${ICONS.loader} <span>Scanning SPeCTRUM session and course materials...</span>
+              ${ICONS.loader} <span>SCANNING SPeCTRUM SESSION & MATERIALS...</span>
             </div>
           </div>
 
           <!-- Progress & Audit Card -->
           <div class="umspec-progress-card" id="umspec-progress-card">
             <div class="umspec-progress-header">
-              <span id="umspec-progress-title">Running Smart Export...</span>
+              <span id="umspec-progress-title">EXPORT TELEMETRY //</span>
               <span id="umspec-progress-percent">0%</span>
             </div>
             <div class="umspec-progress-bar-bg">
               <div class="umspec-progress-bar-fill" id="umspec-progress-fill"></div>
             </div>
-            <div class="umspec-status-text" id="umspec-progress-status">Preparing materials...</div>
+            <div class="umspec-status-text" id="umspec-progress-status">PREPARING MATERIALS...</div>
           </div>
         </div>
 
         <div class="umspec-modal-footer">
           <div class="umspec-footer-info" id="umspec-footer-stats"></div>
           <button class="umspec-btn-primary" id="umspec-start-btn">
-            ${ICONS.download} <span>Start 1-Click Export (ZIP)</span>
+            ${ICONS.download} <span>START 1-CLICK EXPORT (ZIP)</span>
           </button>
         </div>
       </div>
@@ -542,13 +549,13 @@
 
     if (count === 0) {
       startBtn.disabled = true;
-      startBtn.innerHTML = `${ICONS.alertCircle} <span>Select at least 1 course</span>`;
+      startBtn.innerHTML = `${ICONS.alertCircle} <span>SELECT AT LEAST 1 COURSE</span>`;
     } else if (count === total) {
       startBtn.disabled = false;
-      startBtn.innerHTML = `${ICONS.download} <span>Export All Courses (${total})</span>`;
+      startBtn.innerHTML = `${ICONS.download} <span>EXPORT ALL COURSES (${total})</span>`;
     } else {
       startBtn.disabled = false;
-      startBtn.innerHTML = `${ICONS.download} <span>Export Selected (${count} of ${total})</span>`;
+      startBtn.innerHTML = `${ICONS.download} <span>EXPORT SELECTED (${count} OF ${total})</span>`;
     }
   }
 
@@ -560,8 +567,8 @@
 
     if (detectedCourses.length === 0) {
       container.innerHTML = `
-        <div style="padding: 24px; text-align: center; color: #ef4444; display: flex; align-items: center; justify-content: center; gap: 8px;">
-          ${ICONS.alertCircle} <span>No enrolled courses found. Please ensure you are logged into SPeCTRUM.</span>
+        <div style="padding: 24px; text-align: center; color: var(--umspec-red, #d71921); font-family: var(--umspec-font-mono); font-size: 11px; letter-spacing: 0.08em; display: flex; align-items: center; justify-content: center; gap: 8px;">
+          ${ICONS.alertCircle} <span>NO ENROLLED COURSES FOUND // VERIFY SPeCTRUM LOGIN</span>
         </div>
       `;
       if (countEl) countEl.innerText = '0';
@@ -581,7 +588,7 @@
               <span class="umspec-course-code">${c.folderName}</span>
             </div>
           </div>
-          <span class="umspec-course-status" id="umspec-status-${c.id}">Ready</span>
+          <span class="umspec-course-status" id="umspec-status-${c.id}">READY</span>
         </div>
       `;
     }).join('');
@@ -680,7 +687,7 @@
 
     const startBtn = document.getElementById('umspec-start-btn');
     startBtn.disabled = true;
-    startBtn.innerHTML = `${ICONS.loader} <span>Smart Exporting...</span>`;
+    startBtn.innerHTML = `${ICONS.loader} <span>PROCESSING ARCHIVE...</span>`;
 
     const progressCard = document.getElementById('umspec-progress-card');
     progressCard.style.display = 'block';
@@ -703,8 +710,8 @@
         const course = coursesToExport[i];
         const statusBadge = document.getElementById(`umspec-status-${course.id}`);
         if (statusBadge) {
-          statusBadge.innerText = 'Scanning...';
-          statusBadge.style.color = '#294a9b';
+          statusBadge.innerText = 'SCANNING';
+          statusBadge.style.color = '#ffffff';
         }
 
         statusEl.innerText = `Analyzing course ${i + 1}/${coursesToExport.length}: ${course.fullName}...`;
@@ -755,8 +762,8 @@
         });
 
         if (statusBadge) {
-          statusBadge.innerText = `Downloading (${itemsToDownload.length})`;
-          statusBadge.style.color = '#355bb0';
+          statusBadge.innerText = `FETCHING (${itemsToDownload.length})`;
+          statusBadge.style.color = '#ffffff';
         }
 
         let courseDownloadedCount = 0;
@@ -832,8 +839,8 @@
 
         const courseStatus = courseDownloadedCount > 0 ? '🟢 Active' : '⚠️ Empty on SPeCTRUM';
         if (statusBadge) {
-          statusBadge.innerText = courseDownloadedCount > 0 ? `✅ Done (${courseDownloadedCount})` : '⚠️ Empty';
-          statusBadge.style.color = courseDownloadedCount > 0 ? '#16a34a' : '#d97706';
+          statusBadge.innerText = courseDownloadedCount > 0 ? `READY (${courseDownloadedCount})` : 'EMPTY';
+          statusBadge.style.color = courseDownloadedCount > 0 ? '#ffffff' : '#777777';
         }
 
         auditRows.push(`| **${course.folderName}** | ${course.fullName} | ${courseDownloadedCount} files | ${courseStatus} |`);
@@ -908,13 +915,13 @@ ${Array.from(discoveredCategories).map(c => `* **${c}**`).join('\n')}
       downloadLink.click();
       setTimeout(() => URL.revokeObjectURL(downloadUrl), 60000);
 
-      statusEl.innerText = `Export Complete! Processed ${totalFiles} files (${(totalBytes / (1024 * 1024)).toFixed(1)} MB).`;
-      footerStats.innerText = `Saved SPeCTRUM_Smart_Export_${dateStr}.zip`;
-      startBtn.innerHTML = `${ICONS.checkCircle} <span>Export Complete</span>`;
+      statusEl.innerText = `COMPLETED // Processed ${totalFiles} files (${(totalBytes / (1024 * 1024)).toFixed(1)} MB).`;
+      footerStats.innerText = `SAVED // SPeCTRUM_Smart_Export_${dateStr}.zip`;
+      startBtn.innerHTML = `${ICONS.checkCircle} <span>EXPORT COMPLETE</span>`;
 
     } catch (err) {
       console.error('[UmSpec] Smart export error:', err);
-      statusEl.innerText = `❌ Error: ${err.message}`;
+      statusEl.innerText = `ERROR // ${err.message}`;
       alert(`Smart export failed: ${err.message}`);
     } finally {
       isExporting = false;

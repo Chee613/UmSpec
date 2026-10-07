@@ -1,112 +1,130 @@
-/* UmSpec - SPeCTRUM Course Exporter (Zero-Touch Smart Edition) */
+/* ==========================================================================
+   UmSpec // Nothing OS 4.0 Pro Edition
+   Pure Monochrome Dark Mode • Dot-Matrix Aesthetics • Awwwards-Caliber Finish
+   ========================================================================== */
 
-/* Injected Floating Trigger Button */
+:root {
+  --umspec-void: #000000;
+  --umspec-canvas: #060606;
+  --umspec-surface: #0e0e0e;
+  --umspec-surface-elevated: #141414;
+  --umspec-surface-item: #101010;
+  --umspec-border: rgba(255, 255, 255, 0.12);
+  --umspec-border-subtle: rgba(255, 255, 255, 0.07);
+  --umspec-border-hover: rgba(255, 255, 255, 0.3);
+  --umspec-text-high: #ffffff;
+  --umspec-text-mid: #929292;
+  --umspec-text-low: #545454;
+  --umspec-red: #d71921;
+  --umspec-font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif;
+  --umspec-font-mono: ui-monospace, "SF Mono", "Space Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+/* --------------------------------------------------------------------------
+   Injected Floating Trigger Button (Nothing OS Hardware Pill)
+   -------------------------------------------------------------------------- */
 #umspec-trigger-btn {
   position: fixed;
   bottom: 24px;
   right: 24px;
   z-index: 999999;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 22px;
-  background: linear-gradient(110deg, #193582 0%, #2b51ab 68%, #705578 100%);
-  color: #ffffff !important;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  font-size: 14px;
+  gap: 12px;
+  padding: 10px 20px;
+  background: var(--umspec-void);
+  color: var(--umspec-text-high) !important;
+  font-family: var(--umspec-font-mono);
+  font-size: 11px;
   font-weight: 700;
-  border: none;
-  border-radius: 50px;
-  box-shadow: 0 4px 20px rgba(25, 53, 130, 0.45), 0 2px 6px rgba(0, 0, 0, 0.15);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 1px solid var(--umspec-border);
+  border-radius: 9999px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.05);
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   user-select: none;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 #umspec-trigger-btn:hover {
-  transform: translateY(-2px) scale(1.03);
-  box-shadow: 0 8px 26px rgba(25, 53, 130, 0.6), 0 3px 8px rgba(0, 0, 0, 0.2);
-  background: linear-gradient(110deg, #2b51ab 0%, #365fba 78%, #80628a 100%);
+  transform: translateY(-2px) scale(1.02);
+  background: #0d0d0d;
+  border-color: var(--umspec-border-hover);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.95), 0 0 20px rgba(255, 255, 255, 0.1);
+}
+
+#umspec-trigger-btn:active {
+  transform: scale(0.98);
+}
+
+.umspec-trigger-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--umspec-red);
+  box-shadow: 0 0 8px var(--umspec-red);
+  animation: umspec-pulse 1.8s infinite ease-in-out;
+  flex-shrink: 0;
 }
 
 #umspec-trigger-btn .umspec-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
 }
 
-.umspec-header-title .umspec-icon {
-  display: flex;
-  width: 28px;
-  height: 28px;
-}
-
-.umspec-icon svg {
+#umspec-trigger-btn .umspec-icon svg {
   display: block;
   width: 100%;
   height: 100%;
+  fill: #ffffff;
+}
+
+.umspec-trigger-label {
+  color: var(--umspec-text-high);
 }
 
 #umspec-trigger-btn .umspec-badge {
-  background: rgba(255, 255, 255, 0.25);
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 11px;
+  background: #181818;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--umspec-text-mid);
+  padding: 3px 8px;
+  border-radius: 9999px;
+  font-size: 9px;
   font-weight: 800;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.14em;
 }
 
-/* Solar Bold Duotone icons */
+/* --------------------------------------------------------------------------
+   Solid Glyph Icons & Utilities
+   -------------------------------------------------------------------------- */
 .umspec-svg {
   display: inline-block;
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   fill: currentColor;
   stroke: none;
   vertical-align: middle;
   flex-shrink: 0;
 }
 
-.umspec-svg [opacity="0.5"] {
-  fill: var(--umspec-icon-secondary, #cbbcef);
-  opacity: 1;
-}
-
-.umspec-profile-badge .umspec-svg {
-  color: #5171b5;
-}
-
-.umspec-btn-primary,
-.umspec-close-btn {
-  --umspec-icon-secondary: rgba(255, 255, 255, 0.4);
-}
-
 .umspec-svg-lg {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
 }
 
 .umspec-svg-sm {
-  width: 15px;
-  height: 15px;
-}
-
-.umspec-header-icon-box {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 46px;
-  height: 46px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.18);
-  color: #ffffff;
-  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
 }
 
 .umspec-spin {
-  animation: umspec-spin 1s linear infinite;
+  animation: umspec-spin 0.9s linear infinite;
 }
 
 @keyframes umspec-spin {
@@ -114,22 +132,30 @@
   to { transform: rotate(360deg); }
 }
 
-/* Modal Backdrop */
+@keyframes umspec-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.85); }
+}
+
+/* --------------------------------------------------------------------------
+   Modal Backdrop
+   -------------------------------------------------------------------------- */
 #umspec-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(15, 23, 42, 0.68);
-  backdrop-filter: blur(5px);
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
   z-index: 1000000;
   display: flex;
   align-items: center;
   justify-content: center;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.25s ease, visibility 0.25s ease;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.25s ease;
 }
 
 #umspec-modal-overlay.umspec-active {
@@ -137,31 +163,39 @@
   visibility: visible;
 }
 
-/* Modal Container */
+/* --------------------------------------------------------------------------
+   Modal Container (Nothing OS Bento Canvas)
+   -------------------------------------------------------------------------- */
 #umspec-modal {
-  background: #ffffff;
-  width: 90%;
+  background: var(--umspec-canvas);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 18px 18px;
+  width: 92%;
   max-width: 720px;
   max-height: 88vh;
-  border-radius: 18px;
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.3);
+  border-radius: 28px;
+  border: 1px solid var(--umspec-border);
+  box-shadow: 0 32px 90px rgba(0, 0, 0, 0.98), 0 0 0 1px rgba(255, 255, 255, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.14);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  transform: scale(0.95);
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: var(--umspec-font-sans);
+  color: var(--umspec-text-high);
+  transform: scale(0.95) translateY(8px);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 #umspec-modal-overlay.umspec-active #umspec-modal {
-  transform: scale(1);
+  transform: scale(1) translateY(0);
 }
 
-/* Modal Header */
+/* --------------------------------------------------------------------------
+   Modal Header
+   -------------------------------------------------------------------------- */
 .umspec-modal-header {
-  padding: 20px 26px;
-  background: linear-gradient(110deg, #193582 0%, #2b51ab 68%, #705578 100%);
-  color: #ffffff;
+  padding: 22px 28px;
+  background: var(--umspec-void);
+  border-bottom: 1px solid var(--umspec-border-subtle);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -170,26 +204,88 @@
 .umspec-header-title {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
+}
+
+.umspec-header-icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--umspec-surface);
+  border: 1px solid var(--umspec-border);
+  color: var(--umspec-text-high);
+  flex-shrink: 0;
+}
+
+.umspec-header-icon-box .umspec-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.umspec-header-icon-box .umspec-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: #ffffff;
+}
+
+.umspec-header-sub {
+  font-family: var(--umspec-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--umspec-text-mid);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
 }
 
 .umspec-header-title h2 {
   margin: 0;
-  font-size: 20px;
-  font-weight: 700;
-  color: #ffffff;
+  font-family: var(--umspec-font-sans);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--umspec-text-high);
 }
 
-.umspec-header-title p {
-  margin: 3px 0 0 0;
-  font-size: 12px;
-  color: #dce5ff;
+.umspec-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.umspec-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--umspec-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--umspec-text-high);
+  background: var(--umspec-surface);
+  border: 1px solid var(--umspec-border);
+  padding: 5px 10px;
+  border-radius: 9999px;
+}
+
+.umspec-red-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--umspec-red);
+  box-shadow: 0 0 8px var(--umspec-red);
+  animation: umspec-pulse 1.8s infinite ease-in-out;
 }
 
 .umspec-close-btn {
-  background: rgba(255, 255, 255, 0.15);
-  border: none;
-  color: #ffffff;
+  background: var(--umspec-surface);
+  border: 1px solid var(--umspec-border);
+  color: var(--umspec-text-mid);
   width: 36px;
   height: 36px;
   border-radius: 50%;
@@ -197,163 +293,242 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
-  transition: background 0.2s;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .umspec-close-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+  transform: rotate(90deg);
 }
 
-/* Modal Body */
+/* --------------------------------------------------------------------------
+   Modal Body
+   -------------------------------------------------------------------------- */
 .umspec-modal-body {
-  padding: 24px 26px;
+  padding: 24px 28px;
   min-height: 0;
   overflow-y: auto;
   flex: 1;
 }
 
-/* Academic Profile Card */
+.umspec-modal-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.umspec-modal-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.umspec-modal-body::-webkit-scrollbar-thumb {
+  background: #222222;
+  border-radius: 10px;
+}
+
+/* --------------------------------------------------------------------------
+   Academic Profile Bento Widget
+   -------------------------------------------------------------------------- */
 .umspec-profile-card {
-  background: linear-gradient(110deg, #edf4ff 0%, #fbfcff 55%, #fff8f3 100%);
-  border: 1px solid #b9cefa;
-  border-radius: 12px;
-  padding: 18px 20px;
-  margin-bottom: 24px;
+  background: var(--umspec-surface);
+  border: 1px solid var(--umspec-border);
+  border-radius: 18px;
+  padding: 18px 22px;
+  margin-bottom: 22px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .umspec-profile-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .umspec-profile-badge {
-  font-size: 12px;
-  font-weight: 800;
-  color: #002dcc;
+  font-family: var(--umspec-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--umspec-text-mid);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.12em;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+}
+
+.umspec-profile-badge .umspec-svg {
+  color: #ffffff;
 }
 
 .umspec-profile-year {
-  font-size: 12px;
-  font-weight: 700;
-  background: #ffecd0;
-  color: #945000;
-  padding: 4px 10px;
-  border-radius: 12px;
+  font-family: var(--umspec-font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  background: #ffffff;
+  color: #000000;
+  padding: 3px 9px;
+  border-radius: 9999px;
 }
 
 .umspec-profile-major {
   font-size: 17px;
   font-weight: 700;
-  color: #101447;
-  margin: 6px 0 2px 0;
+  color: var(--umspec-text-high);
+  margin: 6px 0 3px 0;
+  letter-spacing: -0.01em;
   line-height: 1.3;
 }
 
 .umspec-profile-faculty {
-  font-size: 13px;
-  color: #58668f;
-  margin-top: 2px;
+  font-family: var(--umspec-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--umspec-text-low);
+  text-transform: uppercase;
 }
 
-/* Section Label */
+/* --------------------------------------------------------------------------
+   Section Header & Selection Tools
+   -------------------------------------------------------------------------- */
 .umspec-section-label {
-  font-size: 13px;
+  font-family: var(--umspec-font-mono);
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: #53618d;
-  margin-bottom: 10px;
+  letter-spacing: 0.12em;
+  color: var(--umspec-text-mid);
+  margin-bottom: 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
-/* Selection Tools in Section Header */
 .umspec-selection-tools {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .umspec-link-btn {
   background: none;
   border: none;
-  color: #002dcc;
-  font-size: 12px;
-  font-weight: 600;
+  color: var(--umspec-text-high);
+  font-family: var(--umspec-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 3px 6px;
   border-radius: 4px;
   transition: all 0.2s;
-  text-decoration: underline;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.35);
 }
 
 .umspec-link-btn:hover {
-  color: #193582;
-  background: #e7f0ff;
-  text-decoration: none;
+  background: rgba(255, 255, 255, 0.12);
+  border-bottom-color: #ffffff;
 }
 
 .umspec-sep {
-  color: #ccd5e5;
+  color: var(--umspec-text-low);
+  font-family: var(--umspec-font-mono);
   font-size: 10px;
 }
 
-/* Courses List */
+/* --------------------------------------------------------------------------
+   Courses List & Bento Row Items
+   -------------------------------------------------------------------------- */
 .umspec-courses-list {
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  max-height: 260px;
+  gap: 8px;
+  max-height: 250px;
   overflow-y: auto;
   padding-right: 4px;
   margin-bottom: 18px;
+}
+
+.umspec-courses-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.umspec-courses-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.umspec-courses-list::-webkit-scrollbar-thumb {
+  background: #222222;
+  border-radius: 10px;
 }
 
 .umspec-course-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
+  padding: 13px 16px;
   gap: 14px;
-  background: linear-gradient(110deg, #f7f9fd, #fffbf8);
-  border: 1px solid #d5def3;
-  border-radius: 8px;
+  background: var(--umspec-surface-item);
+  border: 1px solid var(--umspec-border-subtle);
+  border-radius: 14px;
   cursor: pointer;
   user-select: none;
-  transition: all 0.2s;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .umspec-course-row:hover {
-  background: #f1f4f9;
-  border-color: #ccd5e5;
+  background: #161616;
+  border-color: var(--umspec-border-hover);
+  transform: translateX(2px);
 }
 
+/* Minimalist Nothing OS Checkbox */
 .umspec-course-checkbox {
-  width: 20px;
-  height: 20px;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  background: var(--umspec-void);
+  border-radius: 5px;
   cursor: pointer;
-  accent-color: #193582;
-  margin-right: 4px;
+  position: relative;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   flex-shrink: 0;
+  margin: 0;
+}
+
+.umspec-course-checkbox:hover {
+  border-color: #ffffff;
+}
+
+.umspec-course-checkbox:checked {
+  background: #ffffff;
+  border-color: #ffffff;
+}
+
+.umspec-course-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  left: 5px;
+  width: 4px;
+  height: 9px;
+  border: solid #000000;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 
 .umspec-course-row.umspec-row-unselected {
-  opacity: 0.5;
-  background: #f1f4f9;
-  border-color: #d5def3;
+  opacity: 0.32;
+  background: #0a0a0a;
+  border-color: rgba(255, 255, 255, 0.04);
 }
 
 .umspec-course-row.umspec-row-unselected:hover {
-  opacity: 0.85;
+  opacity: 0.7;
 }
 
 .umspec-course-info {
@@ -373,47 +548,55 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #edf4ff, #f2edfc);
-  color: #5171b5;
-  --umspec-icon-secondary: #b8cff4;
+  background: #181818;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
   flex-shrink: 0;
 }
 
 .umspec-course-title {
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1.4;
-  color: #101447;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--umspec-text-high);
 }
 
 .umspec-course-code {
-  font-size: 12px;
+  font-family: var(--umspec-font-mono);
+  font-size: 11px;
   font-weight: 700;
-  color: #002dcc;
-  background: #e7f0ff;
-  padding: 3px 7px;
-  border-radius: 4px;
+  letter-spacing: 0.06em;
+  color: #cfcfcf;
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 2px 7px;
+  border-radius: 5px;
   display: inline-block;
-  margin-top: 2px;
+  margin-top: 3px;
 }
 
 .umspec-course-status {
-  font-size: 12px;
-  font-weight: 600;
-  color: #58668f;
+  font-family: var(--umspec-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--umspec-text-mid);
   flex-shrink: 0;
 }
 
-/* Progress Card */
+/* --------------------------------------------------------------------------
+   Progress & Telemetry Card
+   -------------------------------------------------------------------------- */
 .umspec-progress-card {
   display: none;
-  background: #f7f9fd;
-  border: 1px solid #d5def3;
-  border-radius: 12px;
-  padding: 18px;
+  background: var(--umspec-surface);
+  border: 1px solid var(--umspec-border);
+  border-radius: 16px;
+  padding: 18px 20px;
   margin-top: 14px;
 }
 
@@ -421,85 +604,122 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 13px;
+  font-family: var(--umspec-font-mono);
+  font-size: 11px;
   font-weight: 700;
-  color: #101447;
-  margin-bottom: 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--umspec-text-high);
+  margin-bottom: 10px;
 }
 
 .umspec-progress-bar-bg {
   width: 100%;
-  height: 10px;
-  background: #d5def3;
-  border-radius: 6px;
+  height: 8px;
+  background: #1c1c1c;
+  border-radius: 9999px;
   overflow: hidden;
   margin-bottom: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .umspec-progress-bar-fill {
   width: 0%;
   height: 100%;
-  background: linear-gradient(90deg, #2b51ab, #527ac3);
-  border-radius: 6px;
-  transition: width 0.2s ease;
+  background: #ffffff;
+  border-radius: 9999px;
+  transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .umspec-status-text {
-  font-size: 12px;
-  color: #58668f;
+  font-family: var(--umspec-font-mono);
+  font-size: 11px;
+  color: var(--umspec-text-mid);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: 0.04em;
 }
 
-/* Modal Footer */
+/* --------------------------------------------------------------------------
+   Modal Footer & Hero Primary Button
+   -------------------------------------------------------------------------- */
 .umspec-modal-footer {
-  padding: 18px 26px;
-  background: linear-gradient(110deg, #f7f9fd 70%, #fff8f3);
-  border-top: 1px solid #d5def3;
+  padding: 20px 28px;
+  background: var(--umspec-void);
+  border-top: 1px solid var(--umspec-border-subtle);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
 }
 
 .umspec-footer-info {
-  font-size: 12px;
-  color: #58668f;
+  font-family: var(--umspec-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--umspec-text-low);
   overflow-wrap: anywhere;
 }
 
+/* The Nothing OS Stark Inverted Hero Pill */
 .umspec-btn-primary {
-  background: linear-gradient(110deg, #193582 0%, #2b51ab 68%, #705578 100%);
-  color: #ffffff;
-  border: none;
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #ffffff;
   padding: 12px 26px;
-  font-size: 14px;
-  font-weight: 700;
-  border-radius: 8px;
+  font-family: var(--umspec-font-mono);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-radius: 9999px;
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  box-shadow: 0 4px 14px rgba(25, 53, 130, 0.35);
-  transition: all 0.2s;
+  gap: 10px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 20px rgba(255, 255, 255, 0.18);
   flex-shrink: 0;
 }
 
+/* Inside the stark white hero button, the Glyph icon MUST be pitch black! */
+.umspec-btn-primary .umspec-svg {
+  fill: #000000 !important;
+  color: #000000 !important;
+}
+
 .umspec-btn-primary:hover:not(:disabled) {
-  background: linear-gradient(110deg, #2b51ab 0%, #365fba 78%, #80628a 100%);
-  transform: translateY(-1px);
+  background: #ebebeb;
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 30px rgba(255, 255, 255, 0.32);
+}
+
+.umspec-btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .umspec-btn-primary:disabled {
-  background: #94a3b8;
+  background: #1c1c1c;
+  color: var(--umspec-text-low);
+  border-color: #2a2a2a;
   cursor: not-allowed;
   box-shadow: none;
 }
 
+.umspec-btn-primary:disabled .umspec-svg {
+  fill: var(--umspec-text-low) !important;
+  color: var(--umspec-text-low) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Accessibility & Responsive
+   -------------------------------------------------------------------------- */
 #umspec-modal button:focus-visible,
 #umspec-modal input:focus-visible,
 #umspec-trigger-btn:focus-visible {
-  outline: 3px solid #799fff;
+  outline: 2px solid #ffffff;
   outline-offset: 3px;
 }
 
@@ -513,13 +733,12 @@
   .umspec-course-row { padding: 12px; gap: 8px; }
   .umspec-course-info { gap: 8px; }
   .umspec-bullet { width: 28px; height: 28px; }
-  .umspec-course-status { max-width: 75px; }
-  .umspec-btn-primary { margin-left: auto; }
+  .umspec-btn-primary { width: 100%; justify-content: center; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   #umspec-trigger-btn,
   #umspec-modal-overlay,
   #umspec-modal,
-  #umspec-modal * { animation: none; transition: none; }
+  #umspec-modal * { animation: none !important; transition: none !important; }
 }

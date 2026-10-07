@@ -3,73 +3,89 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>UmSpec</title>
+  <title>UmSpec // Nothing OS</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <div class="umspec-popup-container">
-    <div class="umspec-popup-header">
+    <!-- Header: Nothing OS Dot Bar -->
+    <header class="umspec-popup-header">
       <div class="umspec-brand">
-        <img class="umspec-logo" src="../icons/spec-stack.svg" alt="" width="24" height="24">
+        <div class="umspec-brand-icon">
+          <!-- Spec Stack Logo -->
+          <svg class="umspec-spec-stack" viewBox="0 0 128 128" aria-hidden="true" focusable="false">
+            <path fill="#ffffff" fill-rule="evenodd" d="M24 12h77q4 0 7 3l14 14q2 2 2 6v11q0 3-3 3H42l7 8h47q4 0 7 3l14 14q3 3 3 8v29q0 4-4 4H28q-4 0-7-3L8 99q-4-4-4-8v-8q0-3 4-3h77l-9-9H30q-4 0-7-3L10 55q-2-2-2-6V32q0-4 3-7l10-10q2-3 3-3Zm75 8v17h17L99 20Zm-3 45v16h16L96 65Z"/>
+          </svg>
+        </div>
         <div>
-          <h1>UmSpec</h1>
-          <p>SPeCTRUM Exporter</p>
+          <div class="umspec-brand-eyebrow">UMSPEC // OS 4.0</div>
+          <h1 class="umspec-brand-title">COURSE EXPORTER</h1>
         </div>
       </div>
-      <span class="umspec-version">v2.0.0</span>
-    </div>
+      <div class="umspec-header-badge">
+        <span class="umspec-pulse-dot" id="header-pulse-dot"></span>
+        <span class="umspec-version-tag">V2.0</span>
+      </div>
+    </header>
 
-    <div class="umspec-popup-body">
-      <div class="umspec-status-card" id="status-card">
+    <main class="umspec-popup-body">
+      <!-- Status Bento Card -->
+      <section class="umspec-status-card" id="status-card">
         <div class="umspec-status-indicator" id="status-indicator"></div>
         <div class="umspec-status-details">
+          <div class="umspec-status-tag" id="status-tag">TELEMETRY // LIVE</div>
           <div class="umspec-status-title" id="status-title">Checking Tab...</div>
           <div class="umspec-status-desc" id="status-desc">Detecting SPeCTRUM session</div>
         </div>
-      </div>
+      </section>
 
-      <div class="umspec-features">
-        <div class="umspec-feature-item">
-          <span class="umspec-feature-icon">
-            <svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.73167 5.77133L5.66953 9.91436C4.3848 11.6526 3.74244 12.5217 4.09639 13.205C4.10225 13.2164 4.10829 13.2276 4.1145 13.2387C4.48945 13.9117 5.59888 13.9117 7.81775 13.9117C9.05079 13.9117 9.6673 13.9117 10.054 14.2754L10.074 14.2946L13.946 9.72466L13.926 9.70541C13.5474 9.33386 13.5474 8.74151 13.5474 7.55682V7.24712C13.5474 3.96249 13.5474 2.32018 12.6241 2.03721C11.7007 1.75425 10.711 3.09327 8.73167 5.77133Z" fill="currentColor"/><path opacity="0.5" d="M10.4527 16.4432L10.4527 16.7528C10.4527 20.0374 10.4527 21.6798 11.376 21.9627C12.2994 22.2457 13.2891 20.9067 15.2685 18.2286L18.3306 14.0856C19.6154 12.3474 20.2577 11.4783 19.9038 10.7949C19.8979 10.7836 19.8919 10.7724 19.8857 10.7613C19.5107 10.0883 18.4013 10.0883 16.1824 10.0883C14.9494 10.0883 14.3329 10.0883 13.9462 9.72461L10.0742 14.2946C10.4528 14.6661 10.4527 15.2585 10.4527 16.4432Z" fill="currentColor"/></svg>
-          </span>
-          <div>
-            <strong>Zero-Touch 1-Click Export</strong>
-            <p>Zero toggling needed • Full auto discovery</p>
+      <!-- Bento Grid Features (High density, pure solid Glyph SVGs) -->
+      <section class="umspec-features">
+        <div class="umspec-feature-card">
+          <div class="umspec-feature-icon-box">
+            <svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>
+          </div>
+          <div class="umspec-feature-text">
+            <strong>ZERO-TOUCH SMART EXPORT</strong>
+            <p>1-Click full archive discovery &amp; packaging</p>
           </div>
         </div>
-        <div class="umspec-feature-item">
-          <span class="umspec-feature-icon">
-            <svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.2172 3.49965C12.7962 2.83345 11.2037 2.83345 9.78272 3.49965L3.0916 6.63659C2.0156 7.14105 1.73507 8.56352 2.25 9.54666L2.25 14.5C2.25 14.9142 2.58579 15.25 3 15.25C3.41421 15.25 3.75 14.9142 3.75 14.5V10.672L9.78281 13.5003C11.2038 14.1665 12.7963 14.1665 14.2173 13.5003L20.9084 10.3634C22.3639 9.68105 22.3639 7.31899 20.9084 6.63664L14.2172 3.49965Z" fill="currentColor"/><path opacity="0.5" d="M5 11.2583L9.78281 13.5006C11.2038 14.1668 12.7963 14.1668 14.2173 13.5006L19 11.2583V16.6255C19 17.6335 18.4965 18.5773 17.6147 19.0656C16.1463 19.8788 13.796 21.0001 12 21.0001C10.204 21.0001 7.8537 19.8788 6.38533 19.0656C5.5035 18.5773 5 17.6335 5 16.6255V11.2583Z" fill="currentColor"/></svg>
-          </span>
-          <div>
-            <strong>Degree & Year Detection</strong>
-            <p>Auto-detects Bachelor major & semester</p>
+
+        <div class="umspec-feature-card">
+          <div class="umspec-feature-icon-box">
+            <svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2L1 7l11 5 9-4.09V17h2V7L12 2zm-7 8.18V16c0 3.31 3.13 6 7 6s7-2.69 7-6v-5.82l-7 3.18-7-3.18z"/></svg>
+          </div>
+          <div class="umspec-feature-text">
+            <strong>DEGREE &amp; TAXONOMY PARSER</strong>
+            <p>Auto-detects Bachelor programme &amp; semester</p>
           </div>
         </div>
-        <div class="umspec-feature-item">
-          <span class="umspec-feature-icon">
-            <svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path opacity="0.5" d="M2 6.94975C2 6.06722 2 5.62595 2.06935 5.25839C2.37464 3.64031 3.64031 2.37464 5.25839 2.06935C5.62595 2 6.06722 2 6.94975 2C7.33642 2 7.52976 2 7.71557 2.01738C8.51665 2.09229 9.27652 2.40704 9.89594 2.92051C10.0396 3.03961 10.1763 3.17633 10.4497 3.44975L11 4C11.8158 4.81578 12.2237 5.22367 12.7121 5.49543C12.9804 5.64471 13.2651 5.7626 13.5604 5.84678C14.0979 6 14.6747 6 15.8284 6H16.2021C18.8345 6 20.1506 6 21.0062 6.76946C21.0849 6.84024 21.1598 6.91514 21.2305 6.99383C22 7.84935 22 9.16554 22 11.7979V14C22 17.7712 22 19.6569 20.8284 20.8284C19.6569 22 17.7712 22 14 22H10C6.22876 22 4.34315 22 3.17157 20.8284C2 19.6569 2 17.7712 2 14V6.94975Z" fill="currentColor"/><path d="M19.9998 6.23751C19.9989 5.94016 19.9947 5.76263 19.9744 5.60842C19.7971 4.26222 18.7378 3.2029 17.3916 3.02567C17.1967 3 16.9645 3 16.5 3H9.98804C10.1039 3.10392 10.2345 3.23445 10.4498 3.44975L11 4C11.8158 4.81578 12.2237 5.22367 12.7122 5.49543C12.9805 5.64471 13.2651 5.7626 13.5604 5.84678C14.0979 6 14.6748 6 15.8285 6H16.2021C17.9811 6 19.159 6 19.9998 6.23751Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M12.25 10C12.25 9.58579 12.5858 9.25 13 9.25H18C18.4142 9.25 18.75 9.58579 18.75 10C18.75 10.4142 18.4142 10.75 18 10.75H13C12.5858 10.75 12.25 10.4142 12.25 10Z" fill="currentColor"/></svg>
-          </span>
-          <div>
-            <strong>Adaptive Taxonomy Folders</strong>
+
+        <div class="umspec-feature-card">
+          <div class="umspec-feature-icon-box">
+            <svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+          </div>
+          <div class="umspec-feature-text">
+            <strong>CLEAN FOLDER TAXONOMY</strong>
             <p>Slides, Tutorials, Labs, PYQs, Source Code</p>
           </div>
         </div>
-      </div>
+      </section>
 
+      <!-- Action Button Area: The Stark White Pill with Solid Black Glyph -->
       <div class="umspec-action-section">
-        <button class="umspec-action-btn" id="action-btn">
-          <svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path opacity="0.5" d="M22 15.9998V14.9998C22 12.1714 21.9998 10.7576 21.1211 9.87891C20.2424 9.00023 18.8282 9.00023 15.9998 9.00023H7.99977C5.17135 9.00023 3.75713 9.00023 2.87845 9.87891C2 10.7574 2 12.1706 2 14.9976V14.9998V15.9998C2 18.8282 2 20.2424 2.87868 21.1211C3.75736 21.9998 5.17157 21.9998 8 21.9998H16H16C18.8284 21.9998 20.2426 21.9998 21.1213 21.1211C22 20.2424 22 18.8282 22 15.9998Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M12 1.25C11.5858 1.25 11.25 1.58579 11.25 2L11.25 12.9726L9.56943 11.0119C9.29986 10.6974 8.82639 10.661 8.51189 10.9306C8.1974 11.2001 8.16098 11.6736 8.43054 11.9881L11.4305 15.4881C11.573 15.6543 11.781 15.75 12 15.75C12.2189 15.75 12.4269 15.6543 12.5694 15.4881L15.5694 11.9881C15.839 11.6736 15.8026 11.2001 15.4881 10.9306C15.1736 10.661 14.7001 10.6974 14.4305 11.0119L12.75 12.9726L12.75 2C12.75 1.58579 12.4142 1.25 12 1.25Z" fill="currentColor"/></svg>
-          <span>Open SPeCTRUM Dashboard</span>
+        <button class="umspec-action-btn" id="action-btn" type="button">
+          <svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+          <span>OPEN SPeCTRUM DASHBOARD</span>
         </button>
       </div>
-    </div>
+    </main>
 
-    <div class="umspec-popup-footer">
-      <span>Built for UM Students</span>
-      <a href="https://github.com/Chee613/UmSpec" target="_blank">GitHub Repo</a>
-    </div>
+    <!-- Footer -->
+    <footer class="umspec-popup-footer">
+      <span class="umspec-footer-tag">UNIVERSITI MALAYA // CLIENT-SIDE</span>
+      <a class="umspec-footer-link" href="https://github.com/Chee613/UmSpec" target="_blank" rel="noopener noreferrer">GITHUB // REPO</a>
+    </footer>
   </div>
   <script src="popup.js"></script>
 </body>

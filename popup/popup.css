@@ -1,4 +1,25 @@
-/* UmSpec Popup Styles */
+/* ==========================================================================
+   UmSpec // Popup Stylesheet (Nothing OS 4.0 Pro Edition)
+   Pure Monochrome Dark Mode • Dot-Matrix Aesthetics • Awwwards-Caliber Finish
+   ========================================================================== */
+
+:root {
+  --umspec-void: #000000;
+  --umspec-canvas: #060606;
+  --umspec-surface: #0e0e0e;
+  --umspec-surface-elevated: #141414;
+  --umspec-surface-item: #101010;
+  --umspec-border: rgba(255, 255, 255, 0.12);
+  --umspec-border-subtle: rgba(255, 255, 255, 0.07);
+  --umspec-border-hover: rgba(255, 255, 255, 0.3);
+  --umspec-text-high: #ffffff;
+  --umspec-text-mid: #929292;
+  --umspec-text-low: #545454;
+  --umspec-red: #d71921;
+  --umspec-font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif;
+  --umspec-font-mono: ui-monospace, "SF Mono", "Space Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -6,21 +27,34 @@
 }
 
 body {
-  width: 330px;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  background: #f7f9fd;
-  color: #101447;
+  width: 340px;
+  background-color: var(--umspec-void);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px);
+  background-size: 8px 8px;
+  color: var(--umspec-text-high);
+  font-family: var(--umspec-font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
 .umspec-popup-container {
   display: flex;
   flex-direction: column;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
+/* --------------------------------------------------------------------------
+   Header: Nothing OS Dot Bar & Hardware Moniker
+   -------------------------------------------------------------------------- */
 .umspec-popup-header {
-  padding: 16px 18px;
-  background: linear-gradient(110deg, #193582 0%, #2b51ab 68%, #705578 100%);
-  color: #ffffff;
+  padding: 16px 18px 14px 18px;
+  background: var(--umspec-void);
+  border-bottom: 1px solid var(--umspec-border-subtle);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -29,183 +63,318 @@ body {
 .umspec-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
-.umspec-logo {
+.umspec-brand-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #121212;
+  border: 1px solid var(--umspec-border);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.umspec-spec-stack {
+  width: 18px;
+  height: 18px;
   display: block;
-  width: 24px;
-  height: 24px;
 }
 
-/* Solar Bold Duotone icons */
+.umspec-brand-eyebrow {
+  font-family: var(--umspec-font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--umspec-text-low);
+  text-transform: uppercase;
+}
+
+.umspec-brand-title {
+  font-family: var(--umspec-font-sans);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--umspec-text-high);
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.umspec-header-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #141414;
+  border: 1px solid var(--umspec-border);
+  padding: 3px 8px;
+  border-radius: 9999px;
+}
+
+.umspec-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #444444;
+  transition: all 0.3s;
+}
+
+.umspec-pulse-dot.active {
+  background: var(--umspec-red);
+  box-shadow: 0 0 8px var(--umspec-red);
+  animation: umspec-pulse 1.8s infinite ease-in-out;
+}
+
+.umspec-version-tag {
+  font-family: var(--umspec-font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--umspec-text-mid);
+}
+
+/* --------------------------------------------------------------------------
+   Body & Bento Cards
+   -------------------------------------------------------------------------- */
+.umspec-popup-body {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Status Bento Card */
+.umspec-status-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--umspec-surface);
+  border: 1px solid var(--umspec-border);
+  border-radius: 12px;
+  transition: border-color 0.2s;
+}
+
+.umspec-status-card:hover {
+  border-color: var(--umspec-border-hover);
+}
+
+.umspec-status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #555555;
+  margin-top: 5px;
+  flex-shrink: 0;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.umspec-status-indicator.active {
+  background: var(--umspec-red);
+  box-shadow: 0 0 10px var(--umspec-red);
+  animation: umspec-pulse 1.8s infinite ease-in-out;
+}
+
+.umspec-status-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.umspec-status-tag {
+  font-family: var(--umspec-font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--umspec-text-low);
+  text-transform: uppercase;
+}
+
+.umspec-status-title {
+  font-family: var(--umspec-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--umspec-text-high);
+  text-transform: uppercase;
+}
+
+.umspec-status-desc {
+  font-family: var(--umspec-font-sans);
+  font-size: 11px;
+  color: var(--umspec-text-mid);
+  margin-top: 2px;
+}
+
+/* Feature Bento List */
+.umspec-features {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.umspec-feature-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--umspec-surface-item);
+  border: 1px solid var(--umspec-border-subtle);
+  border-radius: 10px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.umspec-feature-card:hover {
+  background: #141414;
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateX(2px);
+}
+
+.umspec-feature-icon-box {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #181818;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.umspec-feature-text {
+  min-width: 0;
+}
+
+.umspec-feature-text strong {
+  display: block;
+  font-family: var(--umspec-font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--umspec-text-high);
+  text-transform: uppercase;
+}
+
+.umspec-feature-text p {
+  font-size: 10.5px;
+  color: var(--umspec-text-mid);
+  margin-top: 1px;
+}
+
+/* --------------------------------------------------------------------------
+   Solid Glyph Icons
+   -------------------------------------------------------------------------- */
 .umspec-svg {
   display: inline-block;
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   fill: currentColor;
   stroke: none;
   vertical-align: middle;
   flex-shrink: 0;
 }
 
-.umspec-svg [opacity="0.5"] {
-  fill: var(--umspec-icon-secondary, #cbbcef);
-  opacity: 1;
+/* --------------------------------------------------------------------------
+   Action Section & Hero White Pill Button
+   -------------------------------------------------------------------------- */
+.umspec-action-section {
+  margin-top: 4px;
 }
 
-.umspec-svg-lg {
-  width: 20px;
-  height: 20px;
-}
-
-.umspec-brand h1 {
-  font-size: 16px;
-  font-weight: 700;
-  color: #ffffff;
-  line-height: 1.2;
-}
-
-.umspec-brand p {
-  font-size: 11px;
-  color: #dce5ff;
-}
-
-.umspec-version {
-  font-size: 10px;
-  font-weight: 700;
-  background: rgba(255, 255, 255, 0.2);
-  padding: 2px 6px;
-  border-radius: 10px;
-  color: #ffffff;
-}
-
-.umspec-popup-body {
-  padding: 16px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-/* Status Card */
-.umspec-status-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  background: linear-gradient(110deg, #edf4ff, #fff8f3);
-  border: 1px solid #d5def3;
-  border-radius: 10px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-.umspec-status-indicator {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #94a3b8;
-  flex-shrink: 0;
-}
-
-.umspec-status-indicator.active {
-  background: #22c55e;
-  box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
-}
-
-.umspec-status-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: #101447;
-}
-
-.umspec-status-desc {
-  font-size: 11px;
-  color: #58668f;
-  margin-top: 1px;
-}
-
-/* Features */
-.umspec-features {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.umspec-feature-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  font-size: 12px;
-}
-
-.umspec-feature-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  background: linear-gradient(135deg, #edf4ff, #f2edfc);
-  color: #5171b5;
-  flex-shrink: 0;
-  margin-top: 1px;
-}
-
-.umspec-feature-item strong {
-  display: block;
-  font-size: 12px;
-  color: #101447;
-}
-
-.umspec-feature-item p {
-  font-size: 11px;
-  color: #58668f;
-  margin-top: 2px;
-}
-
-/* Action Button */
+/* The Nothing OS Stark Inverted Hero Pill Button */
 .umspec-action-btn {
-  display: flex;
+  width: 100%;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  --umspec-icon-secondary: rgba(255, 255, 255, 0.4);
-  width: 100%;
-  padding: 11px 16px;
-  background: linear-gradient(110deg, #193582 0%, #2b51ab 68%, #705578 100%);
-  color: #ffffff;
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
+  padding: 12px 18px;
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #ffffff;
+  border-radius: 9999px;
+  font-family: var(--umspec-font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 2px 8px rgba(25, 53, 130, 0.3);
+  box-shadow: 0 4px 18px rgba(255, 255, 255, 0.18);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+/* Inside the stark white hero button, the Glyph icon MUST be pitch black! */
+.umspec-action-btn .umspec-svg {
+  fill: #000000 !important;
+  color: #000000 !important;
+  width: 16px;
+  height: 16px;
 }
 
 .umspec-action-btn:hover {
-  background: linear-gradient(110deg, #2b51ab 0%, #365fba 78%, #80628a 100%);
-  transform: translateY(-1px);
+  background: #ebebeb;
+  transform: translateY(-1px) scale(1.01);
+  box-shadow: 0 6px 24px rgba(255, 255, 255, 0.28);
 }
 
-/* Footer */
+.umspec-action-btn:active {
+  transform: scale(0.98);
+}
+
+/* --------------------------------------------------------------------------
+   Footer
+   -------------------------------------------------------------------------- */
 .umspec-popup-footer {
   padding: 12px 18px;
-  background: linear-gradient(110deg, #f1f4f9 70%, #fff8f3);
-  border-top: 1px solid #d5def3;
+  background: var(--umspec-void);
+  border-top: 1px solid var(--umspec-border-subtle);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 11px;
-  color: #58668f;
 }
 
-.umspec-popup-footer a {
-  color: #2b51ab;
-  text-decoration: none;
+.umspec-footer-tag {
+  font-family: var(--umspec-font-mono);
+  font-size: 9px;
   font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--umspec-text-low);
+  text-transform: uppercase;
 }
 
-.umspec-popup-footer a:hover {
-  text-decoration: underline;
+.umspec-footer-link {
+  font-family: var(--umspec-font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--umspec-text-mid);
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: color 0.18s;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.umspec-footer-link:hover {
+  color: #ffffff;
+  border-bottom-color: #ffffff;
+}
+
+/* --------------------------------------------------------------------------
+   Keyframe Animations
+   -------------------------------------------------------------------------- */
+@keyframes umspec-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
 }
