@@ -11,6 +11,8 @@
 
   console.log('[UmSpec] Zero-Touch Smart Exporter initialized on SPeCTRUM');
 
+  const SPEC_STACK_ICON = "<svg aria-hidden=\"true\" focusable=\"false\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\">\n  <path fill=\"#fff\" fill-rule=\"evenodd\" d=\"M24 12h77q4 0 7 3l14 14q2 2 2 6v11q0 3-3 3H42l7 8h47q4 0 7 3l14 14q3 3 3 8v29q0 4-4 4H28q-4 0-7-3L8 99q-4-4-4-8v-8q0-3 4-3h77l-9-9H30q-4 0-7-3L10 55q-2-2-2-6V32q0-4 3-7l10-10q2-3 3-3Zm75 8v17h17L99 20Zm-3 45v16h16L96 65Z\"/>\n</svg>";
+
   // State
   let detectedCourses = [];
   let selectedCourseIds = new Set();
@@ -382,7 +384,7 @@
     const btn = document.createElement('button');
     btn.id = 'umspec-trigger-btn';
     btn.innerHTML = `
-      <span class="umspec-icon">⚡</span>
+      <span class="umspec-icon">${SPEC_STACK_ICON}</span>
       <span>1-Click Smart Export</span>
       <span class="umspec-badge">UmSpec</span>
     `;
@@ -401,7 +403,7 @@
       <div id="umspec-modal">
         <div class="umspec-modal-header">
           <div class="umspec-header-title">
-            <span style="font-size: 26px;">⚡</span>
+            <span class="umspec-icon">${SPEC_STACK_ICON}</span>
             <div>
               <h2>UmSpec Exporter</h2>
             </div>
@@ -691,7 +693,7 @@
         const statusBadge = document.getElementById(`umspec-status-${course.id}`);
         if (statusBadge) {
           statusBadge.innerText = 'Scanning...';
-          statusBadge.style.color = '#1976d2';
+          statusBadge.style.color = '#294a9b';
         }
 
         statusEl.innerText = `Analyzing course ${i + 1}/${coursesToExport.length}: ${course.fullName}...`;
@@ -743,7 +745,7 @@
 
         if (statusBadge) {
           statusBadge.innerText = `Downloading (${itemsToDownload.length})`;
-          statusBadge.style.color = '#0284c7';
+          statusBadge.style.color = '#355bb0';
         }
 
         let courseDownloadedCount = 0;

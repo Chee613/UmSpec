@@ -8,8 +8,8 @@
 body {
   width: 330px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  background: #f8fafc;
-  color: #1e293b;
+  background: #f7f9fd;
+  color: #17243d;
 }
 
 .umspec-popup-container {
@@ -19,7 +19,7 @@ body {
 
 .umspec-popup-header {
   padding: 16px 18px;
-  background: linear-gradient(135deg, #0d47a1 0%, #1565c0 100%);
+  background: linear-gradient(110deg, #192b7b 0%, #294a9b 78%, #514777 100%);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -33,7 +33,9 @@ body {
 }
 
 .umspec-logo {
-  font-size: 24px;
+  display: block;
+  width: 24px;
+  height: 24px;
 }
 
 .umspec-brand h1 {
@@ -45,7 +47,7 @@ body {
 
 .umspec-brand p {
   font-size: 11px;
-  color: #bbdefb;
+  color: #dce5ff;
 }
 
 .umspec-version {
@@ -70,8 +72,8 @@ body {
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+  background: linear-gradient(110deg, #f0f4fc, #fff6ef);
+  border: 1px solid #dce3f0;
   border-radius: 10px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
@@ -92,12 +94,12 @@ body {
 .umspec-status-title {
   font-size: 13px;
   font-weight: 700;
-  color: #0f172a;
+  color: #17243d;
 }
 
 .umspec-status-desc {
   font-size: 11px;
-  color: #64748b;
+  color: #63708b;
   margin-top: 1px;
 }
 
@@ -123,12 +125,12 @@ body {
 .umspec-feature-item strong {
   display: block;
   font-size: 12px;
-  color: #1e293b;
+  color: #17243d;
 }
 
 .umspec-feature-item p {
   font-size: 11px;
-  color: #64748b;
+  color: #63708b;
   margin-top: 2px;
 }
 
@@ -136,7 +138,7 @@ body {
 .umspec-action-btn {
   width: 100%;
   padding: 11px 16px;
-  background: linear-gradient(135deg, #0d47a1 0%, #1976d2 100%);
+  background: linear-gradient(110deg, #192b7b 0%, #294a9b 78%, #514777 100%);
   color: #ffffff;
   border: none;
   border-radius: 8px;
@@ -144,28 +146,28 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  box-shadow: 0 2px 8px rgba(13, 71, 161, 0.3);
+  box-shadow: 0 2px 8px rgba(25, 43, 123, 0.3);
 }
 
 .umspec-action-btn:hover {
-  background: linear-gradient(135deg, #1565c0 0%, #1e88e5 100%);
+  background: linear-gradient(110deg, #294a9b 0%, #355bb0 78%, #60517f 100%);
   transform: translateY(-1px);
 }
 
 /* Footer */
 .umspec-popup-footer {
   padding: 12px 18px;
-  background: #f1f5f9;
-  border-top: 1px solid #e2e8f0;
+  background: linear-gradient(110deg, #f1f4f9 70%, #fff8f3);
+  border-top: 1px solid #dce3f0;
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-size: 11px;
-  color: #64748b;
+  color: #63708b;
 }
 
 .umspec-popup-footer a {
-  color: #1976d2;
+  color: #294a9b;
   text-decoration: none;
   font-weight: 600;
 }

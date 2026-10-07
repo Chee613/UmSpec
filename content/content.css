@@ -10,14 +10,14 @@
   align-items: center;
   gap: 10px;
   padding: 12px 22px;
-  background: linear-gradient(135deg, #0d47a1 0%, #1976d2 100%);
+  background: linear-gradient(110deg, #192b7b 0%, #294a9b 78%, #514777 100%);
   color: #ffffff !important;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 14px;
   font-weight: 700;
   border: none;
   border-radius: 50px;
-  box-shadow: 0 4px 20px rgba(13, 71, 161, 0.45), 0 2px 6px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 20px rgba(25, 43, 123, 0.45), 0 2px 6px rgba(0, 0, 0, 0.15);
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   user-select: none;
@@ -25,12 +25,26 @@
 
 #umspec-trigger-btn:hover {
   transform: translateY(-2px) scale(1.03);
-  box-shadow: 0 8px 26px rgba(13, 71, 161, 0.6), 0 3px 8px rgba(0, 0, 0, 0.2);
-  background: linear-gradient(135deg, #1565c0 0%, #1e88e5 100%);
+  box-shadow: 0 8px 26px rgba(25, 43, 123, 0.6), 0 3px 8px rgba(0, 0, 0, 0.2);
+  background: linear-gradient(110deg, #294a9b 0%, #355bb0 78%, #60517f 100%);
 }
 
 #umspec-trigger-btn .umspec-icon {
-  font-size: 18px;
+  display: flex;
+  width: 24px;
+  height: 24px;
+}
+
+.umspec-header-title .umspec-icon {
+  display: flex;
+  width: 26px;
+  height: 35px;
+}
+
+.umspec-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 #umspec-trigger-btn .umspec-badge {
@@ -88,7 +102,7 @@
 /* Modal Header */
 .umspec-modal-header {
   padding: 20px 24px;
-  background: linear-gradient(135deg, #0d47a1 0%, #1565c0 100%);
+  background: linear-gradient(110deg, #192b7b 0%, #294a9b 78%, #514777 100%);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -111,7 +125,7 @@
 .umspec-header-title p {
   margin: 3px 0 0 0;
   font-size: 12px;
-  color: #bbdefb;
+  color: #dce5ff;
 }
 
 .umspec-close-btn {
@@ -142,8 +156,8 @@
 
 /* Academic Profile Card */
 .umspec-profile-card {
-  background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
-  border: 1px solid #bfdbfe;
+  background: linear-gradient(110deg, #f0f4fc 0%, #fafbfe 55%, #fff6ef 100%);
+  border: 1px solid #d8e0f1;
   border-radius: 12px;
   padding: 16px 18px;
   margin-bottom: 20px;
@@ -159,7 +173,7 @@
 .umspec-profile-badge {
   font-size: 11px;
   font-weight: 800;
-  color: #1d4ed8;
+  color: #192b7b;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -167,8 +181,8 @@
 .umspec-profile-year {
   font-size: 11px;
   font-weight: 700;
-  background: #dbeafe;
-  color: #1e40af;
+  background: linear-gradient(110deg, #fff0ec, #fff0da);
+  color: #795a18;
   padding: 2px 8px;
   border-radius: 12px;
 }
@@ -176,14 +190,14 @@
 .umspec-profile-major {
   font-size: 15px;
   font-weight: 700;
-  color: #0f172a;
+  color: #17243d;
   margin: 6px 0 2px 0;
   line-height: 1.3;
 }
 
 .umspec-profile-faculty {
   font-size: 12px;
-  color: #64748b;
+  color: #63708b;
   margin-top: 2px;
 }
 
@@ -193,7 +207,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: #475569;
+  color: #4b5c7a;
   margin-bottom: 10px;
   display: flex;
   align-items: center;
@@ -210,7 +224,7 @@
 .umspec-link-btn {
   background: none;
   border: none;
-  color: #1565c0;
+  color: #294a9b;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
@@ -221,13 +235,13 @@
 }
 
 .umspec-link-btn:hover {
-  color: #0d47a1;
-  background: #e3f2fd;
+  color: #192b7b;
+  background: #e7edfa;
   text-decoration: none;
 }
 
 .umspec-sep {
-  color: #cbd5e1;
+  color: #ccd5e5;
   font-size: 10px;
 }
 
@@ -247,8 +261,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 14px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: linear-gradient(110deg, #f7f9fd, #fffbf8);
+  border: 1px solid #dce3f0;
   border-radius: 8px;
   cursor: pointer;
   user-select: none;
@@ -256,23 +270,23 @@
 }
 
 .umspec-course-row:hover {
-  background: #f1f5f9;
-  border-color: #cbd5e1;
+  background: #f1f4f9;
+  border-color: #ccd5e5;
 }
 
 .umspec-course-checkbox {
   width: 17px;
   height: 17px;
   cursor: pointer;
-  accent-color: #0d47a1;
+  accent-color: #192b7b;
   margin-right: 4px;
   flex-shrink: 0;
 }
 
 .umspec-course-row.umspec-row-unselected {
   opacity: 0.5;
-  background: #f1f5f9;
-  border-color: #e2e8f0;
+  background: #f1f4f9;
+  border-color: #dce3f0;
 }
 
 .umspec-course-row.umspec-row-unselected:hover {
@@ -293,14 +307,14 @@
 .umspec-course-title {
   font-size: 13px;
   font-weight: 600;
-  color: #1e293b;
+  color: #17243d;
 }
 
 .umspec-course-code {
   font-size: 11px;
   font-weight: 700;
-  color: #0d47a1;
-  background: #e3f2fd;
+  color: #192b7b;
+  background: #e7edfa;
   padding: 2px 6px;
   border-radius: 4px;
   display: inline-block;
@@ -310,14 +324,14 @@
 .umspec-course-status {
   font-size: 12px;
   font-weight: 600;
-  color: #64748b;
+  color: #63708b;
 }
 
 /* Progress Card */
 .umspec-progress-card {
   display: none;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: #f7f9fd;
+  border: 1px solid #dce3f0;
   border-radius: 12px;
   padding: 18px;
   margin-top: 14px;
@@ -329,14 +343,14 @@
   align-items: center;
   font-size: 13px;
   font-weight: 700;
-  color: #1e293b;
+  color: #17243d;
   margin-bottom: 8px;
 }
 
 .umspec-progress-bar-bg {
   width: 100%;
   height: 10px;
-  background: #e2e8f0;
+  background: #dce3f0;
   border-radius: 6px;
   overflow: hidden;
   margin-bottom: 10px;
@@ -345,14 +359,14 @@
 .umspec-progress-bar-fill {
   width: 0%;
   height: 100%;
-  background: linear-gradient(90deg, #1976d2, #42a5f5);
+  background: linear-gradient(90deg, #294a9b, #527ac3);
   border-radius: 6px;
   transition: width 0.2s ease;
 }
 
 .umspec-status-text {
   font-size: 12px;
-  color: #64748b;
+  color: #63708b;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -361,8 +375,8 @@
 /* Modal Footer */
 .umspec-modal-footer {
   padding: 16px 24px;
-  background: #f8fafc;
-  border-top: 1px solid #e2e8f0;
+  background: linear-gradient(110deg, #f7f9fd 70%, #fff8f3);
+  border-top: 1px solid #dce3f0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -370,11 +384,11 @@
 
 .umspec-footer-info {
   font-size: 12px;
-  color: #64748b;
+  color: #63708b;
 }
 
 .umspec-btn-primary {
-  background: linear-gradient(135deg, #0d47a1 0%, #1976d2 100%);
+  background: linear-gradient(110deg, #192b7b 0%, #294a9b 78%, #514777 100%);
   color: #ffffff;
   border: none;
   padding: 12px 26px;
@@ -385,12 +399,12 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  box-shadow: 0 4px 14px rgba(13, 71, 161, 0.35);
+  box-shadow: 0 4px 14px rgba(25, 43, 123, 0.35);
   transition: all 0.2s;
 }
 
 .umspec-btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #1565c0 0%, #1e88e5 100%);
+  background: linear-gradient(110deg, #294a9b 0%, #355bb0 78%, #60517f 100%);
   transform: translateY(-1px);
 }
 
