@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     indicator.classList.add('active');
     title.innerText = 'Connected to SPeCTRUM';
     desc.innerText = 'SPeCTRUM tab detected';
-    actionBtn.innerText = '✨ Open Exporter Dialog';
+    actionBtn.querySelector('span').innerText = 'Open Exporter Dialog';
     actionBtn.onclick = () => {
       chrome.scripting?.executeScript({
         target: { tabId: activeTab.id },
@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     indicator.classList.remove('active');
     title.innerText = 'Not on SPeCTRUM';
     desc.innerText = 'Open SPeCTRUM to export courses';
-    actionBtn.innerText = '🌐 Open SPeCTRUM Dashboard';
+    actionBtn.querySelector('span').innerText = 'Open SPeCTRUM Dashboard';
     actionBtn.onclick = () => {
       chrome.tabs.create({ url: 'https://spectrum.um.edu.my/my/' });
       window.close();

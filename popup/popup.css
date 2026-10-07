@@ -9,7 +9,7 @@ body {
   width: 330px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   background: #f7f9fd;
-  color: #17243d;
+  color: #101447;
 }
 
 .umspec-popup-container {
@@ -19,7 +19,7 @@ body {
 
 .umspec-popup-header {
   padding: 16px 18px;
-  background: linear-gradient(110deg, #192b7b 0%, #294a9b 78%, #514777 100%);
+  background: linear-gradient(110deg, #193582 0%, #2b51ab 68%, #705578 100%);
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -38,15 +38,20 @@ body {
   height: 24px;
 }
 
-/* Glyph (Solid Filled) SVGs */
+/* Solar Bold Duotone icons */
 .umspec-svg {
   display: inline-block;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   fill: currentColor;
   stroke: none;
   vertical-align: middle;
   flex-shrink: 0;
+}
+
+.umspec-svg [opacity="0.5"] {
+  fill: var(--umspec-icon-secondary, #cbbcef);
+  opacity: 1;
 }
 
 .umspec-svg-lg {
@@ -88,8 +93,8 @@ body {
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  background: linear-gradient(110deg, #f0f4fc, #fff6ef);
-  border: 1px solid #dce3f0;
+  background: linear-gradient(110deg, #edf4ff, #fff8f3);
+  border: 1px solid #d5def3;
   border-radius: 10px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
@@ -110,12 +115,12 @@ body {
 .umspec-status-title {
   font-size: 13px;
   font-weight: 700;
-  color: #17243d;
+  color: #101447;
 }
 
 .umspec-status-desc {
   font-size: 11px;
-  color: #63708b;
+  color: #58668f;
   margin-top: 1px;
 }
 
@@ -140,8 +145,8 @@ body {
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: linear-gradient(135deg, #edf4ff, #f2edfc);
+  color: #5171b5;
   flex-shrink: 0;
   margin-top: 1px;
 }
@@ -149,20 +154,25 @@ body {
 .umspec-feature-item strong {
   display: block;
   font-size: 12px;
-  color: #17243d;
+  color: #101447;
 }
 
 .umspec-feature-item p {
   font-size: 11px;
-  color: #63708b;
+  color: #58668f;
   margin-top: 2px;
 }
 
 /* Action Button */
 .umspec-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  --umspec-icon-secondary: rgba(255, 255, 255, 0.4);
   width: 100%;
   padding: 11px 16px;
-  background: linear-gradient(110deg, #192b7b 0%, #294a9b 78%, #514777 100%);
+  background: linear-gradient(110deg, #193582 0%, #2b51ab 68%, #705578 100%);
   color: #ffffff;
   border: none;
   border-radius: 8px;
@@ -170,11 +180,11 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  box-shadow: 0 2px 8px rgba(25, 43, 123, 0.3);
+  box-shadow: 0 2px 8px rgba(25, 53, 130, 0.3);
 }
 
 .umspec-action-btn:hover {
-  background: linear-gradient(110deg, #294a9b 0%, #355bb0 78%, #60517f 100%);
+  background: linear-gradient(110deg, #2b51ab 0%, #365fba 78%, #80628a 100%);
   transform: translateY(-1px);
 }
 
@@ -182,16 +192,16 @@ body {
 .umspec-popup-footer {
   padding: 12px 18px;
   background: linear-gradient(110deg, #f1f4f9 70%, #fff8f3);
-  border-top: 1px solid #dce3f0;
+  border-top: 1px solid #d5def3;
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-size: 11px;
-  color: #63708b;
+  color: #58668f;
 }
 
 .umspec-popup-footer a {
-  color: #294a9b;
+  color: #2b51ab;
   text-decoration: none;
   font-weight: 600;
 }

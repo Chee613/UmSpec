@@ -49,6 +49,8 @@
 
 5. **Done!** The extension is installed and ready.
 
+After updating the extension files, click **Reload** on UmSpec in the browser’s Extensions page, then refresh your SPeCTRUM tab. Existing tabs keep the previous injected UI until refreshed.
+
 ---
 
 ## 📖 How to Use
@@ -74,3 +76,5 @@
 ## 📄 License
 
 Distributed under the [MIT License](LICENSE). Built for the Universiti Malaya student community.
+
+UI icons use [Solar Bold Duotone](https://www.svgrepo.com/collection/solar-bold-duotone-icons/) by [480 Design](https://github.com/480-Design/Solar-Icon-Set), listed under the [CC Attribution license on SVG Repo](https://www.svgrepo.com/author/Solar%20Icons/). The bundled SVGs are adapted with theme colours and decorative accessibility attributes. Icons: Book, Square Academic Cap, Download, Restart, Danger Circle, Check Circle, Close Circle, Bolt, and Folder With Files.
