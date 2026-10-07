@@ -44,16 +44,13 @@
   letter-spacing: 0.5px;
 }
 
-/* Lucide Line SVGs & Icon Helpers */
+/* Glyph (Solid Filled) SVGs & Icon Helpers */
 .umspec-svg {
   display: inline-block;
   width: 18px;
   height: 18px;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  fill: none;
+  fill: currentColor;
+  stroke: none;
   vertical-align: middle;
   flex-shrink: 0;
 }

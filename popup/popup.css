@@ -43,16 +43,13 @@ body {
   color: #ffffff;
 }
 
-/* Lucide Line SVGs */
+/* Glyph (Solid Filled) SVGs */
 .umspec-svg {
   display: inline-block;
   width: 18px;
   height: 18px;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  fill: none;
+  fill: currentColor;
+  stroke: none;
   vertical-align: middle;
   flex-shrink: 0;
 }
