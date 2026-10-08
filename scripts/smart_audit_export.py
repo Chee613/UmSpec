@@ -2,6 +2,7 @@
 """
 UmSpec - Zero-Touch SPeCTRUM Smart Audit & Exporter (CLI Edition)
 Analyzes student degree, audits course materials, and packages everything into a structured ZIP.
+Synchronized with SPeCTRUM Smart Export & UmSpec Browser Extension engine.
 """
 
 import os
@@ -17,16 +18,309 @@ from datetime import datetime
 
 BASE_URL = 'https://spectrum.um.edu.my'
 
+# Comprehensive UM Multi-Faculty Curriculum Knowledge Base (All 16 UM Faculties)
+UM_CURRICULUM_CATALOG = {
+    # 1. Faculty of Computer Science & Information Technology (FSKTM)
+    'FSKTM_AI': {
+        'faculty': 'Faculty of Computer Science & Information Technology (FSKTM)',
+        'degree': 'Bachelor of Computer Science (Artificial Intelligence)',
+        'prefixes': ['WIE'],
+        'signatureCodes': ['WIE2001', 'WIE2002', 'WIE2003', 'WIE3001', 'WIE3002', 'WIE3003', 'WIE3004'],
+        'facultyPrefix': 'WI'
+    },
+    'FSKTM_SE': {
+        'faculty': 'Faculty of Computer Science & Information Technology (FSKTM)',
+        'degree': 'Bachelor of Computer Science (Software Engineering)',
+        'prefixes': ['WIA'],
+        'signatureCodes': ['WIA2003', 'WIA2004', 'WIA2005', 'WIA3001', 'WIA3002', 'WIA3003', 'WIA3004'],
+        'facultyPrefix': 'WI'
+    },
+    'FSKTM_DS': {
+        'faculty': 'Faculty of Computer Science & Information Technology (FSKTM)',
+        'degree': 'Bachelor of Computer Science (Data Science)',
+        'prefixes': ['WID'],
+        'signatureCodes': ['WID2001', 'WID2002', 'WID2003', 'WID3001', 'WID3002', 'WID3003'],
+        'facultyPrefix': 'WI'
+    },
+    'FSKTM_CSN': {
+        'faculty': 'Faculty of Computer Science & Information Technology (FSKTM)',
+        'degree': 'Bachelor of Computer Science (Computer Systems and Networking)',
+        'prefixes': ['WIC'],
+        'signatureCodes': ['WIC2001', 'WIC2002', 'WIC2003', 'WIC3001', 'WIC3002', 'WIC3003'],
+        'facultyPrefix': 'WI'
+    },
+    'FSKTM_IS': {
+        'faculty': 'Faculty of Computer Science & Information Technology (FSKTM)',
+        'degree': 'Bachelor of Information Technology (Information Systems)',
+        'prefixes': ['WIB'],
+        'signatureCodes': ['WIB2001', 'WIB2002', 'WIB2003', 'WIB3001', 'WIB3002', 'WIB3003'],
+        'facultyPrefix': 'WI'
+    },
+    'FSKTM_MM': {
+        'faculty': 'Faculty of Computer Science & Information Technology (FSKTM)',
+        'degree': 'Bachelor of Science in Computer Science (Multimedia Computing)',
+        'prefixes': ['WIF'],
+        'signatureCodes': ['WIF2001', 'WIF2002', 'WIF2003', 'WIF3001', 'WIF3002'],
+        'facultyPrefix': 'WI'
+    },
+    # 2. Faculty of Engineering (FK)
+    'FK_ELEC': {
+        'faculty': 'Faculty of Engineering',
+        'degree': 'Bachelor of Electrical Engineering',
+        'prefixes': ['KKE'],
+        'signatureCodes': ['KKE1001', 'KKE2001', 'KKE2002', 'KKE3001', 'KKE3002', 'KKE4001'],
+        'facultyPrefix': 'KK'
+    },
+    'FK_MECH': {
+        'faculty': 'Faculty of Engineering',
+        'degree': 'Bachelor of Mechanical Engineering',
+        'prefixes': ['KKM', 'KIG'],
+        'signatureCodes': ['KKM1001', 'KKM2001', 'KKM2002', 'KKM3001', 'KIG2001', 'KIG3001'],
+        'facultyPrefix': 'KK'
+    },
+    'FK_CIVIL': {
+        'faculty': 'Faculty of Engineering',
+        'degree': 'Bachelor of Civil Engineering',
+        'prefixes': ['KKA'],
+        'signatureCodes': ['KKA1001', 'KKA2001', 'KKA2002', 'KKA3001', 'KKA4001'],
+        'facultyPrefix': 'KK'
+    },
+    'FK_CHEM': {
+        'faculty': 'Faculty of Engineering',
+        'degree': 'Bachelor of Chemical Engineering',
+        'prefixes': ['KKC'],
+        'signatureCodes': ['KKC1001', 'KKC2001', 'KKC2002', 'KKC3001', 'KKC4001'],
+        'facultyPrefix': 'KK'
+    },
+    'FK_BIOMED': {
+        'faculty': 'Faculty of Engineering',
+        'degree': 'Bachelor of Biomedical Engineering',
+        'prefixes': ['KKB'],
+        'signatureCodes': ['KKB1001', 'KKB2001', 'KKB2002', 'KKB3001', 'KKB4001'],
+        'facultyPrefix': 'KK'
+    },
+    # 3. Faculty of Science (FS)
+    'FS_MATH': {
+        'faculty': 'Faculty of Science',
+        'degree': 'Bachelor of Science in Mathematics',
+        'prefixes': ['SIM'],
+        'signatureCodes': ['SIM1001', 'SIM1002', 'SIM2001', 'SIM2002', 'SIM3001'],
+        'facultyPrefix': 'SI'
+    },
+    'FS_ACTUARIAL': {
+        'faculty': 'Faculty of Science',
+        'degree': 'Bachelor of Actuarial Science',
+        'prefixes': ['SIM'],
+        'signatureCodes': ['SIM1003', 'SIM2003', 'SIM2004', 'SIM3003', 'SIM3004'],
+        'facultyPrefix': 'SI'
+    },
+    'FS_CHEM': {
+        'faculty': 'Faculty of Science',
+        'degree': 'Bachelor of Science in Chemistry',
+        'prefixes': ['SIC'],
+        'signatureCodes': ['SIC1001', 'SIC1002', 'SIC2001', 'SIC2002', 'SIC3001'],
+        'facultyPrefix': 'SI'
+    },
+    'FS_PHYS': {
+        'faculty': 'Faculty of Science',
+        'degree': 'Bachelor of Science in Physics',
+        'prefixes': ['SIF'],
+        'signatureCodes': ['SIF1001', 'SIF1002', 'SIF2001', 'SIF2002', 'SIF3001'],
+        'facultyPrefix': 'SI'
+    },
+    'FS_BIO': {
+        'faculty': 'Faculty of Science',
+        'degree': 'Bachelor of Science in Biological Sciences & Biochemistry',
+        'prefixes': ['SIB', 'SIJ', 'SIE'],
+        'signatureCodes': ['SIB1001', 'SIJ1001', 'SIE1001', 'SIB2001', 'SIJ2001'],
+        'facultyPrefix': 'SI'
+    },
+    'FS_GEOL': {
+        'faculty': 'Faculty of Science',
+        'degree': 'Bachelor of Science in Geology',
+        'prefixes': ['SIG'],
+        'signatureCodes': ['SIG1001', 'SIG1002', 'SIG2001', 'SIG2002', 'SIG3001'],
+        'facultyPrefix': 'SI'
+    },
+    # 4. Faculty of Business and Economics (FPE)
+    'FPE_ACC': {
+        'faculty': 'Faculty of Business and Economics',
+        'degree': 'Bachelor of Accounting',
+        'prefixes': ['CIA'],
+        'signatureCodes': ['CIA1001', 'CIA2001', 'CIA2002', 'CIA3001', 'CIA3002'],
+        'facultyPrefix': 'CI'
+    },
+    'FPE_FIN': {
+        'faculty': 'Faculty of Business and Economics',
+        'degree': 'Bachelor of Finance',
+        'prefixes': ['CIB'],
+        'signatureCodes': ['CIB1001', 'CIB2001', 'CIB2002', 'CIB3001', 'CIB3002'],
+        'facultyPrefix': 'CI'
+    },
+    'FPE_BBA': {
+        'faculty': 'Faculty of Business and Economics',
+        'degree': 'Bachelor of Business Administration',
+        'prefixes': ['CIC', 'CID'],
+        'signatureCodes': ['CIC1001', 'CIC2001', 'CID2001', 'CIC3001', 'CID3001'],
+        'facultyPrefix': 'CI'
+    },
+    'FPE_ECON': {
+        'faculty': 'Faculty of Business and Economics',
+        'degree': 'Bachelor of Economics',
+        'prefixes': ['EIA', 'EIB', 'EIC'],
+        'signatureCodes': ['EIA1001', 'EIA2001', 'EIB2001', 'EIC2001', 'EIA3001'],
+        'facultyPrefix': 'EI'
+    },
+    # 5. Faculty of Built Environment (FAB)
+    'FAB_ARCH': {
+        'faculty': 'Faculty of Built Environment',
+        'degree': 'Bachelor of Science in Architecture',
+        'prefixes': ['BIA'],
+        'signatureCodes': ['BIA1001', 'BIA2001', 'BIA2002', 'BIA3001'],
+        'facultyPrefix': 'BI'
+    },
+    'FAB_QS': {
+        'faculty': 'Faculty of Built Environment',
+        'degree': 'Bachelor of Quantity Surveying',
+        'prefixes': ['BIE'],
+        'signatureCodes': ['BIE1001', 'BIE2001', 'BIE2002', 'BIE3001'],
+        'facultyPrefix': 'BI'
+    },
+    'FAB_BS': {
+        'faculty': 'Faculty of Built Environment',
+        'degree': 'Bachelor of Building Surveying',
+        'prefixes': ['BIB'],
+        'signatureCodes': ['BIB1001', 'BIB2001', 'BIB2002', 'BIB3001'],
+        'facultyPrefix': 'BI'
+    },
+    'FAB_RE': {
+        'faculty': 'Faculty of Built Environment',
+        'degree': 'Bachelor of Real Estate',
+        'prefixes': ['BIC'],
+        'signatureCodes': ['BIC1001', 'BIC2001', 'BIC2002', 'BIC3001'],
+        'facultyPrefix': 'BI'
+    },
+    'FAB_URP': {
+        'faculty': 'Faculty of Built Environment',
+        'degree': 'Bachelor of Urban and Regional Planning',
+        'prefixes': ['BID'],
+        'signatureCodes': ['BID1001', 'BID2001', 'BID2002', 'BID3001'],
+        'facultyPrefix': 'BI'
+    },
+    # 6. Faculty of Law (FUU)
+    'FUU_LLB': {
+        'faculty': 'Faculty of Law',
+        'degree': 'Bachelor of Laws (LLB)',
+        'prefixes': ['LXEB', 'LIA', 'LQC', 'LXGA', 'LXGB'],
+        'signatureCodes': ['LXEB1001', 'LXEB2001', 'LXEB2002', 'LXEB3001', 'LXEB4001'],
+        'facultyPrefix': 'LX'
+    },
+    # 7. Faculty of Medicine (FOM)
+    'FOM_MBBS': {
+        'faculty': 'Faculty of Medicine',
+        'degree': 'Bachelor of Medicine and Bachelor of Surgery (MBBS)',
+        'prefixes': ['MIA', 'MID', 'MIE'],
+        'signatureCodes': ['MIA1001', 'MID1001', 'MIE1001', 'MIA2001'],
+        'facultyPrefix': 'MI'
+    },
+    'FOM_NURSING': {
+        'faculty': 'Faculty of Medicine',
+        'degree': 'Bachelor of Nursing Science',
+        'prefixes': ['MIB', 'MNA'],
+        'signatureCodes': ['MIB1001', 'MNA1001', 'MIB2001', 'MNA2001'],
+        'facultyPrefix': 'MI'
+    },
+    'FOM_BIOMED': {
+        'faculty': 'Faculty of Medicine',
+        'degree': 'Bachelor of Biomedical Science',
+        'prefixes': ['MIC'],
+        'signatureCodes': ['MIC1001', 'MIC2001', 'MIC2002', 'MIC3001'],
+        'facultyPrefix': 'MI'
+    },
+    # 8. Faculty of Pharmacy (FF)
+    'FF_PHARM': {
+        'faculty': 'Faculty of Pharmacy',
+        'degree': 'Bachelor of Pharmacy',
+        'prefixes': ['PIA', 'PIB', 'PIC', 'PIX'],
+        'signatureCodes': ['PIA1001', 'PIB1001', 'PIC1001', 'PIX1001', 'PIA2001'],
+        'facultyPrefix': 'PI'
+    },
+    # 9. Faculty of Dentistry (FPG)
+    'FPG_BDS': {
+        'faculty': 'Faculty of Dentistry',
+        'degree': 'Bachelor of Dental Surgery (BDS)',
+        'prefixes': ['DIA', 'DIB'],
+        'signatureCodes': ['DIA1001', 'DIB1001', 'DIA2001', 'DIB2001'],
+        'facultyPrefix': 'DI'
+    },
+    # 10. Faculty of Education (FP)
+    'FP_EDU': {
+        'faculty': 'Faculty of Education',
+        'degree': 'Bachelor of Education (TESL / Counselling)',
+        'prefixes': ['PGA', 'PGB', 'PGC', 'PIX'],
+        'signatureCodes': ['PGA1001', 'PGB1001', 'PGC1001', 'PIX1001'],
+        'facultyPrefix': 'PG'
+    },
+    # 11. Faculty of Languages and Linguistics (FLL)
+    'FLL_LANG': {
+        'faculty': 'Faculty of Languages and Linguistics',
+        'degree': 'Bachelor of Arts in Linguistics / Languages',
+        'prefixes': ['TIX', 'TIE', 'TIA', 'TIC', 'TIJ', 'TIG', 'TIF'],
+        'signatureCodes': ['TIX1001', 'TIE1001', 'TIA1001', 'TIC1001', 'TIJ1001'],
+        'facultyPrefix': 'TI'
+    },
+    # 12. Faculty of Arts and Social Sciences (FASS)
+    'FASS_ARTS': {
+        'faculty': 'Faculty of Arts and Social Sciences',
+        'degree': 'Bachelor of Arts (Social Sciences & Humanities)',
+        'prefixes': ['AIX', 'AIA', 'AIB', 'AIC', 'AID', 'AIE', 'AIG', 'AIH'],
+        'signatureCodes': ['AIA1001', 'AIB1001', 'AIE1001', 'AIG1001', 'AIX1001'],
+        'facultyPrefix': 'AI'
+    },
+    # 13. Faculty of Creative Arts (FCA)
+    'FCA_ARTS': {
+        'faculty': 'Faculty of Creative Arts',
+        'degree': 'Bachelor of Performing / Visual Arts / Music',
+        'prefixes': ['RIA', 'RIB', 'RIC', 'RID', 'RIE'],
+        'signatureCodes': ['RIA1001', 'RIB1001', 'RIC1001', 'RID1001', 'RIE1001'],
+        'facultyPrefix': 'RI'
+    },
+    # 14. Academy of Islamic Studies (API)
+    'API_ISLAMIC': {
+        'faculty': 'Academy of Islamic Studies',
+        'degree': 'Bachelor of Islamic Studies (Shariah / Usuluddin)',
+        'prefixes': ['IIX', 'IIA', 'IIB', 'IIC'],
+        'signatureCodes': ['IIX1001', 'IIA1001', 'IIB1001', 'IIC1001'],
+        'facultyPrefix': 'II'
+    },
+    # 15. Academy of Malay Studies (APM)
+    'APM_MALAY': {
+        'faculty': 'Academy of Malay Studies',
+        'degree': 'Bachelor of Arts in Malay Studies',
+        'prefixes': ['JIA', 'JIB'],
+        'signatureCodes': ['JIA1001', 'JIB1001', 'JIA2001', 'JIB2001'],
+        'facultyPrefix': 'JI'
+    },
+    # 16. Sports & Exercise Science (SES)
+    'SES_SPORT': {
+        'faculty': 'Centre for Sport & Exercise Sciences',
+        'degree': 'Bachelor of Sports Science',
+        'prefixes': ['VIA', 'VIB', 'VIC'],
+        'signatureCodes': ['VIA1001', 'VIB1001', 'VIC1001', 'VIA2001'],
+        'facultyPrefix': 'VI'
+    }
+}
+
 def sanitize_name(name):
     if not name: return 'unnamed'
     name = re.sub(r'[\\/*?:"<>|]', '_', name)
     name = re.sub(r'\s+', ' ', name).strip(' .')
-    return name[:150] or 'unnamed'
+    return name[:160] or 'unnamed'
 
 def format_course_folder(full_name, short_name=''):
     raw = full_name or short_name or 'Course Materials'
     # 1. Extract course code (e.g. WIA2007)
-    code_m = re.search(r'([A-Z]{3}\d{4})', raw, re.I)
+    code_m = re.search(r'([A-Z]{3}\d{4})', raw, re.I) or re.search(r'([A-Z]{3}\d{4})', short_name or '', re.I)
     code = code_m.group(1).upper() if code_m else ''
 
     # 2. Clean title: remove course codes, cross-listings, semester tags, brackets
@@ -46,115 +340,156 @@ def map_department_to_degree(text):
     if not text: return None
     t = text.lower()
     if 'artificial intelligence' in t or 'kecerdasan buatan' in t:
-        return 'Bachelor of Computer Science (Artificial Intelligence)'
+        return {'degree': 'Bachelor of Computer Science (Artificial Intelligence)', 'faculty': 'Faculty of Computer Science & Information Technology (FSKTM)'}
     if 'software engineering' in t or 'kejuruteraan perisian' in t:
-        return 'Bachelor of Computer Science (Software Engineering)'
+        return {'degree': 'Bachelor of Computer Science (Software Engineering)', 'faculty': 'Faculty of Computer Science & Information Technology (FSKTM)'}
     if 'data science' in t or 'sains data' in t:
-        return 'Bachelor of Computer Science (Data Science)'
-    if 'computer system' in t or 'networking' in t or 'sistem komputer' in t:
-        return 'Bachelor of Computer Science (Computer Systems and Networking)'
+        return {'degree': 'Bachelor of Computer Science (Data Science)', 'faculty': 'Faculty of Computer Science & Information Technology (FSKTM)'}
+    if 'computer system' in t or 'networking' in t or 'sistem komputer' in t or 'rangkaian' in t:
+        return {'degree': 'Bachelor of Computer Science (Computer Systems and Networking)', 'faculty': 'Faculty of Computer Science & Information Technology (FSKTM)'}
     if 'information system' in t or 'sistem maklumat' in t:
-        return 'Bachelor of Information Technology (Information Systems)'
-    if 'library' in t or 'sains maklumat' in t:
-        return 'Bachelor of Information Science (Library Management)'
-    if 'engineering' in t or 'kejuruteraan' in t:
-        return 'Bachelor of Engineering'
+        return {'degree': 'Bachelor of Information Technology (Information Systems)', 'faculty': 'Faculty of Computer Science & Information Technology (FSKTM)'}
+    if 'multimedia' in t:
+        return {'degree': 'Bachelor of Science in Computer Science (Multimedia Computing)', 'faculty': 'Faculty of Computer Science & Information Technology (FSKTM)'}
+    if 'electrical' in t or 'elektrik' in t:
+        return {'degree': 'Bachelor of Electrical Engineering', 'faculty': 'Faculty of Engineering'}
+    if 'mechanical' in t or 'mekanikal' in t:
+        return {'degree': 'Bachelor of Mechanical Engineering', 'faculty': 'Faculty of Engineering'}
+    if 'civil' in t or 'awam' in t:
+        return {'degree': 'Bachelor of Civil Engineering', 'faculty': 'Faculty of Engineering'}
+    if 'chemical' in t or ('kimia' in t and 'kejuruteraan' in t):
+        return {'degree': 'Bachelor of Chemical Engineering', 'faculty': 'Faculty of Engineering'}
+    if 'biomedical' in t or 'bioperubatan' in t:
+        return {'degree': 'Bachelor of Biomedical Engineering', 'faculty': 'Faculty of Engineering'}
+    if 'accounting' in t or 'perakaunan' in t:
+        return {'degree': 'Bachelor of Accounting', 'faculty': 'Faculty of Business and Economics'}
+    if 'finance' in t or 'kewangan' in t:
+        return {'degree': 'Bachelor of Finance', 'faculty': 'Faculty of Business and Economics'}
+    if 'business' in t or 'perniagaan' in t or 'pentadbiran perniagaan' in t:
+        return {'degree': 'Bachelor of Business Administration', 'faculty': 'Faculty of Business and Economics'}
+    if 'economics' in t or 'ekonomi' in t:
+        return {'degree': 'Bachelor of Economics', 'faculty': 'Faculty of Business and Economics'}
+    if 'actuarial' in t or 'aktuari' in t:
+        return {'degree': 'Bachelor of Actuarial Science', 'faculty': 'Faculty of Science'}
     return None
 
-def detect_academic_profile(courses, user_name, session=None):
-    codes = []
+def calculate_year_semester(courses):
+    years = []
     for c in courses:
-        m = re.search(r'([A-Z]{3})(\d)(\d{3})', c['fullName'], re.I)
+        raw_text = f"{c.get('fullName', '')} {c.get('shortName', '')}"
+        m = re.search(r'\b[A-Z]{3,4}(\d)\d{3}\b', raw_text, re.I)
         if m:
-            codes.append({
-                'prefix': m.group(1).upper(),
-                'year': int(m.group(2)),
-                'fullCode': f"{m.group(1).upper()}{m.group(2)}{m.group(3)}"
-            })
+            y = int(m.group(1))
+            if 1 <= y <= 4:
+                years.append(y)
+    inferred_year = round(sum(years) / len(years)) if years else 1
 
-    faculty = 'Universiti Malaya'
-    bachelor = None
-    detection_source = 'Curriculum Heuristic'
+    month = datetime.now().month
+    if 3 <= month <= 7:
+        sem_str = 'Semester 2'
+    elif 8 <= month <= 9:
+        sem_str = 'Special Semester'
+    else:
+        sem_str = 'Semester 1'
 
-    # Check SPeCTRUM profile metadata via active session
+    return f"Year {inferred_year}, {sem_str}"
+
+def detect_academic_profile(courses, user_name, session=None):
+    detected_bachelor = None
+    detected_faculty = 'Universiti Malaya'
+    detection_source = 'UM Multi-Faculty Curriculum Engine'
+
+    # 1. Query SPeCTRUM user profile metadata if session is active
     if session:
         try:
             p_res = session.get(f"{BASE_URL}/user/profile.php", timeout=15)
             if p_res.status_code == 200:
                 p_soup = BeautifulSoup(p_res.text, 'html.parser')
                 p_text = " ".join(dd.get_text(strip=True) for dd in p_soup.select('.profile_tree dd, .profile_tree dt, dl dt, dl dd'))
-                from_p = map_department_to_degree(p_text)
-                if from_p:
-                    bachelor = from_p
+                dept_degree = map_department_to_degree(p_text)
+                if dept_degree:
+                    detected_bachelor = dept_degree['degree']
+                    detected_faculty = dept_degree['faculty']
                     detection_source = 'SPeCTRUM Profile Metadata (/user/profile.php)'
         except Exception:
             pass
 
-    fsktm_cnt = sum(1 for c in codes if c['prefix'] in ['WIA', 'WIB', 'WIC', 'WID', 'WIE', 'WIF', 'WIX'])
-    eng_cnt = sum(1 for c in codes if c['prefix'] in ['KIE', 'KKA', 'KMK', 'KBE'])
-    arts_cnt = sum(1 for c in codes if c['prefix'] in ['AIA', 'AIB', 'GIG'])
+    # 2. Multi-Faculty Weighted Bayesian Curriculum Inference
+    if not detected_bachelor:
+        scores = {k: 0 for k in UM_CURRICULUM_CATALOG}
+        for c in courses:
+            title_upper = (c.get('fullName', '') + ' ' + c.get('shortName', '')).upper()
+            matches = re.findall(r'\b([A-Z]{3,4})([0-9]{4})\b', title_upper)
+            for prefix, num in matches:
+                full_code = prefix + num
+                if prefix in ['GIG', 'GLT', 'GQX', 'GKN', 'GKA']:
+                    continue
+                for prog_key, prog in UM_CURRICULUM_CATALOG.items():
+                    if full_code in prog.get('signatureCodes', []):
+                        scores[prog_key] += 10
+                    elif prefix in prog.get('prefixes', []):
+                        scores[prog_key] += 6
+                    elif prog.get('facultyPrefix') and prefix.startswith(prog['facultyPrefix']):
+                        scores[prog_key] += 2
 
-    if not bachelor:
-        if fsktm_cnt >= 2:
-            faculty = 'Faculty of Computer Science & Information Technology (FSKTM)'
-            full_list = [c['fullCode'] for c in codes]
-            all_titles = " ".join(c.get('fullName', '').lower() for c in courses)
+        best_key = None
+        highest_score = 0
+        for k, score in scores.items():
+            if score > highest_score:
+                highest_score = score
+                best_key = k
 
-            if any(c.startswith('WIC') for c in full_list) or 'artificial intelligence' in all_titles or 'machine learning' in all_titles or 'WIA2003' in full_list:
-                bachelor = 'Bachelor of Computer Science (Artificial Intelligence)'
-            elif any(c.startswith('WID') for c in full_list) or 'data science' in all_titles:
-                bachelor = 'Bachelor of Computer Science (Data Science)'
-            elif any(c.startswith('WIE') for c in full_list) or 'software architecture' in all_titles:
-                bachelor = 'Bachelor of Computer Science (Software Engineering)'
-            elif any(c.startswith('WIF') for c in full_list) or 'network' in all_titles:
-                bachelor = 'Bachelor of Computer Science (Computer Systems and Networking)'
-            elif any(c.startswith('WIB') for c in full_list) or 'information system' in all_titles:
-                bachelor = 'Bachelor of Information Technology (Information Systems)'
-            else:
-                bachelor = 'Bachelor of Computer Science (Artificial Intelligence)'
-        elif eng_cnt >= 2:
-            faculty = 'Faculty of Engineering (FK)'
-            bachelor = 'Bachelor of Engineering'
-        elif arts_cnt >= 2:
-            faculty = 'Faculty of Arts and Social Sciences (FASS)'
-            bachelor = 'Bachelor of Arts / Social Sciences'
-        else:
-            bachelor = 'Bachelor of Computer Science (Artificial Intelligence)'
+        if best_key and highest_score > 0:
+            best_prog = UM_CURRICULUM_CATALOG[best_key]
+            detected_bachelor = best_prog['degree']
+            detected_faculty = best_prog['faculty']
+            detection_source = 'Curriculum Matrix Inference'
 
-    years = [c['year'] for c in codes if 1 <= c['year'] <= 4]
-    avg_year = round(sum(years) / len(years)) if years else 1
+    # Fallback default
+    if not detected_bachelor:
+        detected_bachelor = 'Bachelor of Computer Science (Artificial Intelligence)'
+        detected_faculty = 'Faculty of Computer Science & Information Technology (FSKTM)'
+        detection_source = 'Curriculum Heuristic'
 
     return {
         'studentName': user_name or 'UM Student',
-        'faculty': faculty,
-        'bachelor': bachelor,
-        'yearSem': f"Year {avg_year}, Semester 1",
+        'faculty': detected_faculty,
+        'bachelor': detected_bachelor,
+        'yearSem': calculate_year_semester(courses),
         'totalCourses': len(courses),
         'source': detection_source
     }
 
-def classify_adaptive_category(item_name, section_name, ext=''):
-    n = (item_name or '').lower()
-    s = (section_name or '').lower()
+def classify_adaptive_category(act_name, sec_name, ext=''):
+    """
+    Adaptive taxonomy classification matching UmSpec Zero-Touch Engine & SPeCTRUM Smart Export.
+    Categories:
+      1.Lecture Slide (Lecture Slides / General Course Materials)
+      2.Tutorials (Tutorials)
+      3.Lab Materials (Labs)
+      4.Past Year Questions (Past Year & Tests)
+      5.Assignments & Projects (Assignments)
+      6.Source Code & References (Source Code)
+      7.Recordings & Media (Media & Videos)
+    """
+    text = f"{act_name or ''} {sec_name or ''}".lower()
     e = (ext or '').lower()
 
-    if any(k in n or k in s for k in ['pyq', 'past year', 'exam paper', 'final exam']):
-        return '5.Past Year Questions', 'Past Year Questions'
-    if e in ['.java', '.py', '.c', '.cpp', '.sql', '.html', '.js', '.ipynb'] or 'source code' in n or 'starter kit' in n or 'source code' in s:
-        return '6.Source Code', 'Source Code & Starter Kits'
-    if e in ['.sav', '.csv', '.xlsx', '.xls'] or 'dataset' in n or 'data file' in n or 'dataset' in s:
-        return '7.Datasets', 'Datasets & Statistical Files'
-    if e in ['.mp4', '.wmv', '.mov', '.mkv', '.mp3'] or 'recorded lecture' in n or 'video' in n or 'video recording' in s:
-        return '8.Video Lectures', 'Recorded Lectures & Videos'
-    if 'tutorial' in n or 'tutorial' in s:
-        return '2.Tutorial', 'Tutorials & Problem Sets'
-    if any(k in n or k in s for k in ['lab', 'practical', 'pbl']):
-        return '3.Lab', 'Labs & Practical Guides'
-    if any(k in n or k in s for k in ['assignment', 'assign', 'project', 'case study', 'peer assessment', 'weekly progress', 'rubric', 'declaration form']):
-        return '4.Assignment', 'Assignments & Project Briefs'
-    if any(k in n or k in s for k in ['book', 'reference', 'additional material', 'extra note', 'guide']):
-        return '9.Reference', 'References & Textbooks'
-    return '1.Lecture Slide', 'Lecture Slides & Notes'
+    if any(k in text for k in ['past year', 'pyq', 'exam', 'peperiksaan', 'sample paper', 'mid term', 'midterm', 'test']):
+        return '4.Past Year Questions', 'Past Year & Tests'
+    if any(k in text for k in ['tutorial', 'exercise', 'latihan', 'worksheet', 'tuto']):
+        return '2.Tutorials', 'Tutorials'
+    if any(k in text for k in ['lab', 'practical', 'amali', 'hands-on']):
+        return '3.Lab Materials', 'Labs'
+    if any(k in text for k in ['assignment', 'project', 'tugasan', 'rubric', 'milestone']):
+        return '5.Assignments & Projects', 'Assignments'
+    if any(k in text for k in ['lecture', 'slide', 'kuliah', 'topic', 'week', 'nota', 'notes', 'chapter', 'unit']):
+        return '1.Lecture Slide', 'Lecture Slides'
+    if e in ['.py', '.java', '.c', '.cpp', '.sql', '.html', '.js', '.css', '.ipynb', '.dart', '.kt', '.php'] or any(k in text for k in ['source code', 'script', 'code']):
+        return '6.Source Code & References', 'Source Code'
+    if e in ['.mp4', '.mkv', '.avi', '.mov', '.mp3', '.webm'] or any(k in text for k in ['recording', 'video', 'webinar']):
+        return '7.Recordings & Media', 'Media & Videos'
+    return '1.Lecture Slide', 'General Course Materials'
 
 def run_smart_audit_and_export(cookie, output_dir=None):
     if not output_dir:
@@ -167,14 +502,14 @@ def run_smart_audit_and_export(cookie, output_dir=None):
     session.cookies.set('MoodleSession', cookie, domain='spectrum.um.edu.my')
 
     print("="*65)
-    print("🎓 UmSpec Zero-Touch Academic Audit & Smart Exporter")
+    print("UmSpec Zero-Touch Academic Audit & Smart Exporter")
     print("="*65)
 
     # 1. Connect & Get sesskey
     print("\n[1/5] Connecting to SPeCTRUM session...")
     resp = session.get(f'{BASE_URL}/my/', timeout=30)
     if 'login.microsoftonline.com' in resp.url or resp.status_code != 200:
-        print("❌ Error: MoodleSession cookie is invalid or expired. Please provide a fresh cookie.")
+        print("Error: MoodleSession cookie is invalid or expired. Please provide a fresh cookie.")
         return
 
     soup = BeautifulSoup(resp.text, 'html.parser')
@@ -226,13 +561,13 @@ def run_smart_audit_and_export(cookie, output_dir=None):
     # 3. Academic Profile Detection
     profile = detect_academic_profile(courses, user_name, session=session)
     print("\n" + "-"*65)
-    print("📋 STUDENT ACADEMIC PROFILE DETECTED:")
-    print(f" • Student:      {profile['studentName']}")
-    print(f" • Faculty:      {profile['faculty']}")
-    print(f" • Programme:    {profile['bachelor']}")
-    print(f" • Period:       {profile['yearSem']}")
-    print(f" • Total Courses: {profile['totalCourses']} Enrolled Subjects")
-    print(f" • Source:       {profile.get('source', 'Curriculum')}")
+    print("STUDENT ACADEMIC PROFILE DETECTED:")
+    print(f" * Student:       {profile['studentName']}")
+    print(f" * Faculty:       {profile['faculty']}")
+    print(f" * Programme:     {profile['bachelor']}")
+    print(f" * Period:        {profile['yearSem']}")
+    print(f" * Total Courses: {profile['totalCourses']} Enrolled Subjects")
+    print(f" * Source:        {profile.get('source', 'Curriculum')}")
     print("-"*65)
 
     print("\n[+] ENROLLED COURSES:")
@@ -252,7 +587,7 @@ def run_smart_audit_and_export(cookie, output_dir=None):
 
     date_str = datetime.now().strftime('%Y-%m-%d')
     zip_path = os.path.join(output_dir, f"SPeCTRUM_Smart_Export_{date_str}.zip")
-    
+
     total_files = 0
     total_bytes = 0
     audit_rows = []
@@ -267,7 +602,7 @@ def run_smart_audit_and_export(cookie, output_dir=None):
                 c_soup = BeautifulSoup(c_resp.text, 'html.parser')
             except Exception as e:
                 print(f"     Error loading course: {e}")
-                audit_rows.append(f"| **{course['folderName']}** | {course['fullName']} | 0 files | ⚠️ Network Error |")
+                audit_rows.append(f"| **{course['folderName']}** | {course['fullName']} | 0 files | Network Error |")
                 continue
 
             items = []
@@ -382,11 +717,11 @@ def run_smart_audit_and_export(cookie, output_dir=None):
                         total_files += 1
                         total_bytes += len(file_data)
                         print(f"       + [{item['cat_id']}] {fname} ({len(file_data):,} bytes)")
-                except Exception as e:
+                except Exception:
                     pass
 
             if external_links:
-                links_md = f"# 🎥 {course['fullName']} - Video Lectures & Resources\n\n"
+                links_md = f"# Universiti Malaya - {course['fullName']} Resources\n\n"
                 cur_sec = None
                 for el in external_links:
                     if el['section'] != cur_sec:
@@ -397,33 +732,33 @@ def run_smart_audit_and_export(cookie, output_dir=None):
                 c_downloaded += 1
                 total_files += 1
 
-            status_text = "🟢 Active" if c_downloaded > 0 else "⚠️ Empty on SPeCTRUM"
+            status_text = "Active" if c_downloaded > 0 else "Empty on SPeCTRUM"
             audit_rows.append(f"| **{course['folderName']}** | {course['fullName']} | {c_downloaded} files | {status_text} |")
 
         target_ids = {c['id'] for c in target_courses}
         for c in courses:
             if c['id'] not in target_ids:
-                audit_rows.append(f"| **{c['folderName']}** | {c['fullName']} | 0 files | ⚪ Excluded by User |")
+                audit_rows.append(f"| **{c['folderName']}** | {c['fullName']} | 0 files | Excluded by User |")
 
-        # 5. Generate Academic Audit Report
+        # 5. Generate Academic Audit Report matching SPeCTRUM Smart Export standard
         print("\n[4/5] Generating SEMESTER_AUDIT_REPORT.md...")
-        audit_md = f"""# 🎓 Universiti Malaya - SPeCTRUM Semester Academic Audit
+        audit_md = f"""# Universiti Malaya - SPeCTRUM Semester Academic Audit
 
-> **Auto-Generated by UmSpec Zero-Touch Engine** on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+> **Auto-Generated by UmSpec Zero-Touch Engine** on {datetime.now().strftime('%m/%d/%Y, %I:%M:%S %p')}
 
 ---
 
-## 🧑‍🎓 Student Academic Profile
+## Student Academic Profile
 
 * **Student:** {profile['studentName']}
 * **Faculty:** {profile['faculty']}
 * **Detected Programme:** {profile['bachelor']}
 * **Academic Period:** {profile['yearSem']}
-* **Total Enrolled Courses:** {profile['totalCourses']} Subjects
+* **Total Enrolled Courses:** {len(courses)} Courses ({len(target_courses)} Exported)
 
 ---
 
-## 📊 Course Content & Material Health Check
+## Course Content & Material Health Check
 
 | Course Folder | Official Title | Materials Downloaded | Health Status |
 | :--- | :--- | :---: | :--- |
@@ -431,21 +766,25 @@ def run_smart_audit_and_export(cookie, output_dir=None):
 
 ---
 
-## 🗂️ Discovered Material Taxonomy
+## Discovered Material Taxonomy
+
+The following categories were dynamically identified and organized across your courses:
 {chr(10).join(f'* **{cat}**' for cat in sorted(discovered_taxonomies))}
 
 ---
 
-## 📦 Total Archive Statistics
+## Total Archive Statistics
 * **Total Files:** {total_files}
 * **Total Uncompressed Size:** {total_bytes / (1024*1024):.2f} MB
+
+*Preserve this audit report as your official semester archive index.*
 """
         zf.writestr("SEMESTER_AUDIT_REPORT.md", audit_md)
 
     print("\n[5/5] Packaging Finished!")
     print("="*65)
-    print(f"🎉 Successfully Generated ZIP: {zip_path}")
-    print(f"📦 Total Files: {total_files} | Archive Size: {os.path.getsize(zip_path)/(1024*1024):.2f} MB")
+    print(f"Successfully Generated ZIP: {zip_path}")
+    print(f"Total Files: {total_files} | Archive Size: {os.path.getsize(zip_path)/(1024*1024):.2f} MB")
     print("="*65)
 
 if __name__ == '__main__':
