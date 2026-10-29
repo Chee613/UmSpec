@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UM Spec — Google setup</title>
+<style>
+body{font:17px/1.65 system-ui,sans-serif;background:#111;color:#eee;max-width:760px;margin:64px auto;padding:0 24px}
+h1{line-height:1.2}a{color:#9bc8ff}code{background:#282828;padding:3px 6px;border-radius:4px}li{margin:12px 0}
+.note{padding:18px;border:1px solid #555;border-radius:12px}
+</style>
+<h1>Connect UM Spec to Google</h1>
+<p>ZIP works immediately. The developer must configure a public Google OAuth client ID before distributing the Google-connected version.</p>
+<ol>
+<li>In <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer">Google Cloud</a>, create or select a project. Enable the Google Drive API and Google Calendar API.</li>
+<li>Configure Google Auth branding, support contact, privacy-policy URL and an external test audience. Add consenting test accounts.</li>
+<li>Load UM Spec in Chrome's Extensions page. Create an OAuth client of type <strong>Chrome Extension</strong> and register the extension's exact ID. A Web Store release must use its production extension ID.</li>
+<li>From the repository, run <code>node scripts/configure_google_oauth.cjs</code> followed by your actual public client ID. If using a stable development extension key, pass <code>--extension-key</code> followed by the public key and register the resulting ID.</li>
+<li>Reload the extension, refresh Spectrum, open the exporter and select your courses. Click Connect Drive or Connect Calendar in the popup.</li>
+<li>Complete the live test checklist in the repository before broad release. Complete Google's consent publishing and verification requirements for the selected scopes.</li>
+</ol>
+<p class="note">Never put a client secret, Google password or Spectrum cookie in the extension. The OAuth client ID and extension public key are public configuration.</p>
+<p>Drive access covers files UM Spec creates. Calendar access manages a dedicated UM Spec calendar and reads calendar names/IDs to recover it. It does not grant access to events on unrelated calendars.</p>
+<p>Automatic checks run while Spectrum is open and signed in. Uncertain announcement dates require review.</p>
+</html>

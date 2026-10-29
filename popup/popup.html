@@ -3,89 +3,60 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>UmSpec // Nothing OS</title>
+  <title>UmSpec</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <div class="umspec-popup-container">
-    <!-- Header: Nothing OS Dot Bar -->
-    <header class="umspec-popup-header">
-      <div class="umspec-brand">
-        <div class="umspec-brand-icon">
-          <!-- Spec Stack Logo -->
-          <svg class="umspec-spec-stack" viewBox="0 0 128 128" aria-hidden="true" focusable="false">
-            <path fill="#ffffff" fill-rule="evenodd" d="M24 12h77q4 0 7 3l14 14q2 2 2 6v11q0 3-3 3H42l7 8h47q4 0 7 3l14 14q3 3 3 8v29q0 4-4 4H28q-4 0-7-3L8 99q-4-4-4-8v-8q0-3 4-3h77l-9-9H30q-4 0-7-3L10 55q-2-2-2-6V32q0-4 3-7l10-10q2-3 3-3Zm75 8v17h17L99 20Zm-3 45v16h16L96 65Z"/>
-          </svg>
-        </div>
-        <div>
-          <div class="umspec-brand-eyebrow">UMSPEC // OS 4.0</div>
-          <h1 class="umspec-brand-title">COURSE EXPORTER</h1>
-        </div>
-      </div>
-      <div class="umspec-header-badge">
-        <span class="umspec-pulse-dot" id="header-pulse-dot"></span>
-        <span class="umspec-version-tag">V2.0</span>
-      </div>
+  <div class="popup">
+    <header class="popup-header">
+      <svg class="brand-icon" viewBox="0 0 128 128" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M24 12h77q4 0 7 3l14 14q2 2 2 6v11q0 3-3 3H42l7 8h47q4 0 7 3l14 14q3 3 3 8v29q0 4-4 4H28q-4 0-7-3L8 99q-4-4-4-8v-8q0-3 4-3h77l-9-9H30q-4 0-7-3L10 55q-2-2-2-6V32q0-4 3-7l10-10q2-3 3-3Zm75 8v17h17L99 20Zm-3 45v16h16L96 65Z"/></svg>
+      <div><h1>UmSpec</h1><p>Course files and dates</p></div>
+      <span class="version">2.0.2</span>
     </header>
-
-    <main class="umspec-popup-body">
-      <!-- Status Bento Card -->
-      <section class="umspec-status-card" id="status-card">
-        <div class="umspec-status-indicator" id="status-indicator"></div>
-        <div class="umspec-status-details">
-          <div class="umspec-status-tag" id="status-tag">TELEMETRY // LIVE</div>
-          <div class="umspec-status-title" id="status-title">Checking Tab...</div>
-          <div class="umspec-status-desc" id="status-desc">Detecting SPeCTRUM session</div>
-        </div>
+    <nav class="main-tabs" role="tablist" aria-label="Popup sections">
+      <button id="tab-home" type="button" role="tab" data-tab-group="main" aria-selected="true" aria-controls="panel-home" tabindex="0">Home</button>
+      <button id="tab-settings" type="button" role="tab" data-tab-group="main" aria-selected="false" aria-controls="panel-settings" tabindex="-1"><svg class="glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="m19.4 13 .1-1-.1-1 2-1.5-2-3.5-2.3 1a8 8 0 0 0-1.7-1L15 3h-4l-.4 2.5a8 8 0 0 0-1.7 1L6.6 5.5l-2 3.5 2 1.5-.1 1 .1 1-2 1.5 2 3.5 2.3-1a8 8 0 0 0 1.7 1L11 21h4l.4-2.5a8 8 0 0 0 1.7-1l2.3 1 2-3.5-2-1.5ZM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"/></svg>Settings</button>
+    </nav>
+    <main>
+      <section id="panel-home" class="home-panel" role="tabpanel" aria-labelledby="tab-home">
+        <div class="spectrum-status"><span id="status-indicator" aria-hidden="true"></span><div><h2 id="status-title">Checking Spectrum…</h2><p id="status-desc">Finding your active tab.</p></div></div>
+        <fieldset id="sync-destination"><legend>Save course files to</legend><div class="destinations">
+          <label><input id="destination-zip" type="radio" name="destination" value="zip" data-control disabled checked>ZIP download</label>
+          <label><input id="destination-drive" type="radio" name="destination" value="drive" data-control disabled>Google Drive</label>
+        </div></fieldset>
+        <div class="destination-help"><p id="destination-hint">ZIP works without a Google account.</p><button id="drive-settings" class="text-button" type="button" data-control disabled>Connect Drive in settings</button></div>
+        <div class="home-actions"><button id="action-btn" class="primary" type="button" data-control disabled><svg class="glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg><span id="action-label">Open courses</span></button><button id="sync-now" type="button" data-control disabled hidden>Sync now</button></div>
+        <p id="home-summary" class="muted">Choose your courses before saving files.</p>
       </section>
-
-      <!-- Bento Grid Features (High density, pure solid Glyph SVGs) -->
-      <section class="umspec-features">
-        <div class="umspec-feature-card">
-          <div class="umspec-feature-icon-box">
-            <svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>
-          </div>
-          <div class="umspec-feature-text">
-            <strong>ZERO-TOUCH SMART EXPORT</strong>
-            <p>1-Click full archive discovery &amp; packaging</p>
-          </div>
-        </div>
-
-        <div class="umspec-feature-card">
-          <div class="umspec-feature-icon-box">
-            <svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2L1 7l11 5 9-4.09V17h2V7L12 2zm-7 8.18V16c0 3.31 3.13 6 7 6s7-2.69 7-6v-5.82l-7 3.18-7-3.18z"/></svg>
-          </div>
-          <div class="umspec-feature-text">
-            <strong>DEGREE &amp; TAXONOMY PARSER</strong>
-            <p>Auto-detects Bachelor programme &amp; semester</p>
-          </div>
-        </div>
-
-        <div class="umspec-feature-card">
-          <div class="umspec-feature-icon-box">
-            <svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
-          </div>
-          <div class="umspec-feature-text">
-            <strong>CLEAN FOLDER TAXONOMY</strong>
-            <p>Slides, Tutorials, Labs, PYQs, Source Code</p>
-          </div>
-        </div>
+      <section id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+        <nav class="settings-tabs" role="tablist" aria-label="Settings categories">
+          <button id="tab-files" type="button" role="tab" data-tab-group="settings" aria-selected="true" aria-controls="panel-files" tabindex="0">Files</button>
+          <button id="tab-calendar" type="button" role="tab" data-tab-group="settings" aria-selected="false" aria-controls="panel-calendar" tabindex="-1">Calendar</button>
+          <button id="tab-account" type="button" role="tab" data-tab-group="settings" aria-selected="false" aria-controls="panel-account" tabindex="-1">Account</button>
+        </nav>
+        <section id="panel-files" class="settings-panel" role="tabpanel" aria-labelledby="tab-files">
+          <label class="field" for="archive-name">Semester archive<input id="archive-name" type="text" maxlength="80" placeholder="2026–27 Semester 1" data-control disabled></label>
+          <div class="setting"><label class="check-row"><input id="download-videos" type="checkbox" data-control disabled><span>Download videos</span></label><p class="hint">Off by default. Save video links for faster exports.</p></div>
+          <div class="setting"><label class="check-row"><input id="auto-sync" type="checkbox" data-control disabled><span>Update Drive when I open Spectrum</span></label><p id="auto-sync-hint" class="hint">Available after your first successful Drive sync.</p></div>
+          <p class="hint">Your chosen courses stay selected. New courses wait for you to choose them.</p>
+        </section>
+        <section id="panel-calendar" class="settings-panel" role="tabpanel" aria-labelledby="tab-calendar" hidden>
+          <button id="connect-calendar" type="button" data-control disabled>Connect Google Calendar</button>
+          <p class="hint">Uses a separate UM Spec calendar. Reading calendar names helps find it again.</p>
+          <label class="check-row"><input id="calendar-enabled" type="checkbox" data-control disabled><span>Sync official course dates</span></label>
+          <label class="field" for="calendar-reminders">Calendar reminders<select id="calendar-reminders" data-control disabled><option value="1440,60">1 day and 1 hour before</option><option value="1440">1 day before</option><option value="60">1 hour before</option><option value="">No reminders</option><option id="custom-reminders" value="custom" hidden>Custom reminders</option></select></label>
+          <div class="setting"><label class="check-row"><input id="announcement-scanning" type="checkbox" data-control disabled><span>Check announcement dates</span></label><p class="hint">Processed locally. Review dates in Open courses before they are added to Calendar.</p></div>
+        </section>
+        <section id="panel-account" class="settings-panel" role="tabpanel" aria-labelledby="tab-account" hidden>
+          <div><h2 class="small-title">Google account</h2><p id="account-email" class="account-email">Not connected</p></div>
+          <div class="account-actions"><button id="connect-drive" type="button" data-control disabled>Connect Drive</button><button id="disconnect-google" type="button" data-control disabled>Disconnect</button></div>
+          <p class="hint">Drive receives files you select in a private UM Spec folder. Google is optional; ZIP stays available.</p>
+          <button id="google-setup" class="text-button" type="button" data-control disabled>Google setup guide</button>
+        </section>
       </section>
-
-      <!-- Action Button Area: The Stark White Pill with Solid Black Glyph -->
-      <div class="umspec-action-section">
-        <button class="umspec-action-btn" id="action-btn" type="button">
-          <svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
-          <span>OPEN SPeCTRUM DASHBOARD</span>
-        </button>
-      </div>
     </main>
-
-    <!-- Footer -->
-    <footer class="umspec-popup-footer">
-      <span class="umspec-footer-tag">UNIVERSITI MALAYA // CLIENT-SIDE</span>
-      <a class="umspec-footer-link" href="https://github.com/Chee613/UmSpec" target="_blank" rel="noopener noreferrer">GITHUB // REPO</a>
-    </footer>
+    <div class="message-area"><p id="sync-status" role="status" aria-live="polite">Loading your preferences…</p></div>
+    <footer><span>Universiti Malaya</span><a href="https://github.com/Chee613/UmSpec" target="_blank" rel="noopener noreferrer">About UmSpec</a></footer>
   </div>
   <script src="popup.js"></script>
 </body>

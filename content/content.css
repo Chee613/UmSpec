@@ -151,6 +151,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 16px;
   padding: 16px;
   overflow-y: auto;
   box-sizing: border-box;
@@ -172,7 +173,6 @@
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  margin: auto;
   background-color: var(--umspec-canvas);
   background-image: radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px);
   background-size: 8px 8px;
@@ -686,9 +686,13 @@
 
 .umspec-course-title {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.35;
   color: var(--umspec-text-high);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
 }
 
 .umspec-course-code {
@@ -707,12 +711,17 @@
 
 .umspec-course-status {
   font-family: var(--umspec-font-mono);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--umspec-text-mid);
   flex-shrink: 0;
+  display: none;
+}
+
+.umspec-course-status.umspec-visible {
+  display: inline-block;
 }
 
 /* --------------------------------------------------------------------------
@@ -970,6 +979,773 @@
 }
 
 /* --------------------------------------------------------------------------
+   Video Recordings Preference Row (Nothing OS 4.0 Pro Selector)
+   -------------------------------------------------------------------------- */
+.umspec-video-pref-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  margin-bottom: 10px;
+  background: var(--umspec-surface);
+  border: 1px solid var(--umspec-border-subtle);
+  border-radius: 12px;
+}
+
+.umspec-video-pref-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--umspec-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--umspec-text-mid);
+  text-transform: uppercase;
+}
+
+.umspec-video-pref-label .umspec-svg {
+  width: 14px;
+  height: 14px;
+  fill: var(--umspec-text-mid);
+}
+
+.umspec-video-pref-options {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.umspec-pref-chip {
+  background: #141414;
+  color: var(--umspec-text-mid);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 5px 12px;
+  border-radius: 9999px;
+  font-family: var(--umspec-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.umspec-pref-chip .umspec-svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+  flex-shrink: 0;
+  transition: fill 0.18s ease;
+}
+
+.umspec-pref-chip:hover {
+  background: #202020;
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.umspec-pref-chip.active {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+  box-shadow: 0 2px 10px rgba(255, 255, 255, 0.2);
+}
+
+.umspec-pref-chip.active .umspec-svg {
+  fill: #000000;
+}
+
+.umspec-pref-chip.active .umspec-estimate-tag {
+  color: #000000;
+  opacity: 0.75;
+}
+
+/* --------------------------------------------------------------------------
+   Pre-Export Video Advisory Modal Card (Telemetry & Warning)
+   -------------------------------------------------------------------------- */
+.umspec-video-advisory-card {
+  display: none;
+  background: var(--umspec-surface);
+  border: 1px solid var(--umspec-border);
+  border-radius: 16px;
+  padding: 16px 20px;
+  margin-top: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(215, 25, 33, 0.2);
+  animation: umspec-fade-in 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.umspec-advisory-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--umspec-border-subtle);
+  padding-bottom: 8px;
+}
+
+.umspec-advisory-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--umspec-font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #ff4d4f;
+  text-transform: uppercase;
+}
+
+.umspec-pulse-dot-red {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--umspec-red, #d71921);
+  box-shadow: 0 0 8px var(--umspec-red, #d71921);
+  animation: umspec-pulse 1.4s infinite ease-in-out;
+}
+
+.umspec-advisory-time-tag {
+  font-family: var(--umspec-font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  background: #1f1112;
+  color: #ff6b6d;
+  border: 1px solid rgba(215, 25, 33, 0.3);
+  padding: 3px 8px;
+  border-radius: 9999px;
+}
+
+.umspec-advisory-headline {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #ffffff;
+  margin-bottom: 6px;
+}
+
+.umspec-advisory-desc {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--umspec-text-mid);
+  margin-bottom: 12px;
+}
+
+.umspec-advisory-bento {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.umspec-advisory-metric {
+  background: #080808;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.umspec-metric-label {
+  font-family: var(--umspec-font-mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--umspec-text-low);
+  text-transform: uppercase;
+}
+
+.umspec-metric-val {
+  font-family: var(--umspec-font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+}
+
+.umspec-advisory-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.umspec-btn-advisory-skip {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #ffffff;
+  padding: 10px 16px;
+  border-radius: 9999px;
+  font-family: var(--umspec-font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.18s ease;
+  box-shadow: 0 4px 14px rgba(255, 255, 255, 0.2);
+}
+
+.umspec-btn-advisory-skip .umspec-svg {
+  width: 14px;
+  height: 14px;
+  fill: #000000 !important;
+}
+
+.umspec-btn-advisory-skip:hover {
+  background: #e6e6e6;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(255, 255, 255, 0.35);
+}
+
+.umspec-btn-advisory-download {
+  background: #141414;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 9px 16px;
+  border-radius: 9999px;
+  font-family: var(--umspec-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.18s ease;
+}
+
+.umspec-btn-advisory-download .umspec-svg {
+  width: 13px;
+  height: 13px;
+  fill: #ffffff;
+}
+
+.umspec-btn-advisory-download:hover {
+  background: #222222;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+/* --------------------------------------------------------------------------
+   Course Drawer Accordion & Material Selection List
+   -------------------------------------------------------------------------- */
+.umspec-course-row-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.umspec-course-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.umspec-course-file-count {
+  font-family: var(--umspec-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--umspec-text-mid);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 2px 7px;
+  border-radius: 9999px;
+  letter-spacing: 0.04em;
+}
+
+/* --------------------------------------------------------------------------
+   Right Course Materials Flyout Inspector Panel
+   -------------------------------------------------------------------------- */
+#umspec-right-drawer,
+#umspec-left-drawer {
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  display: none;
+  flex-direction: column;
+  box-sizing: border-box;
+  background-color: var(--umspec-canvas);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px);
+  background-size: 8px 8px;
+  border: 1px solid var(--umspec-border);
+  border-radius: 20px;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  color: var(--umspec-text-high);
+  font-family: var(--umspec-font-sans);
+  overflow: hidden;
+  animation: umspec-slide-right 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  flex-shrink: 0;
+}
+
+#umspec-right-drawer.umspec-active,
+#umspec-left-drawer.umspec-active {
+  display: flex;
+}
+
+@keyframes umspec-slide-right {
+  from { opacity: 0; transform: translateX(24px) scale(0.97); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+.umspec-drawer-header {
+  padding: 16px 20px 12px 20px;
+  background: var(--umspec-void);
+  border-bottom: 1px solid var(--umspec-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.umspec-drawer-course-tag {
+  font-family: var(--umspec-font-mono);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #ffffff;
+  background: #181818;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.umspec-drawer-close-btn {
+  background: #141414;
+  border: 1px solid var(--umspec-border);
+  color: var(--umspec-text-mid);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.umspec-drawer-close-btn:hover {
+  background: #ffffff;
+  color: #000000;
+  transform: scale(1.06);
+}
+
+.umspec-drawer-title {
+  padding: 12px 20px 8px 20px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.35;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.umspec-drawer-filters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  overflow-x: auto;
+}
+
+.umspec-filter-chip {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--umspec-text-mid);
+  font-family: var(--umspec-font-mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.umspec-filter-chip:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.umspec-filter-chip.active {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+}
+
+.umspec-drawer-actions-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 20px;
+  background: #0d0d0d;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-family: var(--umspec-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--umspec-text-mid);
+}
+
+.umspec-drawer-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 200px;
+  max-height: 380px;
+}
+
+.umspec-drawer-footer {
+  padding: 12px 20px;
+  background: var(--umspec-void);
+  border-top: 1px solid var(--umspec-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.umspec-drawer-footer-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.umspec-btn-drawer-done {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #ffffff;
+  font-family: var(--umspec-font-mono);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 6px 16px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.umspec-btn-drawer-done:hover {
+  background: #e2e8f0;
+  transform: scale(1.03);
+}
+
+@media (max-width: 1060px) {
+  #umspec-right-drawer,
+  #umspec-left-drawer {
+    position: fixed;
+    top: 16px;
+    bottom: 16px;
+    right: 16px;
+    left: auto;
+    width: min(440px, calc(100vw - 32px));
+    max-height: calc(100vh - 32px);
+    z-index: 1000010;
+  }
+}
+
+/* Material Row inside Left Drawer */
+.umspec-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #111111;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.umspec-item-row:hover {
+  background: #171717;
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.umspec-item-row.umspec-item-unselected {
+  opacity: 0.42;
+  background: #090909;
+}
+
+.umspec-item-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.umspec-item-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--umspec-text-mid);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.umspec-item-icon svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.umspec-item-name {
+  font-size: 11.5px;
+  color: var(--umspec-text-high);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.01em;
+}
+
+.umspec-item-badge {
+  font-family: var(--umspec-font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.umspec-badge-video {
+  background: #241113;
+  color: #ff6b6d;
+  border: 1px solid rgba(215, 25, 33, 0.45);
+}
+
+.umspec-badge-proforma {
+  background: #111e15;
+  color: #6ee7b7;
+  border: 1px solid rgba(110, 231, 183, 0.4);
+}
+
+.umspec-badge-regular {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--umspec-text-mid);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* --------------------------------------------------------------------------
+   Course Row Files Button (Replaces bulky accordion)
+   -------------------------------------------------------------------------- */
+.umspec-course-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.umspec-course-files-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--umspec-text-high);
+  font-family: var(--umspec-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.umspec-course-files-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+  transform: scale(1.02);
+}
+
+.umspec-course-row.active-inspector .umspec-course-files-btn {
+  background: #ffffff;
+  color: #000000;
+  border-color: #ffffff;
+}
+
+.umspec-files-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+}
+
+.umspec-files-arrow .umspec-svg {
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+}
+
+.umspec-course-row.active-inspector .umspec-files-arrow {
+  transform: translateX(2px);
+}
+
+/* --------------------------------------------------------------------------
+   Video Telemetry Strip & Estimate Tag
+   -------------------------------------------------------------------------- */
+.umspec-estimate-tag {
+  font-family: var(--umspec-font-mono);
+  font-size: 9px;
+  font-weight: 800;
+  color: #ffffff;
+  opacity: 0.85;
+  margin-left: 4px;
+}
+
+.umspec-video-telemetry-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(215, 25, 33, 0.08);
+  border: 1px solid rgba(215, 25, 33, 0.25);
+  border-radius: 8px;
+  padding: 6px 12px;
+  margin-top: 8px;
+  font-family: var(--umspec-font-mono);
+  font-size: 9.5px;
+  color: #fca5a5;
+  letter-spacing: 0.04em;
+  animation: umspec-fade-in 0.2s ease;
+}
+
+/* --------------------------------------------------------------------------
+   Streamlined AI Engine Card & Discreet Configuration Drawer
+   -------------------------------------------------------------------------- */
+.umspec-ai-card {
+  margin-top: 10px;
+  background: var(--umspec-surface);
+  border: 1px solid var(--umspec-border-subtle);
+  border-radius: 14px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.umspec-ai-card-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.umspec-ai-sparkle-box {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(129, 140, 248, 0.12);
+  border: 1px solid rgba(129, 140, 248, 0.25);
+  border-radius: 8px;
+  color: #818cf8;
+  flex-shrink: 0;
+}
+
+.umspec-ai-sparkle-box svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.umspec-ai-card-title {
+  font-family: var(--umspec-font-sans);
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+  text-transform: uppercase;
+}
+
+.umspec-ai-card-sub {
+  font-family: var(--umspec-font-mono);
+  font-size: 9.5px;
+  color: var(--umspec-text-mid);
+  margin-top: 2px;
+}
+
+.umspec-ai-card-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* Sleek Nothing Toggle Switch */
+.umspec-switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+}
+
+.umspec-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.umspec-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: #222222;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: .25s;
+  border-radius: 20px;
+}
+
+.umspec-slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 2px;
+  bottom: 2px;
+  background-color: #ffffff;
+  transition: .25s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 50%;
+}
+
+.umspec-switch input:checked + .umspec-slider {
+  background-color: #818cf8;
+  border-color: #818cf8;
+}
+
+.umspec-switch input:checked + .umspec-slider:before {
+  transform: translateX(16px);
+}
+
+
+/* --------------------------------------------------------------------------
    Accessibility & Responsive
    -------------------------------------------------------------------------- */
 #umspec-modal button:focus-visible,
@@ -1069,4 +1845,108 @@
   #umspec-modal-overlay,
   #umspec-modal,
   #umspec-modal * { animation: none !important; transition: none !important; }
+}
+
+
+/* Compact, paged workspace: controls stay inside the viewport. */
+html:has(#umspec-modal-overlay.umspec-active) { overflow: hidden; }
+#umspec-modal *, #umspec-right-drawer * { box-sizing: border-box; }
+#umspec-modal-overlay { overflow: hidden; padding: 12px; }
+#umspec-modal { width: min(680px, 100%); max-width: 680px; height: min(680px, calc(100dvh - 24px)); max-height: calc(100dvh - 24px); background-image: none; border-radius: 16px; }
+#umspec-modal [hidden], #umspec-right-drawer [hidden] { display: none !important; }
+#umspec-modal :is(h2,h3,h4,button,label,.umspec-section-label,.umspec-header-sub,.umspec-live-pill) { text-transform: none; letter-spacing: normal; }
+.umspec-modal-header { padding: 12px 18px; }
+.umspec-header-sub { font: 11px/1.3 var(--umspec-font-sans); }
+.umspec-header-title h2 { font-size: 20px; }
+.umspec-header-icon-box { width: 34px; height: 34px; }
+.umspec-live-pill { font: 11px/1.3 var(--umspec-font-sans); }
+.umspec-tabs { display: flex; gap: 4px; padding: 8px 18px; border-bottom: 1px solid var(--umspec-border); flex-shrink: 0; }
+.umspec-tabs button { display: flex; justify-content: center; align-items: center; gap: 7px; flex: 1; border: 0; border-radius: 7px; padding: 8px; color: #aaa; background: transparent; font: 600 13px/1.2 var(--umspec-font-sans); cursor: pointer; }
+.umspec-tabs button[aria-selected=true] { background: #fff; color: #080808; }
+.umspec-tabs .umspec-svg { width: 16px; height: 16px; }
+.umspec-modal-body { padding: 14px 18px; overflow: hidden; }
+[data-umspec-view] { height: 100%; min-height: 0; }
+#umspec-view-courses { position: relative; }
+#umspec-sync-home-host { font: 12px/1.4 var(--umspec-font-sans); margin-bottom: 12px; }
+#umspec-sync-home-host p { margin: 6px 0 0; color: #aaa; font-size: 12px; }
+.umspec-selection-section { background: transparent; border: 0; padding: 0; margin: 0; }
+.umspec-section-label { margin: 0; padding: 0 0 9px; gap: 8px; font: 600 12px/1.3 var(--umspec-font-sans); }
+.umspec-selection-tools { gap: 8px; }
+.umspec-link-btn { font: 12px var(--umspec-font-sans); }
+.umspec-courses-list { overflow: visible; max-height: none; display: flex; flex-direction: column; gap: 6px; }
+.umspec-course-group { margin: 0; }
+.umspec-course-row { min-height: 48px; padding: 9px 12px; border-radius: 8px; }
+.umspec-course-title { font: 500 13px/1.4 var(--umspec-font-sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.umspec-course-info, .umspec-course-text-wrap { min-width: 0; }
+.umspec-course-files-btn { font: 11px var(--umspec-font-sans); }
+.umspec-course-actions { flex-shrink: 0; }
+.umspec-selection-section.umspec-collapsed .umspec-courses-list { display: none; }
+.umspec-pager { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; font: 12px var(--umspec-font-sans); }
+.umspec-pager button { padding: 6px 12px; min-height: 30px; border: 1px solid #444; border-radius: 6px; background: #171717; color: #eee; font: inherit; cursor: pointer; }
+.umspec-pager button:disabled { opacity: .4; cursor: default; }
+.umspec-notice { margin: 0; padding: 0 18px 8px; color: #ddd; font: 12px/1.4 var(--umspec-font-sans); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; flex-shrink: 0; }
+.umspec-notice:empty { display: none; }
+.umspec-modal-footer { padding: 10px 18px; flex-wrap: nowrap; gap: 10px; min-height: 58px; }
+.umspec-footer-info { max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px var(--umspec-font-sans); }
+.umspec-footer-actions { flex-direction: row; width: auto; margin-left: auto; }
+.umspec-btn-primary { padding: 10px 20px; font: 600 13px var(--umspec-font-sans); min-height: 38px; }
+.umspec-btn-cancel { font: 12px var(--umspec-font-sans); }
+.umspec-progress-card { margin-top: 4px; padding: 8px 12px; }
+#umspec-view-courses:has(#umspec-progress-card[style*="block"]) :is(#umspec-sync-home-host, #umspec-selection-section) { display: none; }
+#umspec-view-courses:has(#umspec-progress-card[style*="block"]) #umspec-progress-card { margin-top: 0; }
+#umspec-modal .umspec-runner-box { padding: 10px; gap: 8px; margin-bottom: 10px; }
+#umspec-modal .umspec-runner-header { gap: 8px; flex-wrap: wrap; }
+#umspec-modal .umspec-runner-badge { font: 600 11px var(--umspec-font-sans); letter-spacing: normal; text-transform: none; }
+#umspec-modal .umspec-runner-score { font-size: 10px; overflow-wrap: anywhere; }
+#umspec-modal #umspec-runner-canvas { height: 116px; touch-action: manipulation; }
+#umspec-modal #umspec-runner-canvas:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.umspec-runner-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+#umspec-runner-tip { font: 11px/1.4 var(--umspec-font-sans); color: #aaa; max-width: 65%; }
+#umspec-export-back { min-height: 32px; padding: 6px 9px; border: 1px solid #444; border-radius: 6px; color: #eee; background: #202020; font: 11px var(--umspec-font-sans); cursor: pointer; }
+#umspec-export-back:disabled { opacity: .4; cursor: default; }
+.umspec-progress-header, .umspec-status-text { font-size: 11px; }
+.umspec-status-text { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.umspec-profile-card { margin: 8px 0; padding: 10px 12px; }
+.umspec-profile-major { font-size: 13px; }
+.umspec-profile-faculty, .umspec-profile-header { font-size: 10px; }
+.umspec-ai-card { margin: 8px 0 0; padding: 10px 12px; }
+.umspec-ai-card-title { font-size: 12px; letter-spacing: normal; }
+.umspec-ai-card-sub { font-size: 11px; }
+.umspec-video-advisory-card { position: absolute; inset: 0; z-index: 5; margin: 0; padding: 12px; background: #111; }
+.umspec-advisory-bento { display: none; }
+.umspec-advisory-header { flex-wrap: wrap; }
+.umspec-advisory-actions { flex-direction: column; }
+.umspec-advisory-actions button { font: 12px/1.3 var(--umspec-font-sans); }
+#umspec-right-drawer { position: absolute; width: min(680px, calc(100% - 24px)); max-width: 680px; height: min(680px, calc(100dvh - 24px)); max-height: calc(100dvh - 24px); margin: 0; border-radius: 16px; background: #080808; z-index: 2; }
+#umspec-modal-overlay:has(#umspec-right-drawer.umspec-active) #umspec-modal { visibility: hidden; }
+.umspec-drawer-header { padding: 12px 16px; }
+.umspec-drawer-title { padding: 10px 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.umspec-drawer-filters { padding: 8px 16px; overflow: visible; flex-wrap: wrap; }
+.umspec-drawer-actions-bar { padding: 8px 16px; }
+.umspec-drawer-scroll { padding: 10px 16px; overflow: hidden; flex: 1; min-height: 0; }
+.umspec-item-row { min-height: 44px; padding: 8px; }
+.umspec-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.umspec-item-badge { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.umspec-drawer-footer { padding: 10px 16px; }
+@media (max-width: 560px) {
+  #umspec-modal-overlay { padding: 8px; }
+  #umspec-modal, #umspec-right-drawer { height: min(680px, calc(100dvh - 16px)); max-height: calc(100dvh - 16px); border-radius: 12px; }
+  #umspec-right-drawer { width: calc(100% - 16px); }
+  .umspec-modal-header { padding: 10px 12px; }
+  .umspec-modal-body { padding: 12px; }
+  .umspec-tabs { padding: 6px 12px; }
+  .umspec-header-title { gap: 8px; }
+  .umspec-live-pill { display: none; }
+  .umspec-section-label { flex-wrap: wrap; }
+  .umspec-course-row { padding: 8px; gap: 6px; }
+  .umspec-course-files-btn { padding: 5px 7px; }
+  .umspec-course-title { font-size: 12px; }
+  .umspec-course-actions .umspec-files-arrow { display: none; }
+  .umspec-modal-footer { padding: 10px 12px; }
+  .umspec-footer-info { display: none; }
+  .umspec-footer-actions { width: 100%; }
+  .umspec-btn-primary { width: auto; flex: 1; }
+  .umspec-btn-cancel { width: auto; }
+  .umspec-drawer-actions-bar { flex-wrap: wrap; gap: 6px; }
+  .umspec-item-badge { display: none; }
 }

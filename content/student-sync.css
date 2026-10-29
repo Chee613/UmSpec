@@ -1,0 +1,48 @@
+.umspec-sync-panel { color: var(--umspec-text-high); font: 13px/1.4 var(--umspec-font-sans); }
+.umspec-sync-panel [hidden] { display: none !important; }
+.umspec-sync-panel h3 { margin: 12px 0; font-size: 17px; font-weight: 650; }
+.umspec-sync-panel h4 { margin: 8px 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.umspec-sync-panel p { margin: 8px 0; overflow-wrap: anywhere; color: #aaa; }
+.umspec-sync-panel a, .umspec-provider-links a { display: inline-block; color: #eee; text-decoration: underline; margin-right: 12px; font-size: 12px; }
+.umspec-sync-fields { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 12px 0; }
+.umspec-sync-fields label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; min-width: 0; }
+.umspec-sync-panel input:not([type=checkbox]), .umspec-sync-panel select, .umspec-save-row select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 36px; padding: 7px 9px; border: 1px solid #555; border-radius: 6px; background: #171717; color: #fff; font: inherit; color-scheme: dark; }
+.umspec-setting-row { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid #252525; }
+.umspec-setting-row strong { display: block; font-weight: 550; font-size: 13px; }
+.umspec-setting-row small { display: block; margin-top: 3px; color: #aaa; font-size: 12px; }
+.umspec-sync-panel input[type=checkbox] { width: 17px; height: 17px; flex-shrink: 0; accent-color: #eee; }
+.umspec-sync-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0 0; }
+.umspec-sync-panel button, .umspec-save-row button { min-height: 32px; padding: 7px 12px; border: 1px solid #444; border-radius: 6px; background: #202020; color: #eee; font: inherit; cursor: pointer; }
+.umspec-sync-panel button:disabled, .umspec-save-row button:disabled { opacity: .45; cursor: default; }
+.umspec-sync-panel :is(button,input,select,a):focus-visible, .umspec-save-row :focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.umspec-subtabs { display: flex; gap: 5px; padding-bottom: 8px; border-bottom: 1px solid #303030; }
+.umspec-subtabs button { border: 0; background: transparent; color: #aaa; font-size: 12px; padding: 7px 12px; min-height: 30px; }
+.umspec-subtabs button[aria-selected=true] { background: #262626; color: #fff; }
+.umspec-sync-panel .umspec-helper { font-size: 11px; line-height: 1.4; }
+.umspec-save-row { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+.umspec-save-row label { display: flex; gap: 9px; align-items: center; color: #bbb; white-space: nowrap; }
+.umspec-save-row select { width: 145px; font-size: 12px; }
+.umspec-save-row button { font-size: 11px; }
+.umspec-save-row button:disabled { display: none; }
+.umspec-provider-links { margin-top: 5px; }
+.umspec-dates-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.umspec-dates-heading h3 { margin: 0; }
+.umspec-dates-heading button { font-size: 11px; }
+.umspec-sync-review .umspec-evidence { font-size: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 6px 0; }
+.umspec-sync-review .umspec-subtabs { margin-top: 8px; }
+.umspec-sync-review .umspec-sync-fields { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 10px 0; }
+.umspec-sync-review #umspec-review-details { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.umspec-sync-review .umspec-sync-fields label { font-size: 11px; gap: 3px; }
+.umspec-sync-review .umspec-sync-fields input { min-height: 32px; padding: 5px 6px; font-size: 12px; }
+.umspec-sync-review .umspec-sync-actions { margin-top: 8px; }
+.umspec-date-row { padding: 10px 0; border-bottom: 1px solid #282828; }
+.umspec-date-row strong { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+.umspec-date-row p { margin: 3px 0; font-size: 12px; }
+[data-settings-saved] { color: #bbb; font-size: 12px; }
+@media (max-width: 560px) {
+  .umspec-sync-review .umspec-sync-fields, .umspec-sync-review #umspec-review-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .umspec-sync-review #umspec-review-details label:last-child { grid-column: 1 / -1; }
+  .umspec-setting-row { padding: 10px 0; }
+  .umspec-subtabs { gap: 2px; }
+  .umspec-subtabs button { padding: 7px 10px; }
+}

@@ -1,6 +1,6 @@
 # ⚡ UmSpec - SPeCTRUM Course Materials Exporter
 
-> A zero-touch, privacy-friendly browser extension for **Universiti Malaya (UM)** students. In just **1 click**, it automatically detects your degree programme, discovers all enrolled courses, classifies materials adaptively, and packages everything into a structured **ZIP archive** with an executive **Academic Audit Report**! 🎓
+> A browser extension for Universiti Malaya students to export selected SPeCTRUM course materials, keep them updated in Google Drive, and review dates for Google Calendar.
 
 ---
 
@@ -24,7 +24,7 @@
   * Student Name, Faculty & Detected Programme
   * Enrolled course material health check (Active vs Empty/Missing content)
   * Discovered material taxonomy summary
-* **🔒 100% Client-Side & Private**: All compression runs in browser memory using bundled [JSZip](https://stuk.github.io/jszip/). Zero data or credentials ever leave your machine.
+* **Optional connections**: ZIP packaging and announcement extraction run locally. Google sync and proforma AI have separate connection/disclosure controls; see [Privacy](PRIVACY.md).
 
 ---
 
@@ -67,11 +67,44 @@ After updating the extension files, click **Reload** on UmSpec in the browser’
 
 ## 🛡️ Privacy & Security Guarantee
 
-* **No external servers**: Operates 100% on `spectrum.um.edu.my`.
-* **Zero credential storage**: Relies strictly on your active browser session.
+* **Optional Google/AI services**: Drive and Calendar send selected content directly to Google after connection; optional proforma AI uses its configured proxy after disclosure.
+* **No copied Spectrum cookies**: Uses the signed-in browser session. Google tokens stay in Chrome identity/worker memory.
 * **Open Source**: Full transparency for the UM student community.
 
 ---
+
+
+## Drive, Calendar and course updates
+
+| Feature | Behaviour |
+| --- | --- |
+| ZIP | Existing one-click offline snapshot; no Google account required |
+| Google Drive | Organised semester/course folders, changed-file updates, pause/resume and conflicts instead of overwriting student edits |
+| Google Calendar | Dedicated calendar for official dates and reviewed announcements, stable event IDs and configurable reminders |
+| Announcements | Local English/Malay date extraction, source evidence, meeting links and a review queue |
+| Daily use | Remembered courses, a seven-day upcoming panel and recent changes |
+
+The popup has Home and Settings tabs. The course dialog separates Courses, Dates and Settings, with paged lists that fit the window. Videos and recordings are saved as links by default. Enable **Settings → Files → Download videos** to include available video files in ZIP or Drive; hosted recordings remain links and Drive files over 50 MiB remain linked.
+
+ZIP exports show the interactive Chrome Dino Runner with jump controls, cancellation/retry, and a completion screen. After exporting, use **Back to courses** to return to selection. The popup waits for Spectrum account verification before enabling settings; **Open courses** remains available during loading.
+
+**Google setup is required before connection.** See [developer setup](docs/GOOGLE_SETUP.md), or use the bundled Google setup guide from the extension popup. No client secret is packaged.
+
+1. Reload the extension and refresh Spectrum after updating.
+2. Open Courses, select courses, then set the semester folder under Settings → Files.
+3. Choose ZIP, or connect Drive from the popup and run a manual sync.
+4. After a successful Drive pass, opt into checks on Spectrum visits.
+5. Connect Calendar and enable announcements separately. Review ambiguous or changed announcement dates.
+
+Checks run while Spectrum is open and signed in, with a 15-minute cooldown per feature. They do not run with the browser closed. Drive initially buffers one file up to 50 MiB; larger files and videos configured as links get an explicit linked-only result.
+
+Google integration is Chrome-first and still needs an authenticated live pilot after OAuth setup. Keep ZIP available on other supported Chromium browsers until their Google sign-in paths are verified.
+
+## Development checks
+
+Run **node --test tests/*.test.cjs** for the dependency-free regression suite. Build the extension with **python scripts/build_release_zip.py**; this includes the background/shared/setup files and excludes backend secrets and test fixtures.
+
+The suite includes actual bundled-JSZip export checks and simulated Google API recovery checks. It does not prove live OAuth or Spectrum deployment compatibility. See [implementation status](docs/IMPLEMENTATION_STATUS.md) for remaining release gates.
 
 ## 📄 License
 

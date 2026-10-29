@@ -1,8 +1,12 @@
 {
   "manifest_version": 3,
   "name": "UmSpec - SPeCTRUM Course Exporter",
-  "version": "1.0.0",
-  "description": "One-click course materials exporter for Universiti Malaya (UM) SPeCTRUM. Download all enrolled courses into a structured ZIP file.",
+  "version": "2.0.2",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuY43YgCu6Y1QbCH57Kdx/M+TmRL4zr9cCmwdXcgh2dwHmH2l1XD44r2b+/t1NIIOxYMIHySWWVlmKJtVAakSsdO01w7rEs8eHSvOs3nJps9PxINDWFRcn1nzWWItgcs0708JptliiDD5zi7TDQMsvlcPgxCeZ1CFcCvgyK8PuZG4Z7W0wAxOOZRpKbA6tnkEsNBDTm7QI/cLpAHvGmppaM8YgD7puaEjQgZGwk+JmiBSvTsTcyDqSW9E8NcujVa0ltjSqVOB9cUHrpDXPu62SVkVsoH0mY3UM7alZpRwdDZlHKmTaZhsIMQbBDRXw+X2EL1wjM8UYOGYnjUYrhtjKQIDAQAB",
+  "description": "Export UM SPeCTRUM courses to ZIP, sync selected materials to Google Drive, and review dates for Google Calendar.",
+  "background": {
+    "service_worker": "background/worker.js"
+  },
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -24,10 +28,16 @@
       ],
       "js": [
         "lib/jszip.min.js",
-        "content/content.js"
+        "shared/sync-core.js",
+        "shared/calendar-core.js",
+        "shared/announcement-core.js",
+        "content/materials.js",
+        "content/content.js",
+        "content/student-sync.js"
       ],
       "css": [
-        "content/content.css"
+        "content/content.css",
+        "content/student-sync.css"
       ],
       "run_at": "document_end"
     }
@@ -35,7 +45,23 @@
   "host_permissions": [
     "https://spectrum.um.edu.my/*"
   ],
+  "optional_host_permissions": [
+    "https://www.googleapis.com/*"
+  ],
   "permissions": [
-    "storage"
-  ]
+    "storage",
+    "identity",
+    "activeTab",
+    "scripting"
+  ],
+  "oauth2": {
+    "client_id": "604535116312-6hmmkud4h0ruhv2d6uh7vs4lfru0bam9.apps.googleusercontent.com",
+    "scopes": [
+      "openid",
+      "email",
+      "https://www.googleapis.com/auth/drive.file",
+      "https://www.googleapis.com/auth/calendar.app.created",
+      "https://www.googleapis.com/auth/calendar.calendarlist.readonly"
+    ]
+  }
 }

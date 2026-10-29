@@ -1,55 +1,47 @@
-# Privacy Policy for UmSpec
+# Privacy Policy for UM Spec
 
-**Last updated:** October 8, 2026
+Last updated: 24 October 2026.
 
-**UmSpec** ("we", "our", or "the extension") is an open-source productivity browser extension designed to help Universiti Malaya students export and archive their enrolled course materials from the SPeCTRUM portal.
+UM Spec helps Universiti Malaya students export and organise selected SPeCTRUM course content. Features are optional and process different data as described below.
 
-We take your privacy seriously. This Privacy Policy explains our practices regarding user data.
+## ZIP download
 
----
+Selected course files are read through your signed-in Spectrum browser session and packaged in browser memory. You do not need to copy a cookie, share a password or connect Google.
 
-### 1. Zero Data Collection
+## Google Drive
 
-UmSpec **does NOT collect, store, transmit, or sell any personal information or user data**. 
+When connected, selected materials, folder names and source-mapping metadata are sent directly to your Google Drive. Files remain private unless you change sharing settings. UM Spec requests drive.file access rather than access to your entire Drive.
 
-* We do not collect names, student IDs, email addresses, passwords, or IP addresses.
-* We do not log web browsing history, clicks, keystrokes, or user behavior.
-* We do not operate external backend servers, tracking pixels, or third-party analytics services (such as Google Analytics or Mixpanel).
+Source IDs, revisions and checksums allow updates to existing managed files. Missing Spectrum content does not automatically delete backups. Manual destination edits/deletions require review. Videos configured as links and files above the initial 50 MiB limit are saved as source links with an explicit status.
 
----
+## Google Calendar
 
-### 2. How the Extension Works (100% Client-Side)
+When enabled, official dates and reviewed announcement dates are copied to a dedicated UM Spec calendar. Details may include course names, descriptions, reminders, original Spectrum links and meeting links.
 
-All operations performed by UmSpec occur **strictly locally on your device**:
+Permissions manage UM Spec-created calendars and read calendar names/IDs to recover the existing calendar. They do not grant access to events on unrelated calendars. UM Spec does not send meeting invitations or create meeting rooms.
 
-* **Course Material Downloads:** The extension communicates directly between your web browser and `spectrum.um.edu.my` using your existing, authenticated browser session. File downloads and ZIP archive packaging are executed entirely in-memory within your browser.
-* **No Remote Code:** UmSpec contains zero remotely hosted scripts and executes all logic from bundled local extension code.
+## Announcements and AI
 
----
+Announcement scanning defaults off. Extraction runs locally and saves bounded excerpts/date suggestions for review. Only approved event details and joining links are copied to Google Calendar.
 
-### 3. Permissions Explanation
+The existing optional proforma AI feature is separate. After you accept its disclosure and enable it, selected proforma documents and prompts are sent to the configured UM Spec proxy and Google Gemini. The bundled default proxy may cache analysis output for up to 90 days. These requests exclude Spectrum cookies and Google access tokens. Automatic Drive/Calendar checks do not call this AI feature.
 
-UmSpec requests minimal permissions strictly necessary for its functionality:
+## Local storage
 
-* **Host Permission (`https://spectrum.um.edu.my/*`):** Required solely to read enrolled course information and fetch course lecture slides/notes directly from the Universiti Malaya SPeCTRUM portal.
-* **Storage Permission (`chrome.storage.local`):** Used exclusively to save your selected degree programme preference and UI display settings locally on your machine. This data never leaves your browser.
+Trusted extension storage holds Spectrum user IDs, verified Google account ID/email, selected courses, preferences, managed resource IDs, revisions/checksums, resumable job metadata, pending review excerpts and recent changes. Google tokens remain in the Chrome identity cache and worker memory. The extension does not persist your Spectrum cookie or Google password.
 
----
+Pending detailed reviews are limited to 500 per account binding. Recent changes retain at most 100 records for 30 days. Compact accepted source/event mappings remain while the archive is used to prevent duplicate imports. Upload session addresses are private job metadata. Some existing UI/AI preferences remain in Spectrum-origin local storage.
 
-### 4. Third-Party Sharing
+## Your controls
 
-We do not sell, rent, trade, or transfer any data to third parties. No data is collected to determine creditworthiness or for lending purposes.
+ZIP/Drive destination, courses, automatic updates, Calendar and announcement scanning are separate choices. Automatic checks require an open, signed-in Spectrum page. Disconnecting Google pauses writes and clears cached authorisation; remote files/calendars remain yours.
 
----
+Revoke access through Google Account settings. Removing the extension clears local extension storage. ZIPs, Drive files and calendars remain under your control and can be deleted in their applications.
 
-### 5. Open Source & Transparency
+## Permissions and providers
 
-UmSpec is an open-source project. You can inspect the source code, verify all network requests, or audit security directly on GitHub:
-👉 [https://github.com/Chee613/UmSpec](https://github.com/Chee613/UmSpec)
+Spectrum host access reads course content. Storage saves progress/preferences. Identity connects Google. Google API host access is optional and requested during connection. Existing active-tab/scripting access opens the exporter.
 
----
+No analytics or advertising is added. Google and the configured AI provider/proxy process requests under their respective service and operational policies. UM Spec does not sell student data. Executable extension code is bundled; no remotely hosted JavaScript is loaded.
 
-### 6. Contact & Support
-
-If you have any questions or feedback regarding this Privacy Policy, please contact us by opening an issue on GitHub:
-👉 [https://github.com/Chee613/UmSpec/issues](https://github.com/Chee613/UmSpec/issues)
+Source code and questions: [UM Spec repository](https://github.com/Chee613/UmSpec).

@@ -20,9 +20,37 @@
   let selectedCourseIds = new Set();
   let studentProfile = null;
   let isExporting = false;
+  let exportRunId = 0;
   let abortController = null;
   let runnerInstance = null;
   let sesskey = null;
+  let videoDownloadPreference = localStorage.getItem('umspec_video_pref') || 'skip';
+  let cachedCourseAnalysis = null;
+  let destinationMode = 'zip';
+  let coursePage = 0;
+  let materialPage = 0;
+
+  // Granular Course Materials & Right Flyout Drawer State
+  let courseItemsCache = new Map(); // courseId -> array of item objects
+  let courseItemsSelected = new Map(); // courseId -> Set of selected item URLs
+  let inspectingCourseId = null; // currently open course in Right Drawer (null if closed)
+  let rightDrawerFilter = 'all'; // 'all', 'doc', 'video', 'external'
+  let leftDrawerFilter = rightDrawerFilter;
+
+  // Video Auto-Calculation & Telemetry State
+  let isProbingVideos = false;
+
+  // Preconfigured Backend Proxy Endpoint (Handles keys & model cascades on server)
+  const DEFAULT_BACKEND_URL = 'https://umspec-ai.tankeat0613.workers.dev';
+  let savedBackend = localStorage.getItem('umspec_backend_url');
+  let backendEndpointUrl = (savedBackend && !savedBackend.includes('localhost:3000')) ? savedBackend : DEFAULT_BACKEND_URL;
+  let geminiApiKeyPool = (localStorage.getItem('umspec_gemini_keys') || '').split(/[\n,]+/).map(k => k.trim()).filter(Boolean);
+  let geminiPrimaryModel = localStorage.getItem('umspec_gemini_primary_model') || 'gemini-3.5-flash-lite';
+  let geminiFallbackModel = localStorage.getItem('umspec_gemini_fallback_model') || 'gemini-3.1-flash-lite';
+  let geminiCustomPrimary = localStorage.getItem('umspec_gemini_custom_primary') || '';
+  let geminiCustomFallback = localStorage.getItem('umspec_gemini_custom_fallback') || '';
+  let geminiEnabled = localStorage.getItem('umspec_gemini_enabled') === 'true' && localStorage.getItem('umspec_ai_disclosure') === '1';
+  let currentKeyIndex = 0;
 
   // Solid Glyph SVG Icons (SVGRepo Glyph Collection)
   const ICONS = {
@@ -35,7 +63,14 @@
     close: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>`,
     folderArchive: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>`,
     bolt: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>`,
-    chevronDown: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>`
+    video: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>`,
+    sparkles: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2L9.5 8.5L3 11L9.5 13.5L12 20L14.5 13.5L21 11L14.5 8.5L12 2Z"/></svg>`,
+    fileText: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>`,
+    chevronDown: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>`,
+    chevronRight: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>`,
+    settings: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>`,
+    lock: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>`,
+    link: `<svg class="umspec-svg" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg>`
   };
 
   // Official Chrome Dino Sprite Base64 Assets (Exact Chromium 1x Assets)
@@ -55,6 +90,54 @@
       .replace(/\s+/g, ' ')
       .trim()
       .slice(0, 160);
+  }
+
+  // Helper: Format bytes into human-readable string
+  function formatBytes(bytes) {
+    if (!bytes || bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    const val = (bytes / Math.pow(1024, i)).toFixed(i >= 2 ? 1 : 0);
+    return `${val} ${units[i]}`;
+  }
+
+  // Helper: Format seconds into human-readable estimated time
+  function formatEstimatedTime(seconds) {
+    if (!seconds || seconds <= 0) return '< 10s';
+    if (seconds < 60) return `~${Math.ceil(seconds)}s`;
+    const mins = Math.floor(seconds / 60);
+    const remSec = Math.round(seconds % 60);
+    return remSec > 5 ? `~${mins}m ${remSec}s` : `~${mins} min`;
+  }
+
+  // Helper: Escape HTML strings for secure DOM interpolation
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  // Helper: Escape attribute strings
+  function escapeAttr(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  // Helper: Convert ArrayBuffer to Base64
+  function arrayBufferToBase64(buffer) {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
   }
 
   // Helper: Extract clean course folder name
@@ -656,10 +739,46 @@
     if (['.py', '.java', '.c', '.cpp', '.sql', '.html', '.js', '.css', '.ipynb', '.dart', '.kt', '.php'].includes(e) || text.includes('source code') || text.includes('script') || text.includes('code')) {
       return { id: '6.Source Code & References', label: 'Source Code' };
     }
-    if (['.mp4', '.mkv', '.avi', '.mov', '.mp3', '.webm'].includes(e) || text.includes('recording') || text.includes('video') || text.includes('webinar')) {
+    if (['.mp4', '.mkv', '.avi', '.mov', '.mp3', '.webm', '.flv', '.m4v'].includes(e) || text.includes('recording') || text.includes('video') || text.includes('webinar') || text.includes('panopto') || text.includes('zoom meeting')) {
       return { id: '7.Recordings & Media', label: 'Media & Videos' };
     }
     return { id: '1.Lecture Slide', label: 'General Course Materials' };
+  }
+
+  const VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.mp3', '.webm', '.flv', '.m4v', '.wav', '.ogg'];
+  const EXTERNAL_VIDEO_DOMAINS = [
+    'panopto.com',
+    'panopto.eu',
+    'zoom.us',
+    'teams.microsoft.com',
+    'microsoftstream.com',
+    'webex.com',
+    'youtube.com',
+    'youtu.be',
+    'drive.google.com',
+    'vimeo.com',
+    'echo360',
+    'loom.com'
+  ];
+
+  function isExternalVideoUrl(url) {
+    if (!url) return false;
+    const lower = url.toLowerCase();
+    return EXTERNAL_VIDEO_DOMAINS.some(domain => lower.includes(domain));
+  }
+
+  function isVideoActivity(actName, actUrl, modType, categoryId) {
+    if (globalThis.UmSpecSync.isVideoMaterial({ name: actName, url: actUrl, type: modType, category: categoryId })) return true;
+    const text = `${actName}`.toLowerCase();
+    const extMatch = (actUrl || '').match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
+    const ext = extMatch ? `.${extMatch[1].toLowerCase()}` : '';
+
+    if (VIDEO_EXTENSIONS.includes(ext)) return true;
+    if (categoryId === '7.Recordings & Media') return true;
+    if (['kalvidres', 'panopto'].includes(modType)) return true;
+    if (text.includes('recording') || text.includes('lecture video') || text.includes('webinar') || text.includes('zoom meeting') || text.includes('panopto')) return true;
+
+    return false;
   }
 
   // Get SPeCTRUM sesskey
@@ -756,9 +875,12 @@
   // Supports RUNNING, GAME OVER with [⟳] Restart, and SUCCESS completion
   // ==========================================================================
   function loadInvertedImage(src) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const img = new Image();
+      const timer = setTimeout(() => reject(new Error('Dino sprite loading timed out.')), 5000);
+      img.onerror = () => { clearTimeout(timer); reject(new Error('Dino sprite could not load.')); };
       img.onload = () => {
+        try {
         const off = document.createElement('canvas');
         off.width = img.width;
         off.height = img.height;
@@ -779,6 +901,8 @@
         } catch (e) {
           resolve(img);
         }
+        } catch (error) { reject(error); }
+        finally { clearTimeout(timer); }
       };
       img.src = src;
     });
@@ -822,7 +946,9 @@
       this.initGround();
 
       this.handleInput = (e) => {
+        if (!this.canvas.getClientRects().length || !document.getElementById('umspec-modal-overlay')?.classList.contains('umspec-active')) return;
         if (e) e.preventDefault();
+        this.canvas.focus({ preventScroll: true });
         if (this.state === 'RUNNING') {
           this.jump();
         } else if (this.state === 'GAME_OVER') {
@@ -832,6 +958,7 @@
       };
 
       this.handleKey = (e) => {
+        if (e.target !== this.canvas || !this.canvas.getClientRects().length || !document.getElementById('umspec-modal-overlay')?.classList.contains('umspec-active') || !['RUNNING', 'GAME_OVER'].includes(this.state)) return;
         if (e.code === 'Space' || e.code === 'ArrowUp') {
           e.preventDefault();
           if (this.state === 'RUNNING') {
@@ -841,6 +968,8 @@
           }
         }
       };
+      this.canvas.addEventListener('click', this.handleInput);
+      this.canvas.addEventListener('keydown', this.handleKey);
     }
 
     async preloadSprites() {
@@ -868,7 +997,14 @@
     }
 
     async start() {
+      const token = this.startToken = {};
       await this.preloadSprites();
+      if (this.startToken !== token) {
+        this.resize();
+        if (this.state === 'SUCCESS') this.drawSuccess();
+        else if (this.state === 'GAME_OVER') this.drawGameOver();
+        return;
+      }
       this.state = 'RUNNING';
       this.score = 0;
       this.speed = 4.2;
@@ -881,11 +1017,6 @@
       this.dino.legFrame = 88;
 
       this.resize();
-      this.canvas.removeEventListener('click', this.handleInput);
-      window.removeEventListener('keydown', this.handleKey);
-      this.canvas.addEventListener('click', this.handleInput);
-      window.addEventListener('keydown', this.handleKey);
-
       if (this.animationId) cancelAnimationFrame(this.animationId);
 
       const loop = () => {
@@ -898,6 +1029,7 @@
     }
 
     stop(stateType) {
+      this.startToken = null;
       if (this.animationId) {
         cancelAnimationFrame(this.animationId);
         this.animationId = null;
@@ -1177,9 +1309,13 @@
     if (!isExporting) return;
     console.log('[UmSpec] Aborting export...');
     isExporting = false;
+    exportRunId++;
 
     // Restore course selection panel
     setSelectionPanelCollapsed(false);
+
+    const advCard = document.getElementById('umspec-video-advisory-card');
+    if (advCard) advCard.style.display = 'none';
 
     if (abortController) {
       abortController.abort();
@@ -1193,6 +1329,8 @@
 
     const cancelBtn = document.getElementById('umspec-cancel-btn');
     if (cancelBtn) cancelBtn.style.display = 'none';
+    const backBtn = document.getElementById('umspec-export-back');
+    if (backBtn) backBtn.disabled = false;
 
     const startBtn = document.getElementById('umspec-start-btn');
     if (startBtn) {
@@ -1253,6 +1391,29 @@
     if (!section) return;
     const isCurrentlyCollapsed = section.classList.contains('umspec-collapsed');
     setSelectionPanelCollapsed(!isCurrentlyCollapsed);
+    if (isCurrentlyCollapsed) renderCoursesList();
+  }
+
+  function showModalTab(tab) {
+    closeCourseInspector();
+    document.querySelectorAll('[data-umspec-tab]').forEach(button => {
+      const active = button.dataset.umspecTab === tab;
+      button.setAttribute('aria-selected', String(active)); button.tabIndex = active ? 0 : -1;
+    });
+    document.querySelectorAll('[data-umspec-view]').forEach(view => { view.hidden = view.dataset.umspecView !== tab; });
+    const footer = document.querySelector('#umspec-modal .umspec-modal-footer');
+    if (footer) footer.hidden = tab !== 'courses';
+  }
+
+  function addPageControls(container, total, page, size, change) {
+    if (total <= size) return;
+    const pager = document.createElement('nav'); pager.className = 'umspec-pager'; pager.setAttribute('aria-label', 'List pages');
+    const previous = document.createElement('button'), next = document.createElement('button'), label = document.createElement('span');
+    previous.type = next.type = 'button'; previous.textContent = 'Previous'; next.textContent = 'Next';
+    previous.disabled = page === 0; next.disabled = (page + 1) * size >= total;
+    label.textContent = (page + 1) + ' / ' + Math.ceil(total / size);
+    previous.onclick = () => change(page - 1); next.onclick = () => change(page + 1);
+    pager.append(previous, label, next); container.append(pager);
   }
 
   // Create & Inject Modal DOM
@@ -1262,42 +1423,40 @@
     const overlay = document.createElement('div');
     overlay.id = 'umspec-modal-overlay';
     overlay.innerHTML = `
+      <!-- Main Course Exporter Window -->
       <div id="umspec-modal">
         <div class="umspec-modal-header">
           <div class="umspec-header-title">
             <span class="umspec-header-icon-box"><span class="umspec-icon">${SPEC_STACK_ICON}</span></span>
             <div>
-              <div class="umspec-header-sub">UMSPEC // ENGINE 4.0</div>
-              <h2>COURSE EXPORTER</h2>
+              <div class="umspec-header-sub">Universiti Malaya</div>
+              <h2>UM Spec</h2>
             </div>
           </div>
           <div class="umspec-header-meta">
-            <span class="umspec-live-pill"><span class="umspec-red-dot"></span> LIVE SPeCTRUM</span>
+            <span class="umspec-live-pill"><span class="umspec-red-dot"></span> Spectrum</span>
             <button class="umspec-close-btn" id="umspec-close-modal" title="Close" aria-label="Close exporter">${ICONS.close}</button>
           </div>
         </div>
 
+        <nav class="umspec-tabs" role="tablist" aria-label="UM Spec">
+          <button type="button" role="tab" id="umspec-tab-courses" aria-controls="umspec-view-courses" aria-selected="true" data-umspec-tab="courses">${ICONS.bookOpen}<span>Courses</span></button>
+          <button type="button" role="tab" id="umspec-tab-dates" aria-controls="umspec-view-dates" aria-selected="false" tabindex="-1" data-umspec-tab="dates">${ICONS.checkCircle}<span>Dates</span></button>
+          <button type="button" role="tab" id="umspec-tab-settings" aria-controls="umspec-view-settings" aria-selected="false" tabindex="-1" data-umspec-tab="settings">${ICONS.settings}<span>Settings</span></button>
+        </nav>
         <div class="umspec-modal-body">
-          <!-- Student Academic Profile Card -->
-          <div class="umspec-profile-card" id="umspec-profile-card">
-            <div class="umspec-profile-header">
-              <span class="umspec-profile-badge">${ICONS.graduationCap} ACADEMIC PROGRAMME</span>
-              <span class="umspec-profile-year" id="umspec-profile-year">DETECTING...</span>
-            </div>
-            <div class="umspec-profile-major" id="umspec-profile-major" contenteditable="true" spellcheck="false" role="textbox" aria-label="Academic Programme" title="Click to edit programme">DETECTING PROGRAMME...</div>
-            <div class="umspec-profile-faculty" id="umspec-profile-faculty">UNIVERSITI MALAYA</div>
-          </div>
-
+          <section id="umspec-view-courses" data-umspec-view="courses" role="tabpanel" aria-labelledby="umspec-tab-courses">
+          <div id="umspec-sync-home-host"></div>
           <!-- Course Overview Section -->
           <div class="umspec-selection-section" id="umspec-selection-section">
             <div class="umspec-section-label" id="umspec-section-header">
               <div class="umspec-section-title-wrap">
-                <span>ENROLLED SUBJECTS // [<span id="umspec-selected-count">0</span>/<span id="umspec-course-count">0</span> SELECTED]</span>
+                <span>Choose courses · <span id="umspec-selected-count">0</span> of <span id="umspec-course-count">0</span></span>
               </div>
               <div class="umspec-selection-tools" id="umspec-selection-tools">
-                <button type="button" class="umspec-link-btn" id="umspec-select-all">SELECT ALL</button>
+                <button type="button" class="umspec-link-btn" id="umspec-select-all">Select all</button>
                 <span class="umspec-sep">//</span>
-                <button type="button" class="umspec-link-btn" id="umspec-deselect-all">DESELECT</button>
+                <button type="button" class="umspec-link-btn" id="umspec-deselect-all">Clear</button>
               </div>
               <button type="button" class="umspec-toggle-btn" id="umspec-toggle-selection" style="display: none;" title="Toggle selection list">
                 <span id="umspec-toggle-text">EXPAND</span>
@@ -1307,29 +1466,64 @@
 
             <div class="umspec-courses-list" id="umspec-courses-container">
               <div style="padding: 24px; text-align: center; color: #64748b; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                ${ICONS.loader} <span>SCANNING SPeCTRUM SESSION & MATERIALS...</span>
+                ${ICONS.loader} <span>Finding your courses…</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pre-Export Video Advisory Modal Card -->
+          <div class="umspec-video-advisory-card" id="umspec-video-advisory-card">
+            <div class="umspec-advisory-header">
+              <span class="umspec-advisory-badge">
+                <span class="umspec-pulse-dot-red"></span>
+                <span>MEDIA ADVISORY // LARGE VIDEOS DETECTED</span>
+              </span>
+              <span class="umspec-advisory-time-tag" id="umspec-advisory-time">EST. ~3 MIN</span>
+            </div>
+            <div class="umspec-advisory-body">
+              <div class="umspec-advisory-headline">
+                <span id="umspec-advisory-count">3 Video Recordings</span> totaling <span id="umspec-advisory-size" style="color: #ffffff; font-weight: 700;">840 MB</span> detected.
+              </div>
+              <p class="umspec-advisory-desc">
+                Downloading heavy video files in browser memory may take several minutes and cause tab lag. Would you like to export slides/assignments with video links indexed in Markdown, or proceed with full video files?
+              </p>
+              <div class="umspec-advisory-bento">
+                <div class="umspec-advisory-metric">
+                  <span class="umspec-metric-label">DETECTED VIDEOS</span>
+                  <span class="umspec-metric-val" id="umspec-metric-videos">3</span>
+                </div>
+                <div class="umspec-advisory-metric">
+                  <span class="umspec-metric-label">TOTAL VIDEO SIZE</span>
+                  <span class="umspec-metric-val" id="umspec-metric-size">840 MB</span>
+                </div>
+                <div class="umspec-advisory-metric">
+                  <span class="umspec-metric-label">ESTIMATED TIME</span>
+                  <span class="umspec-metric-val" id="umspec-metric-time">~2m 48s</span>
+                </div>
+              </div>
+              <div class="umspec-advisory-actions">
+                <button type="button" class="umspec-btn-advisory-skip" id="umspec-btn-advisory-skip">
+                  ${ICONS.bolt} <span>SKIP VIDEOS &amp; EXPORT (RECOMMENDED - FAST)</span>
+                </button>
+                <button type="button" class="umspec-btn-advisory-download" id="umspec-btn-advisory-include">
+                  ${ICONS.download} <span>DOWNLOAD FULL VIDEOS ANYWAY</span>
+                </button>
               </div>
             </div>
           </div>
 
           <!-- Progress & Chrome Dino Runner Card -->
           <div class="umspec-progress-card" id="umspec-progress-card">
-            <!-- Chrome Dino Runner Animation Box -->
             <div class="umspec-runner-box" id="umspec-runner-box">
               <div class="umspec-runner-header">
-                <div class="umspec-runner-badge">
-                  <span class="umspec-runner-pulse"></span>
-                  <span>SYNC ENGINE // CHROME DINO RUNNER</span>
-                </div>
-                <div class="umspec-runner-telemetry">
-                  <span class="umspec-runner-score" id="umspec-runner-score">DIST // 00000 M</span>
-                </div>
+                <div class="umspec-runner-badge"><span class="umspec-runner-pulse"></span><span>Chrome Dino Runner</span></div>
+                <span class="umspec-runner-score" id="umspec-runner-score">DIST // 00000 M</span>
               </div>
-              <canvas id="umspec-runner-canvas" height="116"></canvas>
+              <canvas id="umspec-runner-canvas" height="116" tabindex="0" aria-label="Dino runner" aria-describedby="umspec-runner-tip">Dino runner export progress</canvas>
+              <div class="umspec-runner-actions"><span id="umspec-runner-tip">Click or tap, or focus the game and press Space / ↑.</span><button type="button" id="umspec-export-back">Back to courses</button></div>
             </div>
-
             <div class="umspec-progress-header">
-              <span id="umspec-progress-title">EXPORT TELEMETRY //</span>
+              <span id="umspec-progress-title">Download progress</span>
               <div class="umspec-progress-header-right">
                 <span id="umspec-progress-percent">0%</span>
               </div>
@@ -1339,13 +1533,46 @@
             </div>
             <div class="umspec-status-text" id="umspec-progress-status">PREPARING MATERIALS...</div>
           </div>
-        </div>
+          </section>
+          <section id="umspec-view-dates" data-umspec-view="dates" role="tabpanel" aria-labelledby="umspec-tab-dates" hidden><div id="umspec-dates-host"></div></section>
+          <section id="umspec-view-settings" data-umspec-view="settings" role="tabpanel" aria-labelledby="umspec-tab-settings" hidden>
+            <div id="umspec-settings-host"></div>
+            <div id="umspec-extra-settings">          <!-- Student Academic Profile Card -->
+          <div class="umspec-profile-card" id="umspec-profile-card">
+            <div class="umspec-profile-header">
+              <span class="umspec-profile-badge">${ICONS.graduationCap} ACADEMIC PROGRAMME</span>
+              <span class="umspec-profile-year" id="umspec-profile-year">DETECTING...</span>
+            </div>
+            <div class="umspec-profile-major" id="umspec-profile-major" contenteditable="true" spellcheck="false" role="textbox" aria-label="Academic Programme" title="Click to edit programme">DETECTING PROGRAMME...</div>
+            <div class="umspec-profile-faculty" id="umspec-profile-faculty">UNIVERSITI MALAYA</div>
+          </div>
 
+          <!-- Streamlined Nothing OS AI Proforma Card -->
+          <div class="umspec-ai-card" id="umspec-ai-card">
+            <div class="umspec-ai-card-left">
+              <div class="umspec-ai-sparkle-box">${ICONS.sparkles}</div>
+              <div>
+                <div class="umspec-ai-card-title">AI syllabus analysis</div>
+                <div class="umspec-ai-card-sub" id="umspec-ai-card-sub">Optional: sends syllabus files to the AI service</div>
+              </div>
+            </div>
+            <div class="umspec-ai-card-right">
+              <label class="umspec-switch" title="Toggle AI Proforma Extraction">
+                <input type="checkbox" id="umspec-ai-enable-chk" ${geminiEnabled ? 'checked' : ''} />
+                <span class="umspec-slider"></span>
+              </label>
+            </div>
+          </div>
+
+</div>
+          </section>
+        </div>
+        <p id="umspec-sync-status" class="umspec-notice" role="status" aria-live="polite"></p>
         <div class="umspec-modal-footer">
           <div class="umspec-footer-info" id="umspec-footer-stats"></div>
           <div class="umspec-footer-actions">
             <button class="umspec-btn-cancel" id="umspec-cancel-btn" type="button" style="display: none;">
-              ${ICONS.close} <span>ABORT DOWNLOAD</span>
+              ${ICONS.close} <span>Cancel download</span>
             </button>
             <button class="umspec-btn-primary" id="umspec-start-btn" type="button">
               ${ICONS.download} <span>EXPORT</span>
@@ -1353,9 +1580,68 @@
           </div>
         </div>
       </div>
+
+      <!-- Right Course Materials Flyout Inspector Drawer -->
+      <div id="umspec-right-drawer">
+        <div class="umspec-drawer-header">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="umspec-drawer-course-tag" id="umspec-right-course-code">COURSE</span>
+            <span id="umspec-right-item-badge" style="font-family: var(--umspec-font-mono); font-size: 10px; color: var(--umspec-text-mid);">0 MATERIALS</span>
+          </div>
+          <button type="button" class="umspec-drawer-close-btn" id="umspec-right-close-btn" title="Close Inspector" aria-label="Close Inspector">${ICONS.close}</button>
+        </div>
+        <div class="umspec-drawer-title" id="umspec-right-course-title">Select a course to inspect</div>
+
+        <!-- Filter Chips -->
+        <div class="umspec-drawer-filters" id="umspec-right-filter-chips">
+          <button type="button" class="umspec-filter-chip active" data-filter="all">ALL</button>
+          <button type="button" class="umspec-filter-chip" data-filter="doc">DOCUMENTS</button>
+          <button type="button" class="umspec-filter-chip" data-filter="video">VIDEOS</button>
+          <button type="button" class="umspec-filter-chip" data-filter="external">STREAMING</button>
+        </div>
+
+        <!-- Actions Bar -->
+        <div class="umspec-drawer-actions-bar">
+          <span>SELECTION // [<span id="umspec-right-selected-count">0</span>/<span id="umspec-right-total-count">0</span> FILES SELECTED]</span>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button type="button" class="umspec-drawer-link" id="umspec-right-select-all" style="background: none; border: none; color: #ffffff; cursor: pointer; font-family: var(--umspec-font-mono); font-size: 9.5px; font-weight: 700;">SELECT ALL</button>
+            <span class="umspec-sep" style="color: #475569;">//</span>
+            <button type="button" class="umspec-drawer-link" id="umspec-right-deselect-all" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-family: var(--umspec-font-mono); font-size: 9.5px; font-weight: 700;">DESELECT</button>
+          </div>
+        </div>
+
+        <!-- Materials List Scrollable Area -->
+        <div class="umspec-drawer-scroll" id="umspec-right-materials-list">
+          <div style="padding: 24px; text-align: center; color: #64748b; font-family: var(--umspec-font-mono); font-size: 10px;">
+            SELECT A COURSE FROM THE MAIN PANEL TO INSPECT
+          </div>
+        </div>
+
+        <!-- Drawer Footer -->
+        <div class="umspec-drawer-footer">
+          <div class="umspec-drawer-footer-metric">
+            <span style="font-family: var(--umspec-font-mono); font-size: 9px; color: #94a3b8; text-transform: uppercase;">SELECTED SUMMARY</span>
+            <span id="umspec-right-footer-summary" style="font-family: var(--umspec-font-mono); font-size: 10.5px; font-weight: 700; color: #ffffff;">0 Files Selected</span>
+          </div>
+          <button type="button" class="umspec-btn-drawer-done" id="umspec-right-done-btn">DONE</button>
+        </div>
+      </div>
     `;
 
     document.body.appendChild(overlay);
+    overlay.querySelectorAll('[data-umspec-tab]').forEach(button => {
+      button.addEventListener('click', () => showModalTab(button.dataset.umspecTab));
+      button.addEventListener('keydown', event => {
+        const tabs = [...overlay.querySelectorAll('[data-umspec-tab]')];
+        let index = tabs.indexOf(button);
+        if (event.key === 'ArrowRight') index = (index + 1) % tabs.length;
+        else if (event.key === 'ArrowLeft') index = (index + tabs.length - 1) % tabs.length;
+        else if (event.key === 'Home') index = 0;
+        else if (event.key === 'End') index = tabs.length - 1;
+        else return;
+        event.preventDefault(); showModalTab(tabs[index].dataset.umspecTab); tabs[index].focus();
+      });
+    });
 
     document.getElementById('umspec-close-modal').onclick = closeModal;
     overlay.onclick = (e) => {
@@ -1363,17 +1649,25 @@
     };
 
     document.getElementById('umspec-cancel-btn').onclick = abortExport;
+    document.getElementById('umspec-export-back').onclick = () => {
+      if (isExporting) return;
+      runnerInstance?.stop('IDLE');
+      document.getElementById('umspec-progress-card').style.display = 'none';
+      setSelectionPanelCollapsed(false); renderCoursesList();
+    };
 
     document.getElementById('umspec-select-all').onclick = () => {
       if (isExporting) return;
       selectedCourseIds = new Set(detectedCourses.map(c => c.id));
       renderCoursesList();
+      recalculateSelectedVideoBytes();
     };
 
     document.getElementById('umspec-deselect-all').onclick = () => {
       if (isExporting) return;
       selectedCourseIds.clear();
       renderCoursesList();
+      recalculateSelectedVideoBytes();
     };
 
     const toggleBtn = document.getElementById('umspec-toggle-selection');
@@ -1394,7 +1688,69 @@
       };
     }
 
-    document.getElementById('umspec-start-btn').onclick = runZeroTouchExport;
+    // Right Flyout Drawer Listeners
+    const rightCloseBtn = document.getElementById('umspec-right-close-btn') || document.getElementById('umspec-left-close-btn');
+    const rightDoneBtn = document.getElementById('umspec-right-done-btn') || document.getElementById('umspec-left-done-btn');
+    if (rightCloseBtn) rightCloseBtn.onclick = closeCourseInspector;
+    if (rightDoneBtn) rightDoneBtn.onclick = closeCourseInspector;
+
+    // Filter Chips in Right Drawer
+    const filterChipsWrap = document.getElementById('umspec-right-filter-chips') || document.getElementById('umspec-left-filter-chips');
+    if (filterChipsWrap) {
+      filterChipsWrap.querySelectorAll('.umspec-filter-chip').forEach(btn => {
+        btn.onclick = () => {
+          filterChipsWrap.querySelectorAll('.umspec-filter-chip').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          rightDrawerFilter = btn.getAttribute('data-filter') || 'all';
+          materialPage = 0;
+          leftDrawerFilter = rightDrawerFilter;
+          if (inspectingCourseId) {
+            renderRightDrawerMaterials(inspectingCourseId);
+          }
+        };
+      });
+    }
+
+    // Right Drawer Select All & Deselect All
+    const rightSelectAllBtn = document.getElementById('umspec-right-select-all') || document.getElementById('umspec-left-select-all');
+    const rightDeselectAllBtn = document.getElementById('umspec-right-deselect-all') || document.getElementById('umspec-left-deselect-all');
+    if (rightSelectAllBtn) {
+      rightSelectAllBtn.onclick = () => {
+        if (!inspectingCourseId) return;
+        const items = courseItemsCache.get(inspectingCourseId) || [];
+        courseItemsSelected.set(inspectingCourseId, new Set(items.map(it => it.url)));
+        renderRightDrawerMaterials(inspectingCourseId);
+        updateCourseRowPill(inspectingCourseId);
+        syncCourseMasterCheckbox(inspectingCourseId);
+        recalculateSelectedVideoBytes();
+      };
+    }
+    if (rightDeselectAllBtn) {
+      rightDeselectAllBtn.onclick = () => {
+        if (!inspectingCourseId) return;
+        courseItemsSelected.set(inspectingCourseId, new Set());
+        renderRightDrawerMaterials(inspectingCourseId);
+        updateCourseRowPill(inspectingCourseId);
+        syncCourseMasterCheckbox(inspectingCourseId);
+        recalculateSelectedVideoBytes();
+      };
+    }
+
+    // Enable/Disable AI Checkbox
+    const aiEnableChk = document.getElementById('umspec-ai-enable-chk');
+    if (aiEnableChk) {
+      aiEnableChk.addEventListener('change', () => {
+        if (aiEnableChk.checked && localStorage.getItem('umspec_ai_disclosure') !== '1') {
+          const accepted = confirm('AI analysis sends selected proforma documents to the configured UM Spec proxy and Google Gemini. Continue?');
+          if (!accepted) { aiEnableChk.checked = false; return; }
+          localStorage.setItem('umspec_ai_disclosure', '1');
+        }
+        geminiEnabled = aiEnableChk.checked;
+        localStorage.setItem('umspec_gemini_enabled', String(geminiEnabled));
+      });
+    }
+
+    document.getElementById('umspec-start-btn').onclick = handleExportClick;
 
     // Academic Programme Inline Editor Listeners (No frame, text cursor only)
     const majorEl = document.getElementById('umspec-profile-major');
@@ -1426,6 +1782,16 @@
         }
       }
     });
+    window.addEventListener('resize', () => {
+      if (!overlay.classList.contains('umspec-active')) return;
+      renderCoursesList();
+      if (inspectingCourseId) renderRightDrawerMaterials(inspectingCourseId);
+      if (runnerInstance && document.getElementById('umspec-runner-canvas').getClientRects().length) {
+        runnerInstance.resize();
+        if (runnerInstance.state === 'SUCCESS') runnerInstance.drawSuccess();
+        else if (runnerInstance.state === 'GAME_OVER') runnerInstance.drawGameOver();
+      }
+    });
   }
 
   // Open & Populate Modal
@@ -1433,6 +1799,8 @@
     createModalDOM();
     const overlay = document.getElementById('umspec-modal-overlay');
     overlay.classList.add('umspec-active');
+    showModalTab('courses');
+    globalThis.UmSpecStudentSync?.refreshPanel?.();
 
     if (!isExporting) {
       setSelectionPanelCollapsed(false);
@@ -1440,10 +1808,13 @@
 
     if (detectedCourses.length === 0) {
       detectedCourses = await discoverCourses();
-      selectedCourseIds = new Set(detectedCourses.map(c => c.id));
+      selectedCourseIds = new Set((globalThis.UmSpecStudentSync?.savedCourseIds?.() || detectedCourses.map(c => c.id)).map(Number));
+    }
+    if (!isExporting) {
       updateProfileUI();
       renderCoursesList();
     }
+    backgroundScanAndProbeVideos();
   }
 
   function closeModal() {
@@ -1454,8 +1825,12 @@
         return;
       }
     }
+    closeCourseInspector();
+    const advCard = document.getElementById('umspec-video-advisory-card');
+    if (advCard) advCard.style.display = 'none';
     const overlay = document.getElementById('umspec-modal-overlay');
     if (overlay) overlay.classList.remove('umspec-active');
+    document.getElementById('umspec-trigger-btn')?.focus?.();
   }
 
   // Update Profile UI
@@ -1482,11 +1857,441 @@
     if (selectedCountEl) selectedCountEl.innerText = count;
     if (totalCountEl) totalCountEl.innerText = total;
 
+    if (isExporting) return;
     startBtn.disabled = count === 0;
-    startBtn.innerHTML = `${ICONS.download} <span>EXPORT</span>`;
+    startBtn.innerHTML = `${ICONS.download} <span>${destinationMode === 'drive' ? 'Sync to Drive' : 'Download ZIP'}</span>`;
   }
 
-  // Render Courses List (Pristine Custom Nothing Checkbox)
+  // Parse activities from course HTML (shared by drawer, pre-flight analysis, and export)
+  function parseCourseActivitiesFromHTML(cHtml, course) {
+    const cDoc = new DOMParser().parseFromString(cHtml, 'text/html');
+    if (cDoc.querySelector('form#login, input[name="password"]')) throw new Error('Spectrum session expired. Sign in again.');
+    const items = [];
+    const externalLinks = [];
+    const seenUrls = new Set();
+
+    const sections = cDoc.querySelectorAll('.course-content ul.topics > li, .course-content ul.weeks > li, .course-content .section');
+    sections.forEach(sec => {
+      const secTitleEl = sec.querySelector('.sectionname, .section-title, h3');
+      const secName = secTitleEl ? secTitleEl.innerText.trim() : 'General';
+
+      sec.querySelectorAll('.activity').forEach(act => {
+        const modClasses = Array.from(act.classList).filter(c => c.startsWith('modtype_'));
+        const modType = modClasses.length ? modClasses[0].replace('modtype_', '') : '';
+        if (['attendance', 'forum', 'feedback', 'choice'].includes(modType)) return;
+
+        const inst = act.querySelector('.instancename');
+        let actName = inst ? inst.innerText.trim() : 'Material';
+        ['File', 'URL', 'Assignment', 'Folder', 'Page', 'External tool'].forEach(sfx => {
+          if (actName.endsWith(sfx)) actName = actName.slice(0, -sfx.length).trim();
+        });
+
+        const link = act.querySelector('a');
+        if (!link || !link.href) return;
+        const actUrl = link.href;
+        if (seenUrls.has(actUrl)) return;
+        seenUrls.add(actUrl);
+
+        if (isExternalVideoUrl(actUrl)) {
+          externalLinks.push({ title: actName, url: actUrl, section: secName, isStreaming: true });
+          items.push({
+            name: actName,
+            url: actUrl,
+            type: modType,
+            category: '7.Recordings & Media',
+            section: secName,
+            isVideo: true,
+            isExternal: true,
+            courseName: course?.fullName || '',
+            courseFolder: course?.folderName || ''
+          });
+          return;
+        }
+
+        const extMatch = actUrl.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
+        const ext = extMatch ? `.${extMatch[1]}` : '';
+        const cat = classifyAdaptiveCategory(actName, secName, ext);
+        const isVideo = isVideoActivity(actName, actUrl, modType, cat.id);
+        const isProforma = /proforma|pro-forma|course outline|maklumat kursus|syllabus/i.test(actName);
+
+        items.push({
+          name: actName,
+          url: actUrl,
+          type: modType,
+          category: cat.id,
+          section: secName,
+          isVideo,
+          isProforma,
+          courseName: course?.fullName || '',
+          courseFolder: course?.folderName || ''
+        });
+      });
+
+      sec.querySelectorAll('a[href*="youtu.be"], a[href*="youtube.com"], a[href*="drive.google.com"], a[href*="panopto."], a[href*="zoom.us"], a[href*="teams.microsoft.com"], a[href*="webex.com"], a[href*="echo360."], a[href*="vimeo.com"], a[href*="loom.com"]').forEach(ea => {
+        if (!seenUrls.has(ea.href)) {
+          seenUrls.add(ea.href);
+          const title = ea.innerText.trim() || 'External Lecture Link';
+          externalLinks.push({ title, url: ea.href, section: secName, isStreaming: true });
+          items.push({
+            name: title,
+            url: ea.href,
+            type: 'url',
+            category: '7.Recordings & Media',
+            section: secName,
+            isVideo: true,
+            isExternal: true,
+            courseName: course?.fullName || '',
+            courseFolder: course?.folderName || ''
+          });
+        }
+      });
+    });
+
+    return { items, externalLinks };
+  }
+
+  // Fetch and parse activities for a specific course
+  async function fetchAndParseCourseItems(courseId, signal) {
+    const course = detectedCourses.find(c => c.id === courseId);
+    const res = await fetchWithTimeout(
+      `https://spectrum.um.edu.my/course/view.php?id=${courseId}`,
+      { credentials: 'include', signal },
+      15000
+    );
+    if (!res.ok) throw new Error('Spectrum course request failed (' + res.status + ').');
+    const finalURL = new URL(res.url);
+    if (finalURL.origin !== 'https://spectrum.um.edu.my' || /\/login(?:[/.]|$)/i.test(finalURL.pathname)) throw new Error('Sign in to Spectrum again.');
+    const html = await res.text();
+    const { items, externalLinks } = parseCourseActivitiesFromHTML(html, course);
+    return { items, externalLinks };
+  }
+
+  // Update Course Row file count pill
+  function updateCourseRowPill(courseId) {
+    const pill = document.getElementById(`umspec-course-pill-${courseId}`);
+    const items = courseItemsCache.get(courseId) || [];
+    const set = courseItemsSelected.get(courseId) || new Set();
+    const count = set.size;
+    const total = items.length;
+
+    if (pill) {
+      pill.innerText = total > 0 ? `[${count}/${total} FILES]` : 'FILES';
+    }
+  }
+
+  // Synchronize master course row checkbox with granular drawer items
+  function syncCourseMasterCheckbox(courseId) {
+    const chk = document.getElementById(`umspec-chk-${courseId}`);
+    const row = document.getElementById(`umspec-row-${courseId}`);
+    const set = courseItemsSelected.get(courseId) || new Set();
+    if (set.size > 0) {
+      selectedCourseIds.add(courseId);
+      if (chk) chk.checked = true;
+      if (row) row.classList.remove('umspec-row-unselected');
+    } else {
+      selectedCourseIds.delete(courseId);
+      if (chk) chk.checked = false;
+      if (row) row.classList.add('umspec-row-unselected');
+    }
+    updateSelectionUI();
+  }
+
+  // Close Course Materials Inspector Drawer
+  function closeCourseInspector() {
+    if (inspectingCourseId) {
+      const activeRow = document.getElementById(`umspec-row-${inspectingCourseId}`);
+      if (activeRow) activeRow.classList.remove('active-inspector');
+    }
+    inspectingCourseId = null;
+    const drawer = document.getElementById('umspec-right-drawer') || document.getElementById('umspec-left-drawer');
+    if (drawer) drawer.classList.remove('umspec-active');
+  }
+
+  // Open Course Materials Inspector Drawer (Right Panel)
+  async function openCourseInspector(courseId) {
+    if (isExporting) return;
+
+    if (inspectingCourseId === courseId) {
+      closeCourseInspector();
+      return;
+    }
+
+    if (inspectingCourseId) {
+      const prevRow = document.getElementById(`umspec-row-${inspectingCourseId}`);
+      if (prevRow) prevRow.classList.remove('active-inspector');
+    }
+
+    inspectingCourseId = courseId;
+    materialPage = 0;
+    const row = document.getElementById(`umspec-row-${courseId}`);
+    if (row) row.classList.add('active-inspector');
+
+    const drawer = document.getElementById('umspec-right-drawer') || document.getElementById('umspec-left-drawer');
+    if (drawer) drawer.classList.add('umspec-active');
+
+    const course = detectedCourses.find(c => c.id === courseId);
+    const codeTag = document.getElementById('umspec-right-course-code') || document.getElementById('umspec-left-course-code');
+    const titleEl = document.getElementById('umspec-right-course-title') || document.getElementById('umspec-left-course-title');
+
+    if (course) {
+      const codeMatch = (course.fullName || '').match(/([A-Z]{3}\d{4})/i);
+      if (codeTag) codeTag.innerText = codeMatch ? codeMatch[1].toUpperCase() : 'COURSE';
+      if (titleEl) titleEl.innerText = course.fullName || 'Course Materials';
+    }
+
+    // If items not cached, fetch from SPeCTRUM
+    if (!courseItemsCache.has(courseId)) {
+      const scrollEl = document.getElementById('umspec-right-materials-list') || document.getElementById('umspec-left-materials-list');
+      if (scrollEl) {
+        scrollEl.innerHTML = `
+          <div style="padding: 32px 16px; text-align: center; color: #94a3b8; font-family: var(--umspec-font-mono); font-size: 10px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+            ${ICONS.loader} <span>SCANNING COURSE MATERIALS &amp; VIDEOS...</span>
+          </div>
+        `;
+      }
+      try {
+        const parsed = await fetchAndParseCourseItems(courseId);
+        courseItemsCache.set(courseId, parsed.items);
+        if (!courseItemsSelected.has(courseId)) {
+          courseItemsSelected.set(courseId, new Set(parsed.items.map(it => it.url)));
+        }
+        updateCourseRowPill(courseId);
+        // Background probe video sizes for this course
+        probeCourseVideos(parsed.items);
+      } catch (err) {
+        const scrollEl = document.getElementById('umspec-right-materials-list') || document.getElementById('umspec-left-materials-list');
+        if (scrollEl) {
+          scrollEl.innerHTML = `
+            <div style="padding: 24px; text-align: center; color: #ef4444; font-size: 10px; font-family: var(--umspec-font-mono);">
+              ${ICONS.alertCircle} FAILED TO LOAD COURSE MATERIALS: ${escapeHtml(err.message)}
+            </div>
+          `;
+        }
+        return;
+      }
+    }
+
+    renderRightDrawerMaterials(courseId);
+    recalculateSelectedVideoBytes();
+  }
+
+  // Render Material Items inside Right Inspector Drawer
+  function renderRightDrawerMaterials(courseId) {
+    const scrollEl = document.getElementById('umspec-right-materials-list') || document.getElementById('umspec-left-materials-list');
+    const badgeCount = document.getElementById('umspec-right-item-badge') || document.getElementById('umspec-left-item-badge');
+    const selCountEl = document.getElementById('umspec-right-selected-count') || document.getElementById('umspec-left-selected-count');
+    const totCountEl = document.getElementById('umspec-right-total-count') || document.getElementById('umspec-left-total-count');
+    const footerSummary = document.getElementById('umspec-right-footer-summary') || document.getElementById('umspec-left-footer-summary');
+    if (!scrollEl) return;
+
+    const allItems = courseItemsCache.get(courseId) || [];
+    const selectedSet = courseItemsSelected.get(courseId) || new Set();
+
+    if (badgeCount) badgeCount.innerText = `${allItems.length} MATERIALS`;
+    if (selCountEl) selCountEl.innerText = selectedSet.size;
+    if (totCountEl) totCountEl.innerText = allItems.length;
+
+    // Filter items based on active chip
+    const activeFilter = rightDrawerFilter || leftDrawerFilter || 'all';
+    const filteredItems = allItems.filter(item => {
+      if (activeFilter === 'doc') return !item.isVideo && !item.isExternal;
+      if (activeFilter === 'video') return item.isVideo && !item.isExternal;
+      if (activeFilter === 'external') return item.isExternal;
+      return true;
+    });
+
+    if (filteredItems.length === 0) {
+      scrollEl.innerHTML = `
+        <div style="padding: 32px 16px; text-align: center; color: #64748b; font-family: var(--umspec-font-mono); font-size: 10px;">
+          NO MATERIALS FOUND IN THIS FILTER CATEGORY
+        </div>
+      `;
+      return;
+    }
+
+    const pageSize = window.innerHeight < 650 ? 3 : 5;
+    materialPage = Math.min(materialPage, Math.max(0, Math.ceil(filteredItems.length / pageSize) - 1));
+    scrollEl.innerHTML = filteredItems.slice(materialPage * pageSize, (materialPage + 1) * pageSize).map((item, idx) => {
+      const isChecked = selectedSet.has(item.url);
+      let badgeHtml = '';
+      if (item.isProforma) {
+        badgeHtml = `<span class="umspec-item-badge umspec-badge-proforma">PROFORMA / SYLLABUS</span>`;
+      } else if (item.isExternal) {
+        badgeHtml = `<span class="umspec-item-badge umspec-badge-video" title="Direct link saved to Markdown">STREAMING LINK</span>`;
+      } else if (item.isVideo) {
+        const sizeTag = item.sizeBytes ? ` (~${formatBytes(item.sizeBytes)})` : '';
+        badgeHtml = `<span class="umspec-item-badge umspec-badge-video">RECORDING${sizeTag}</span>`;
+      } else {
+        badgeHtml = `<span class="umspec-item-badge umspec-badge-regular">${escapeHtml(item.category.replace(/^\d+\./, ''))}</span>`;
+      }
+
+      const iconSvg = item.isVideo ? ICONS.video : (item.isProforma ? ICONS.fileText : ICONS.bookOpen);
+
+      return `
+        <div class="umspec-item-row ${isChecked ? '' : 'umspec-item-unselected'}" data-url="${escapeAttr(item.url)}" title="${escapeAttr(item.name)}">
+          <div class="umspec-item-left">
+            <label class="umspec-checkbox-label" for="umspec-right-chk-${idx}">
+              <input type="checkbox" id="umspec-right-chk-${idx}" class="umspec-item-checkbox" data-url="${escapeAttr(item.url)}" ${isChecked ? 'checked' : ''} />
+              <span class="umspec-custom-checkbox" aria-hidden="true">
+                <svg class="umspec-check-glyph" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                  <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/>
+                </svg>
+              </span>
+            </label>
+            <span class="umspec-item-icon">${iconSvg}</span>
+            <span class="umspec-item-name">${escapeHtml(item.name)}</span>
+          </div>
+          ${badgeHtml}
+        </div>
+      `;
+    }).join('');
+
+    addPageControls(scrollEl, filteredItems.length, materialPage, pageSize, page => { materialPage = page; renderRightDrawerMaterials(courseId); });
+
+    // Attach row toggle listeners
+    scrollEl.querySelectorAll('.umspec-item-row').forEach(row => {
+      const url = row.getAttribute('data-url');
+      const chk = row.querySelector('.umspec-item-checkbox');
+
+      const toggleItem = (checked) => {
+        let set = courseItemsSelected.get(courseId);
+        if (!set) {
+          set = new Set(allItems.map(it => it.url));
+          courseItemsSelected.set(courseId, set);
+        }
+        if (checked) {
+          set.add(url);
+          row.classList.remove('umspec-item-unselected');
+          if (chk) chk.checked = true;
+        } else {
+          set.delete(url);
+          row.classList.add('umspec-item-unselected');
+          if (chk) chk.checked = false;
+        }
+        if (selCountEl) selCountEl.innerText = set.size;
+        updateCourseRowPill(courseId);
+        syncCourseMasterCheckbox(courseId);
+        recalculateSelectedVideoBytes();
+      };
+
+      if (chk) {
+        chk.addEventListener('change', (e) => {
+          e.stopPropagation();
+          toggleItem(e.target.checked);
+        });
+      }
+
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('.umspec-checkbox-label')) return;
+        const set = courseItemsSelected.get(courseId) || new Set();
+        toggleItem(!set.has(url));
+      });
+    });
+
+    if (footerSummary) {
+      footerSummary.innerText = `${selectedSet.size} of ${allItems.length} Files Selected`;
+    }
+  }
+
+  // Backward compatibility alias
+  const renderLeftDrawerMaterials = renderRightDrawerMaterials;
+
+  // Probe media size for video items in a course
+  async function probeCourseVideos(items) {
+    if (videoDownloadPreference !== 'include') return;
+    if (!items || items.length === 0) return;
+    for (const item of items) {
+      if (item.isVideo && !item.isExternal && item.sizeBytes === undefined) {
+        try {
+          const probe = await probeMediaSize(item.url);
+          item.sizeBytes = probe.sizeBytes;
+          if (!probe.sizeBytes && !probe.isHtml) {
+            item.sizeBytes = 120 * 1024 * 1024; // 120MB standard baseline
+          }
+        } catch (e) {
+          item.sizeBytes = 120 * 1024 * 1024;
+        }
+      }
+    }
+    recalculateSelectedVideoBytes();
+  }
+
+  // Recalculate selected video sizes across all selected courses and update UI
+  function recalculateSelectedVideoBytes() {
+    let totalBytes = 0;
+    let videoCount = 0;
+
+    selectedCourseIds.forEach(courseId => {
+      const items = courseItemsCache.get(courseId) || [];
+      const selectedSet = courseItemsSelected.get(courseId) || new Set();
+
+      items.forEach(item => {
+        if (item.isVideo && !item.isExternal && selectedSet.has(item.url)) {
+          videoCount++;
+          totalBytes += (item.sizeBytes || (120 * 1024 * 1024));
+        }
+      });
+    });
+
+    const estSec = Math.ceil(totalBytes / (5 * 1024 * 1024));
+    const sizeStr = formatBytes(totalBytes);
+    const timeStr = formatEstimatedTime(estSec);
+
+    // Update pill tag on Download button
+    const estimateTag = document.getElementById('umspec-video-estimate-tag');
+    if (estimateTag) {
+      estimateTag.innerText = videoCount > 0 ? `(~${sizeStr} · ${timeStr})` : '';
+    }
+
+    // Update inline telemetry banner
+    const stripEl = document.getElementById('umspec-video-telemetry-strip');
+    const stripText = document.getElementById('umspec-video-telemetry-text');
+    if (stripEl && stripText) {
+      if (videoDownloadPreference === 'include' && videoCount > 0) {
+        stripEl.style.display = 'flex';
+        stripText.innerHTML = `MEDIA TELEMETRY // <b>${videoCount} Video${videoCount > 1 ? 's' : ''}</b> totaling <b>~${sizeStr}</b> · Est. <b>${timeStr}</b> via Campus Wi-Fi`;
+      } else {
+        stripEl.style.display = 'none';
+      }
+    }
+
+    // Update Right Drawer footer if inspecting
+    if (inspectingCourseId) {
+      const set = courseItemsSelected.get(inspectingCourseId) || new Set();
+      const all = courseItemsCache.get(inspectingCourseId) || [];
+      const footerSummary = document.getElementById('umspec-right-footer-summary') || document.getElementById('umspec-left-footer-summary');
+      if (footerSummary) {
+        footerSummary.innerText = `${set.size} of ${all.length} Files Selected`;
+      }
+    }
+  }
+
+  // Background probe all detected courses for videos & item counts
+  async function backgroundScanAndProbeVideos() {
+    if (isProbingVideos || detectedCourses.length === 0) return;
+    isProbingVideos = true;
+
+    for (const course of detectedCourses) {
+      if (!courseItemsCache.has(course.id)) {
+        try {
+          const parsed = await fetchAndParseCourseItems(course.id);
+          courseItemsCache.set(course.id, parsed.items);
+          if (!courseItemsSelected.has(course.id)) {
+            courseItemsSelected.set(course.id, new Set(parsed.items.map(it => it.url)));
+          }
+          updateCourseRowPill(course.id);
+          probeCourseVideos(parsed.items);
+        } catch (e) {
+          // Ignore background pre-scan errors
+        }
+      }
+    }
+
+    recalculateSelectedVideoBytes();
+    isProbingVideos = false;
+  }
+
+  // Render Courses List (Pristine Custom Nothing Checkbox & Left Drawer Trigger)
   function renderCoursesList() {
     const container = document.getElementById('umspec-courses-container');
     const countEl = document.getElementById('umspec-course-count');
@@ -1495,7 +2300,7 @@
     if (detectedCourses.length === 0) {
       container.innerHTML = `
         <div style="padding: 24px; text-align: center; color: var(--umspec-red, #d71921); font-family: var(--umspec-font-mono); font-size: 11px; letter-spacing: 0.08em; display: flex; align-items: center; justify-content: center; gap: 8px;">
-          ${ICONS.alertCircle} <span>NO ENROLLED COURSES FOUND // VERIFY SPeCTRUM LOGIN</span>
+          ${ICONS.alertCircle} <span>No courses found. Check that you are signed in to Spectrum.</span>
         </div>
       `;
       if (countEl) countEl.innerText = '0';
@@ -1503,32 +2308,52 @@
       return;
     }
 
-    container.innerHTML = detectedCourses.map(c => {
+    const pageSize = (window.innerHeight < 650 ? 3 : 5) - (document.getElementById('umspec-progress-card')?.style.display === 'block' ? 1 : 0);
+    coursePage = Math.min(coursePage, Math.max(0, Math.ceil(detectedCourses.length / pageSize) - 1));
+    container.innerHTML = detectedCourses.slice(coursePage * pageSize, (coursePage + 1) * pageSize).map(c => {
       const isSelected = selectedCourseIds.has(c.id);
+      const isInspecting = inspectingCourseId === c.id;
+      const cachedItems = courseItemsCache.get(c.id);
+      const selectedSet = courseItemsSelected.get(c.id);
+      const countLabel = cachedItems
+        ? `[${selectedSet ? selectedSet.size : cachedItems.length}/${cachedItems.length} FILES]`
+        : 'FILES';
+
       return `
-        <div class="umspec-course-row ${isSelected ? '' : 'umspec-row-unselected'}" id="umspec-row-${c.id}" data-id="${c.id}">
-          <div class="umspec-course-info">
-            <label class="umspec-checkbox-label" for="umspec-chk-${c.id}" title="Toggle course selection">
-              <input type="checkbox" id="umspec-chk-${c.id}" class="umspec-course-checkbox" data-id="${c.id}" ${isSelected ? 'checked' : ''} />
-              <span class="umspec-custom-checkbox" aria-hidden="true">
-                <svg class="umspec-check-glyph" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
-                  <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/>
-                </svg>
-              </span>
-            </label>
-            <div class="umspec-course-text-wrap">
-              <div class="umspec-course-title" id="umspec-title-${c.id}">${c.fullName}</div>
+        <div class="umspec-course-group" id="umspec-group-${c.id}">
+          <div class="umspec-course-row ${isSelected ? '' : 'umspec-row-unselected'} ${isInspecting ? 'active-inspector' : ''}" id="umspec-row-${c.id}" data-id="${c.id}">
+            <div class="umspec-course-info">
+              <label class="umspec-checkbox-label" for="umspec-chk-${c.id}" title="Toggle course selection">
+                <input type="checkbox" id="umspec-chk-${c.id}" class="umspec-course-checkbox" data-id="${c.id}" ${isSelected ? 'checked' : ''} />
+                <span class="umspec-custom-checkbox" aria-hidden="true">
+                  <svg class="umspec-check-glyph" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
+                    <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/>
+                  </svg>
+                </span>
+              </label>
+              <div class="umspec-course-text-wrap">
+                <div class="umspec-course-title" id="umspec-title-${c.id}" title="${escapeAttr(c.fullName)}">${escapeHtml(c.fullName)}</div>
+              </div>
+            </div>
+            <div class="umspec-course-actions">
+              <button type="button" class="umspec-course-files-btn" id="umspec-inspect-btn-${c.id}" data-id="${c.id}" title="Choose files for this course">
+                <span id="umspec-course-pill-${c.id}">${countLabel}</span>
+                <span class="umspec-files-arrow">${ICONS.chevronRight}</span>
+              </button>
+              <span class="umspec-course-status" id="umspec-status-${c.id}" style="display: none;">READY</span>
             </div>
           </div>
-          <span class="umspec-course-status" id="umspec-status-${c.id}">READY</span>
         </div>
       `;
     }).join('');
 
-    // Attach row toggle handlers
+    addPageControls(container, detectedCourses.length, coursePage, pageSize, page => { coursePage = page; renderCoursesList(); });
+
+    // Attach row toggle and drawer inspector handlers
     container.querySelectorAll('.umspec-course-row').forEach(row => {
       const id = parseInt(row.getAttribute('data-id'));
       const chk = row.querySelector('.umspec-course-checkbox');
+      const inspectBtn = row.querySelector(`#umspec-inspect-btn-${id}`);
 
       const toggleRow = (select) => {
         if (isExporting) return;
@@ -1536,43 +2361,160 @@
           selectedCourseIds.add(id);
           row.classList.remove('umspec-row-unselected');
           if (chk) chk.checked = true;
+          if (courseItemsCache.has(id) && (!courseItemsSelected.has(id) || courseItemsSelected.get(id).size === 0)) {
+            const items = courseItemsCache.get(id);
+            courseItemsSelected.set(id, new Set(items.map(it => it.url)));
+            updateCourseRowPill(id);
+          }
         } else {
           selectedCourseIds.delete(id);
           row.classList.add('umspec-row-unselected');
           if (chk) chk.checked = false;
         }
         updateSelectionUI();
+        recalculateSelectedVideoBytes();
       };
 
       if (chk) {
         chk.addEventListener('change', (e) => {
+          e.stopPropagation();
           toggleRow(e.target.checked);
         });
       }
 
+      if (inspectBtn) {
+        inspectBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          openCourseInspector(id);
+        });
+      }
+
       row.addEventListener('click', (e) => {
-        if (e.target.closest('.umspec-checkbox-label')) return;
-        toggleRow(!selectedCourseIds.has(id));
+        if (e.target.closest('.umspec-checkbox-label') || e.target.closest('.umspec-course-files-btn')) return;
+        openCourseInspector(id);
       });
     });
 
     updateSelectionUI();
   }
 
-  // Helper: Fetch binary data with abort signal
-  async function fetchBinary(url, defaultName, signal) {
-    const res = await fetch(url, { credentials: 'include', signal });
+  // Helper: Fetch with dedicated per-request timeout
+  async function fetchWithTimeout(url, options = {}, timeoutMs = 25000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      controller.abort(new Error(`Network timeout of ${Math.round(timeoutMs / 1000)}s reached`));
+    }, timeoutMs);
+
+    if (options.signal) {
+      if (options.signal.aborted) {
+        clearTimeout(timer);
+        throw options.signal.reason || new Error('Aborted');
+      }
+      options.signal.addEventListener('abort', () => {
+        clearTimeout(timer);
+        controller.abort(options.signal.reason);
+      }, { once: true });
+    }
+
+    try {
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      return res;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // Helper: Probe media size using HEAD or Range request with short timeout
+  async function probeMediaSize(url, signal) {
+    if (!url || isExternalVideoUrl(url) || (!url.includes('spectrum.um.edu.my') && !url.startsWith('/'))) {
+      return { sizeBytes: 0, isExternal: true, isHtml: false };
+    }
+
+    try {
+      const res = await fetchWithTimeout(url, {
+        method: 'HEAD',
+        credentials: 'include',
+        signal
+      }, 6000);
+
+      if (res.ok) {
+        const ct = (res.headers.get('Content-Type') || '').toLowerCase();
+        const cl = res.headers.get('Content-Length');
+        const sizeBytes = cl ? parseInt(cl, 10) : 0;
+        return {
+          sizeBytes: isNaN(sizeBytes) ? 0 : sizeBytes,
+          contentType: ct,
+          isHtml: ct.includes('text/html')
+        };
+      }
+    } catch (e) {
+      // HEAD may fail, fallback to Range probe
+    }
+
+    try {
+      const res = await fetchWithTimeout(url, {
+        method: 'GET',
+        headers: { 'Range': 'bytes=0-0' },
+        credentials: 'include',
+        signal
+      }, 6000);
+
+      if (res.ok || res.status === 206) {
+        const ct = (res.headers.get('Content-Type') || '').toLowerCase();
+        const cr = res.headers.get('Content-Range') || '';
+        const m = cr.match(/\/(\d+)/);
+        let sizeBytes = m ? parseInt(m[1], 10) : 0;
+        if (!sizeBytes) {
+          const cl = res.headers.get('Content-Length');
+          sizeBytes = cl ? parseInt(cl, 10) : 0;
+        }
+        return {
+          sizeBytes: isNaN(sizeBytes) ? 0 : sizeBytes,
+          contentType: ct,
+          isHtml: ct.includes('text/html')
+        };
+      }
+    } catch (e2) {
+      // Range probe failed
+    }
+
+    return { sizeBytes: 0, contentType: '', isHtml: false };
+  }
+
+  // Helper: Fetch binary data with abort signal, timeout protection & stream reporting
+  async function fetchBinary(url, defaultName, signal, onProgress, skipVideos = false) {
+    if (isExternalVideoUrl(url) || (!url.includes('spectrum.um.edu.my') && !url.startsWith('/'))) {
+      return { isExternal: true, url, filename: defaultName };
+    }
+
+    const res = await fetchWithTimeout(url, { credentials: 'include', signal }, 45000);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const ct = (res.headers.get('Content-Type') || '').toLowerCase();
+    if (skipVideos && globalThis.UmSpecSync.isVideoMaterial({ url: res.url, name: defaultName, mimeType: ct })) {
+      await res.body?.cancel();
+      return { isExternal: true, url: res.url, filename: defaultName };
+    }
     if (ct.includes('text/html')) {
       const html = await res.text();
       const doc = new DOMParser().parseFromString(html, 'text/html');
+
+      const extVideoLink = doc.querySelector('a[href*="panopto"], a[href*="zoom.us"], a[href*="youtube.com"], a[href*="youtu.be"], a[href*="drive.google.com"], iframe[src*="panopto"], iframe[src*="youtube"]');
+      if (extVideoLink) {
+        const extUrl = extVideoLink.getAttribute('src') || extVideoLink.getAttribute('href');
+        return { isExternal: true, url: extUrl, filename: defaultName };
+      }
+
       const realLink = doc.querySelector('.resourceworkaround a, .resourcecontent object, a[href*="pluginfile.php"]');
       if (realLink) {
         const nextUrl = realLink.getAttribute('data') || realLink.getAttribute('href');
-        if (nextUrl && nextUrl.includes('pluginfile.php')) {
-          return fetchBinary(nextUrl, defaultName, signal);
+        if (nextUrl) {
+          if (isExternalVideoUrl(nextUrl) || !nextUrl.includes('spectrum.um.edu.my')) {
+            return { isExternal: true, url: nextUrl, filename: defaultName };
+          }
+          if (nextUrl.includes('pluginfile.php')) {
+            return fetchBinary(nextUrl, defaultName, signal, onProgress, skipVideos);
+          }
         }
       }
       return null;
@@ -1594,12 +2536,488 @@
       }
     }
 
-    const data = await res.arrayBuffer();
-    return { filename: sanitizeName(filename), data };
+    const totalBytes = parseInt(res.headers.get('Content-Length') || '0', 10);
+    const reader = res.body?.getReader();
+
+    if (!reader) {
+      const data = await res.arrayBuffer();
+      return { filename: sanitizeName(filename), data };
+    }
+
+    const chunks = [];
+    let receivedBytes = 0;
+
+    while (true) {
+      if (signal?.aborted) {
+        reader.cancel();
+        throw new Error('Aborted by user');
+      }
+
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      chunks.push(value);
+      receivedBytes += value.length;
+
+      if (onProgress && totalBytes > 0) {
+        onProgress(receivedBytes, totalBytes);
+      }
+    }
+
+    const data = new Uint8Array(receivedBytes);
+    let offset = 0;
+    for (const chunk of chunks) {
+      data.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    return { filename: sanitizeName(filename), data: data.buffer };
   }
 
-  // Zero-Touch Smart Export Pipeline with Live Dino Runner & Abort Handling
-  async function runZeroTouchExport() {
+  // Gemini AI Client with Multi-Key Load Balancing, Backend Proxy, and Fallback Cascade
+  async function callGeminiWithLoadBalancing(prompt, pdfBase64 = null, onStatus = null) {
+    // Determine cascade sequence based on user configuration
+    const primary = geminiPrimaryModel === 'custom'
+      ? (geminiCustomPrimary.trim() || 'gemini-2.0-flash-lite')
+      : geminiPrimaryModel;
+
+    const fallback = geminiFallbackModel === 'custom'
+      ? (geminiCustomFallback.trim() || 'gemini-1.5-flash')
+      : geminiFallbackModel;
+
+    // 1. If user configured a Backend Proxy Endpoint (Chrome Web Store Best Practice), try it first:
+    if (backendEndpointUrl) {
+      const cleanUrl = backendEndpointUrl.replace(/\/+$/, '');
+      try {
+        if (onStatus) onStatus(`[AI] Calling secure backend proxy: ${cleanUrl}...`);
+        console.log(`[UmSpec AI] Calling backend proxy at ${cleanUrl}/api/analyze-proforma`);
+
+        const res = await fetchWithTimeout(`${cleanUrl}/api/analyze-proforma`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt,
+            pdfBase64,
+            primaryModel: primary,
+            fallbackModel: fallback
+          })
+        }, 40000);
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.text) {
+            return {
+              text: data.text,
+              modelUsed: data.modelUsed || primary,
+              keyIndexUsed: data.keyIndexUsed || 0
+            };
+          }
+        }
+        const errText = await res.text();
+        console.warn(`[UmSpec AI] Backend proxy returned error (HTTP ${res.status}): ${errText}`);
+        if (!geminiApiKeyPool || geminiApiKeyPool.length === 0) {
+          throw new Error(`Backend proxy failed (HTTP ${res.status}): ${errText.slice(0, 120)}`);
+        }
+      } catch (backendErr) {
+        console.warn('[UmSpec AI] Backend proxy failed, checking for local key pool failover...', backendErr);
+        if (!geminiApiKeyPool || geminiApiKeyPool.length === 0) {
+          throw backendErr;
+        }
+        if (onStatus) onStatus(`[AI] Backend proxy offline. Falling back to local key pool...`);
+      }
+    }
+
+    // 2. Direct local key pool cascade (for offline dev or personal usage)
+    if (!geminiApiKeyPool || geminiApiKeyPool.length === 0) {
+      throw new Error('AI backend server offline. Please ensure your backend service is running.');
+    }
+
+    const modelsToTry = [
+      primary,
+      fallback,
+      'gemini-2.0-flash',
+      'gemini-1.5-flash'
+    ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
+
+    console.log('[UmSpec AI] Starting direct Gemini request cascade. Models in order:', modelsToTry, 'Keys:', geminiApiKeyPool.length);
+
+    let lastError = null;
+
+    for (let mIdx = 0; mIdx < modelsToTry.length; mIdx++) {
+      const currentModel = modelsToTry[mIdx];
+      const isFallback = mIdx > 0;
+      if (isFallback) {
+        const msg = `[AI] Primary model exhausted/unavailable. Cascading to fallback model: ${currentModel}...`;
+        console.warn(msg);
+        if (onStatus) onStatus(msg);
+      }
+
+      let consecutive429Count = 0;
+
+      for (let k = 0; k < geminiApiKeyPool.length; k++) {
+        const keyIndex = (currentKeyIndex + k) % geminiApiKeyPool.length;
+        const apiKey = geminiApiKeyPool[keyIndex];
+
+        try {
+          const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(currentModel)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+          const parts = [{ text: prompt }];
+          if (pdfBase64) {
+            parts.push({
+              inlineData: {
+                mimeType: 'application/pdf',
+                data: pdfBase64
+              }
+            });
+          }
+
+          const requestBody = {
+            contents: [{ parts }],
+            generationConfig: {
+              temperature: 0.1,
+              responseMimeType: 'application/json'
+            }
+          };
+
+          const res = await fetchWithTimeout(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
+          }, 35000);
+
+          if (res.ok) {
+            const data = await res.json();
+            currentKeyIndex = (keyIndex + 1) % geminiApiKeyPool.length;
+            const textResponse = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!textResponse) throw new Error('Empty text content received from Gemini API');
+            return {
+              text: textResponse,
+              modelUsed: currentModel,
+              keyIndexUsed: keyIndex
+            };
+          }
+
+          if (res.status === 429) {
+            consecutive429Count++;
+            const warnMsg = `[AI] Key #${keyIndex + 1} reached quota / 429 on ${currentModel}. Rotating to next key in pool...`;
+            console.warn(warnMsg);
+            if (onStatus) onStatus(warnMsg);
+            lastError = new Error(`Quota limit (429) on key #${keyIndex + 1}`);
+            continue;
+          }
+
+          if (res.status === 404 || res.status === 400) {
+            const errText = await res.text();
+            console.warn(`[AI] Model '${currentModel}' not found or rejected (HTTP ${res.status}): ${errText.slice(0, 100)}. Cascading to next model...`);
+            lastError = new Error(`Model ${currentModel} returned ${res.status}`);
+            break;
+          }
+
+          const errBody = await res.text();
+          console.warn(`[AI] API call failed on ${currentModel} with status ${res.status}: ${errBody}`);
+          lastError = new Error(`HTTP ${res.status}: ${errBody.slice(0, 100)}`);
+        } catch (callErr) {
+          console.warn(`[AI] Network or fetch error on key #${keyIndex + 1} for ${currentModel}:`, callErr);
+          lastError = callErr;
+        }
+      }
+
+      if (consecutive429Count >= geminiApiKeyPool.length) {
+        const exhaustMsg = `[AI] All ${geminiApiKeyPool.length} keys exhausted on ${currentModel}. Cascading to fallback model...`;
+        console.warn(exhaustMsg);
+        if (onStatus) onStatus(exhaustMsg);
+      }
+    }
+
+    throw lastError || new Error('All Gemini models and API keys failed.');
+  }
+
+  // Scan and analyze course proforma PDFs using Gemini
+  async function analyzeCourseProformas(coursesToExport, signal, statusEl) {
+    if (!geminiEnabled) {
+      return null;
+    }
+
+    const allDeadlines = [];
+
+    for (const course of coursesToExport) {
+      if (signal?.aborted) break;
+
+      // Ensure we have items for this course
+      let items = courseItemsCache.get(course.id);
+      if (!items) {
+        try {
+          const parsed = await fetchAndParseCourseItems(course.id);
+          items = parsed.items;
+          courseItemsCache.set(course.id, items);
+        } catch (e) {
+          items = [];
+        }
+      }
+
+      const cleanCode = (course.folderName.split('_')[0] || '').toUpperCase().trim();
+
+      // 1. Campus Cache-First Check: If backend proxy is configured, check shared global cache
+      if (backendEndpointUrl && cleanCode) {
+        try {
+          const cleanUrl = backendEndpointUrl.replace(/\/+$/, '');
+          const cacheRes = await fetchWithTimeout(`${cleanUrl}/api/v1/course/${encodeURIComponent(cleanCode)}/deadlines`, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' }
+          }, 5000);
+
+          if (cacheRes.ok) {
+            const cachedData = await cacheRes.json();
+            if (cachedData && Array.isArray(cachedData.assessments) && cachedData.assessments.length > 0) {
+              console.log(`[UmSpec AI] Campus Cache HIT for ${cleanCode} (${cachedData.assessments.length} assessments). Reused zero-cost global cache!`);
+              if (statusEl) {
+                statusEl.innerText = `[AI] Instant Cache HIT: ${cleanCode} (Global Campus Cache)`;
+              }
+              allDeadlines.push({
+                courseCode: cachedData.courseCode || cleanCode,
+                courseName: cachedData.courseName || course.fullName,
+                assessments: cachedData.assessments,
+                modelUsed: `${cachedData.modelUsed || 'Gemini'} (Campus Cache)`,
+                summary: cachedData.summary || ''
+              });
+              continue; // Skip proforma download & LLM inference completely!
+            }
+          }
+        } catch (cacheErr) {
+          console.log(`[UmSpec AI] Campus cache check skipped for ${cleanCode}:`, cacheErr.message);
+        }
+      }
+
+      // Find proforma item
+      const proformaItem = items.find(it => it.isProforma || /proforma|pro-forma|outline|maklumat|syllabus/i.test(it.name));
+      if (!proformaItem) continue;
+
+      if (statusEl) {
+        statusEl.innerText = `[AI] Extracting Proforma: ${course.folderName}...`;
+      }
+
+      try {
+        const binRes = await fetchBinary(proformaItem.url, proformaItem.name, signal);
+        if (!binRes || !binRes.data) continue;
+
+        const base64Data = arrayBufferToBase64(binRes.data);
+
+        // 2. Try decentralized ingestion via backend proxy
+        if (backendEndpointUrl && cleanCode) {
+          try {
+            const cleanUrl = backendEndpointUrl.replace(/\/+$/, '');
+            if (statusEl) statusEl.innerText = `[AI] Ingesting into Campus Cache: ${cleanCode}...`;
+            const ingestRes = await fetchWithTimeout(`${cleanUrl}/api/v1/ingest/course`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                courseCode: cleanCode,
+                courseName: course.fullName,
+                academicYear: studentProfile?.yearSem || 'CURRENT',
+                faculty: studentProfile?.faculty || '',
+                pdfBase64: base64Data
+              })
+            }, 45000);
+
+            if (ingestRes.ok) {
+              const ingestData = await ingestRes.json();
+              if (ingestData && Array.isArray(ingestData.assessments) && ingestData.assessments.length > 0) {
+                allDeadlines.push({
+                  courseCode: ingestData.courseCode || cleanCode,
+                  courseName: ingestData.courseName || course.fullName,
+                  assessments: ingestData.assessments,
+                  modelUsed: `${ingestData.modelUsed} (Ingested to Campus Cache)`,
+                  summary: ingestData.summary || ''
+                });
+                console.log(`[UmSpec AI] Successfully ingested ${cleanCode} into Campus Cache!`);
+                continue;
+              }
+            }
+          } catch (ingestErr) {
+            console.warn(`[UmSpec AI] Ingest endpoint failed, falling back to legacy prompt cascade:`, ingestErr);
+          }
+        }
+
+        const prompt = `You are an academic analysis assistant for Universiti Malaya (UM).
+Analyze this official Course Proforma / Course Outline document for "${course.fullName}".
+Extract:
+1. Course code and official course name.
+2. Continuous assessment components (Assignments, Quizzes, Lab Tests, Mid-Terms, Presentations, Projects, Final Examination).
+3. Weightage percentage (e.g. "10%", "20%").
+4. Due week (e.g. "Week 5", "Week 12") and estimated date if specified.
+5. Brief description of requirements.
+
+Output STRICTLY a JSON object with this exact structure:
+{
+  "courseCode": "${course.folderName.split('_')[0] || 'COURSE'}",
+  "courseName": "${course.fullName}",
+  "assessments": [
+    {
+      "name": "Assignment 1",
+      "type": "Assignment",
+      "weightage": "15%",
+      "dueWeek": "Week 6",
+      "estimatedDate": "2026-11-15",
+      "description": "Short description of deliverable"
+    }
+  ]
+}`;
+
+        const aiResult = await callGeminiWithLoadBalancing(prompt, base64Data, (msg) => {
+          if (statusEl) statusEl.innerText = msg;
+        });
+
+        if (aiResult?.text) {
+          let parsed = null;
+          try {
+            const cleanJson = aiResult.text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+            parsed = JSON.parse(cleanJson);
+          } catch (jsonErr) {
+            console.warn('[UmSpec AI] Failed to parse JSON:', jsonErr, aiResult.text);
+          }
+
+          if (parsed && Array.isArray(parsed.assessments)) {
+            allDeadlines.push({
+              courseCode: parsed.courseCode || course.folderName,
+              courseName: parsed.courseName || course.fullName,
+              assessments: parsed.assessments,
+              modelUsed: aiResult.modelUsed
+            });
+            console.log(`[UmSpec AI] Extracted ${parsed.assessments.length} assessment milestones for ${course.folderName}`);
+          }
+        }
+      } catch (err) {
+        console.warn(`[UmSpec AI] Proforma extraction failed for course ${course.folderName}:`, err);
+      }
+    }
+
+    return allDeadlines.length > 0 ? allDeadlines : null;
+  }
+
+  // Generate Markdown summary for deadlines
+  function generateDeadlinesMarkdown(deadlines) {
+    let md = `# Universiti Malaya - Semester Deadlines & Continuous Assessment Matrix\n\n`;
+    md += `> **Auto-Generated by UmSpec AI Pro Engine** on ${new Date().toLocaleString()}\n`;
+    md += `> AI Models Load-Balanced: Multi-Key Pool with Fallback Cascade\n\n`;
+    md += `---\n\n`;
+
+    md += `## Executive Timeline Overview\n\n`;
+    md += `| Course | Assessment / Milestone | Type | Weight | Due Week / Date | Status |\n`;
+    md += `| :--- | :--- | :---: | :---: | :---: | :---: |\n`;
+
+    deadlines.forEach(d => {
+      d.assessments.forEach(a => {
+        const dateStr = a.estimatedDate ? ` (${a.estimatedDate})` : '';
+        const due = `${a.dueWeek || 'TBA'}${dateStr}`;
+        md += `| **${d.courseCode}** | ${a.name} | ${a.type || 'Assessment'} | ${a.weightage || 'N/A'} | ${due} | [ ] Pending |\n`;
+      });
+    });
+
+    md += `\n---\n\n## Course-by-Course Assessment Breakdown\n\n`;
+
+    deadlines.forEach(d => {
+      md += `### ${d.courseCode}: ${d.courseName}\n\n`;
+      d.assessments.forEach((a, idx) => {
+        md += `- [ ] **${a.name}** (${a.weightage || 'N/A'})\n`;
+        md += `  - **Category:** ${a.type || 'Assessment'}\n`;
+        md += `  - **Target Timeline:** ${a.dueWeek || 'TBA'}${a.estimatedDate ? ` [${a.estimatedDate}]` : ''}\n`;
+        if (a.description) {
+          md += `  - **Details:** ${a.description}\n`;
+        }
+      });
+      md += `\n`;
+    });
+
+    md += `\n---\n*AI dates are suggestions. Only reviewed, confirmed dates are included in the calendar file. Importing a file is a one-time copy; use Google Calendar sync for updates.* \n`;
+    return md;
+  }
+
+  // Generate iCalendar (.ics) RFC 5545 file
+  async function generateDeadlinesICS(deadlines) {
+    // AI suggestions stay in Markdown until explicitly reviewed; no guessed dates in calendars.
+    const confirmed = [];
+    for (const course of deadlines) {
+      for (const item of course.assessments || []) {
+        if (item.status !== 'confirmed' || !item.sourceKey || !item.sourceUrl) continue;
+        confirmed.push({ ...item, courseId: String(item.courseId || course.courseCode),
+          sourceType: 'proforma', timeZone: 'Asia/Kuala_Lumpur' });
+      }
+    }
+    return globalThis.UmSpecCalendarCore.generateICS(confirmed, new Date());
+  }
+  // Analyze video materials and sizes across selected courses before exporting
+  async function analyzeSelectedCourses(coursesToAnalyze, signal) {
+    const courseDataMap = new Map();
+    const videoItems = [];
+    let totalVideoBytes = 0;
+
+    for (let i = 0; i < coursesToAnalyze.length; i++) {
+      if (signal?.aborted) break;
+      const course = coursesToAnalyze[i];
+
+      try {
+        const cRes = await fetchWithTimeout(
+          `https://spectrum.um.edu.my/course/view.php?id=${course.id}`,
+          { credentials: 'include', signal },
+          15000
+        );
+        const cHtml = await cRes.text();
+        const { items, externalLinks } = parseCourseActivitiesFromHTML(cHtml, course);
+
+        courseItemsCache.set(course.id, items);
+        if (!courseItemsSelected.has(course.id)) {
+          courseItemsSelected.set(course.id, new Set(items.map(it => it.url)));
+        }
+
+        items.forEach(it => {
+          if (it.isVideo && !it.isExternal) {
+            videoItems.push(it);
+          }
+        });
+
+        courseDataMap.set(course.id, {
+          course,
+          itemsToDownload: items,
+          externalLinks
+        });
+      } catch (err) {
+        console.warn(`[UmSpec] Pre-scan failed for course ${course.id}:`, err);
+      }
+    }
+
+    // Probe video items for Content-Length (short timeout)
+    if (videoItems.length > 0) {
+      for (const vItem of videoItems) {
+        if (signal?.aborted) break;
+        const probe = await probeMediaSize(vItem.url, signal);
+        vItem.sizeBytes = probe.sizeBytes;
+        vItem.isHtml = probe.isHtml;
+        if (probe.sizeBytes > 0) {
+          totalVideoBytes += probe.sizeBytes;
+        } else if (!probe.isHtml && !probe.isExternal) {
+          totalVideoBytes += 120 * 1024 * 1024;
+          vItem.estimated = true;
+        }
+      }
+    }
+
+    const estimatedSeconds = Math.ceil(totalVideoBytes / (5 * 1024 * 1024));
+
+    return {
+      courseDataMap,
+      videoItems,
+      videoCount: videoItems.length,
+      totalVideoBytes,
+      estimatedSeconds
+    };
+  }
+
+  // Handle Export button click with pre-export analysis and video advisory
+  async function handleExportClick() {
+    if (globalThis.UmSpecStudentSync) {
+      try { if (await globalThis.UmSpecStudentSync.exportOrSync()) return; }
+      catch (error) { alert(error.message || 'Sync paused. Check your sync settings.'); return; }
+    }
     if (typeof JSZip === 'undefined') {
       alert('JSZip library is missing. Please refresh the page.');
       return;
@@ -1616,8 +3034,118 @@
       return;
     }
 
-    isExporting = true;
+    // If user explicitly chose "skip" (Fast):
+    if (videoDownloadPreference === 'skip') {
+      runZeroTouchExport({ skipVideos: true });
+      return;
+    }
+
+    // User chose "include" or hasn't confirmed -> Analyze video sizes first
+    const startBtn = document.getElementById('umspec-start-btn');
+    startBtn.disabled = true;
+    startBtn.innerHTML = `${ICONS.loader} <span>ANALYZING VIDEO SIZES...</span>`;
+
+    const cancelBtn = document.getElementById('umspec-cancel-btn');
+    if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+
     abortController = new AbortController();
+
+    try {
+      const analysis = await analyzeSelectedCourses(coursesToExport, abortController.signal);
+
+      // If no video recordings found:
+      if (analysis.videoCount === 0 || analysis.totalVideoBytes === 0) {
+        runZeroTouchExport({ skipVideos: false, cachedData: analysis.courseDataMap });
+        return;
+      }
+
+      // Large video recordings found! Show Nothing OS Video Advisory Card
+      const advCard = document.getElementById('umspec-video-advisory-card');
+      const advCount = document.getElementById('umspec-advisory-count');
+      const advSize = document.getElementById('umspec-advisory-size');
+      const advTime = document.getElementById('umspec-advisory-time');
+      const metricVideos = document.getElementById('umspec-metric-videos');
+      const metricSize = document.getElementById('umspec-metric-size');
+      const metricTime = document.getElementById('umspec-metric-time');
+
+      const sizeStr = formatBytes(analysis.totalVideoBytes);
+      const timeStr = formatEstimatedTime(analysis.estimatedSeconds);
+
+      if (advCount) advCount.innerText = `${analysis.videoCount} Video Recording${analysis.videoCount > 1 ? 's' : ''}`;
+      if (advSize) advSize.innerText = sizeStr;
+      if (advTime) advTime.innerText = `EST. ${timeStr}`;
+      if (metricVideos) metricVideos.innerText = `${analysis.videoCount}`;
+      if (metricSize) metricSize.innerText = sizeStr;
+      if (metricTime) metricTime.innerText = timeStr;
+
+      if (advCard) {
+        advCard.style.display = 'block';
+        advCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+
+      const btnSkip = document.getElementById('umspec-btn-advisory-skip');
+      const btnInclude = document.getElementById('umspec-btn-advisory-include');
+
+      if (btnSkip) {
+        btnSkip.onclick = () => {
+          if (advCard) advCard.style.display = 'none';
+          runZeroTouchExport({ skipVideos: true, cachedData: analysis.courseDataMap });
+        };
+      }
+
+      if (btnInclude) {
+        btnInclude.onclick = () => {
+          if (advCard) advCard.style.display = 'none';
+          runZeroTouchExport({ skipVideos: false, cachedData: analysis.courseDataMap });
+        };
+      }
+
+    } catch (err) {
+      if (err.name === 'AbortError' || !isExporting) {
+        console.log('[UmSpec] Video analysis aborted by user');
+        return;
+      }
+      console.warn('[UmSpec] Video pre-flight analysis error:', err);
+      runZeroTouchExport({ skipVideos: false });
+    } finally {
+      if (!isExporting) {
+        startBtn.disabled = false;
+        updateSelectionUI();
+        if (cancelBtn) cancelBtn.style.display = 'none';
+      }
+    }
+  }
+
+  // Zero-Touch Smart Export Pipeline with Live Dino Runner & Abort Handling
+  async function runZeroTouchExport(options = {}) {
+    if (isExporting) return;
+    const skipVideos = options.skipVideos === undefined ? videoDownloadPreference !== 'include' : Boolean(options.skipVideos);
+    const cachedData = options.cachedData || null;
+
+    if (typeof JSZip === 'undefined') {
+      alert('JSZip library is missing. Please refresh the page.');
+      return;
+    }
+
+    if (detectedCourses.length === 0) {
+      alert('No enrolled courses detected.');
+      return;
+    }
+
+    const coursesToExport = detectedCourses.filter(c => selectedCourseIds.has(c.id));
+    if (coursesToExport.length === 0) {
+      alert('Please select at least one course to export.');
+      return;
+    }
+
+    const advCard = document.getElementById('umspec-video-advisory-card');
+    if (advCard) advCard.style.display = 'none';
+
+    const runId = ++exportRunId;
+    const currentController = new AbortController();
+    const active = () => isExporting && runId === exportRunId && !currentController.signal.aborted;
+    isExporting = true;
+    abortController = currentController;
     window.onbeforeunload = () => 'Export in progress. Exiting will abort download.';
 
     // Collapse the selection panel immediately to focus on Dino runner & progress telemetry
@@ -1641,12 +3169,9 @@
     // Start Chrome Dino Runner Animation
     const canvasEl = document.getElementById('umspec-runner-canvas');
     const scoreEl = document.getElementById('umspec-runner-score');
-    if (canvasEl) {
-      if (!runnerInstance) {
-        runnerInstance = new UmSpecDragonRunner(canvasEl, scoreEl);
-      }
-      runnerInstance.start();
-    }
+    if (canvasEl && !runnerInstance) runnerInstance = new UmSpecDragonRunner(canvasEl, scoreEl);
+    const backBtn = document.getElementById('umspec-export-back');
+    if (backBtn) backBtn.disabled = true;
 
     fillEl.style.background = '#ffffff';
     statusEl.style.color = '';
@@ -1658,8 +3183,33 @@
     const discoveredCategories = new Set();
 
     try {
+      if (runnerInstance) {
+        try { await runnerInstance.start(); }
+        catch (error) { if (scoreEl && active()) scoreEl.innerText = 'Dino unavailable — export continues'; }
+      }
+      if (!active()) return;
+      if (canvasEl && (document.activeElement === startBtn || document.activeElement === document.body)) canvasEl.focus({ preventScroll: true });
+      // Phase 1: Proforma & Continuous Assessment AI Extraction (if enabled)
+      let extractedDeadlines = null;
+      if (geminiEnabled && (backendEndpointUrl || geminiApiKeyPool.length > 0)) {
+        try {
+          statusEl.innerText = 'Scanning proformas & extracting deadlines with Gemini AI...';
+          extractedDeadlines = await analyzeCourseProformas(coursesToExport, currentController.signal, statusEl);
+          if (extractedDeadlines && extractedDeadlines.length > 0) {
+            const mdContent = generateDeadlinesMarkdown(extractedDeadlines);
+            const icsContent = await generateDeadlinesICS(extractedDeadlines);
+            zip.file('DEADLINES_AND_MILESTONES.md', mdContent);
+            zip.file('semester_deadlines.ics', icsContent);
+            totalFiles += 2;
+            console.log('[UmSpec AI] Successfully generated DEADLINES_AND_MILESTONES.md and semester_deadlines.ics');
+          }
+        } catch (aiErr) {
+          console.warn('[UmSpec AI] Proforma deadline extraction encountered error:', aiErr);
+        }
+      }
+
       for (let i = 0; i < coursesToExport.length; i++) {
-        if (!isExporting) break;
+        if (!active()) break;
 
         const course = coursesToExport[i];
         const statusBadge = document.getElementById(`umspec-status-${course.id}`);
@@ -1670,50 +3220,36 @@
 
         statusEl.innerText = `Analyzing course ${i + 1}/${coursesToExport.length}: ${course.fullName}...`;
 
-        const cRes = await fetch(`https://spectrum.um.edu.my/course/view.php?id=${course.id}`, {
-          credentials: 'include',
-          signal: abortController.signal
-        });
-        const cHtml = await cRes.text();
-        const cDoc = new DOMParser().parseFromString(cHtml, 'text/html');
+        let itemsToDownload = [];
+        let externalLinks = [];
 
-        const itemsToDownload = [];
-        const seenUrls = new Set();
-        const externalLinks = [];
+        if (cachedData && cachedData.has(course.id)) {
+          const cData = cachedData.get(course.id);
+          itemsToDownload = [...(cData.itemsToDownload || [])];
+          externalLinks = [...(cData.externalLinks || [])];
+        } else if (courseItemsCache.has(course.id)) {
+          itemsToDownload = [...(courseItemsCache.get(course.id) || [])];
+        } else {
+          const cRes = await fetchWithTimeout(`https://spectrum.um.edu.my/course/view.php?id=${course.id}`, {
+            credentials: 'include',
+            signal: currentController.signal
+          }, 15000);
+          const cHtml = await cRes.text();
+          const parsed = parseCourseActivitiesFromHTML(cHtml, course);
+          itemsToDownload = parsed.items;
+          externalLinks = parsed.externalLinks;
+          courseItemsCache.set(course.id, itemsToDownload);
+        }
 
-        const sections = cDoc.querySelectorAll('.course-content ul.topics > li, .course-content ul.weeks > li, .course-content .section');
-        sections.forEach(sec => {
-          const secTitleEl = sec.querySelector('.sectionname, .section-title, h3');
-          const secName = secTitleEl ? secTitleEl.innerText.trim() : 'General';
+        // Apply granular file/video selections if customized by user
+        if (courseItemsSelected.has(course.id)) {
+          const selectedSet = courseItemsSelected.get(course.id);
+          itemsToDownload = itemsToDownload.filter(it => selectedSet.has(it.url));
+        }
 
-          sec.querySelectorAll('.activity').forEach(act => {
-            const modClasses = Array.from(act.classList).filter(c => c.startsWith('modtype_'));
-            const modType = modClasses.length ? modClasses[0].replace('modtype_', '') : '';
-            if (['attendance', 'forum', 'feedback', 'choice'].includes(modType)) return;
-
-            const inst = act.querySelector('.instancename');
-            let actName = inst ? inst.innerText.trim() : 'Material';
-            ['File', 'URL', 'Assignment', 'Folder', 'Page', 'External tool'].forEach(sfx => {
-              if (actName.endsWith(sfx)) actName = actName.slice(0, -sfx.length).trim();
-            });
-
-            const link = act.querySelector('a');
-            if (!link || !link.href) return;
-            const actUrl = link.href;
-            if (seenUrls.has(actUrl)) return;
-            seenUrls.add(actUrl);
-
-            const extMatch = actUrl.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
-            const ext = extMatch ? `.${extMatch[1]}` : '';
-            const cat = classifyAdaptiveCategory(actName, secName, ext);
-            discoveredCategories.add(cat.label);
-
-            itemsToDownload.push({ name: actName, url: actUrl, type: modType, category: cat.id, section: secName });
-          });
-
-          sec.querySelectorAll('a[href*="youtu.be"], a[href*="youtube.com"], a[href*="drive.google.com"]').forEach(ea => {
-            externalLinks.push({ title: ea.innerText.trim() || 'External Lecture Link', url: ea.href, section: secName });
-          });
+        itemsToDownload.forEach(item => {
+          const cat = classifyAdaptiveCategory(item.name, item.section, '');
+          discoveredCategories.add(cat.label);
         });
 
         if (statusBadge) {
@@ -1724,7 +3260,7 @@
         let courseDownloadedCount = 0;
 
         for (let j = 0; j < itemsToDownload.length; j++) {
-          if (!isExporting) break;
+          if (!active()) break;
 
           const item = itemsToDownload[j];
           statusEl.innerText = `[${course.folderName}] (${j + 1}/${itemsToDownload.length}) ${item.name}`;
@@ -1738,66 +3274,70 @@
             runnerInstance.speed = 4.2 + (progressVal / 100) * 2.8;
           }
 
+          // If skipping videos: save direct link to externalLinks instead of downloading heavy binary
+          if (item.isVideo && skipVideos) {
+            externalLinks.push({
+              title: `${item.name} (Lecture Recording - Direct Link)`,
+              url: item.url,
+              section: item.section
+            });
+            continue;
+          }
+
           try {
-            if (item.type === 'folder') {
-              const fRes = await fetch(item.url, { credentials: 'include', signal: abortController.signal });
-              const fHtml = await fRes.text();
-              const fDoc = new DOMParser().parseFromString(fHtml, 'text/html');
-              const fLinks = fDoc.querySelectorAll('a[href*="pluginfile.php"]');
-              for (const fl of fLinks) {
-                if (!isExporting) break;
-                const fData = await fetchBinary(fl.href, fl.innerText.trim() || item.name, abortController.signal);
-                if (fData) {
-                  zip.file(`${course.folderName}/${item.category}/${fData.filename}`, fData.data);
-                  totalFiles++;
-                  totalBytes += fData.data.byteLength;
-                  courseDownloadedCount++;
-                }
+            const files = await globalThis.UmSpecMaterials.resolveItemFiles(item, currentController.signal, skipVideos ? 'links' : 'include');
+            for (const file of files) {
+              if (!active()) break;
+              if (file.kind === 'link') {
+                externalLinks.push({ title: file.name, url: file.url, section: item.section });
+                continue;
               }
-            } else if (item.type === 'assign') {
-              const aRes = await fetch(item.url, { credentials: 'include', signal: abortController.signal });
-              const aHtml = await aRes.text();
-              const aDoc = new DOMParser().parseFromString(aHtml, 'text/html');
-              const aLinks = aDoc.querySelectorAll('#intro a[href*="pluginfile.php"], .intro a[href*="pluginfile.php"], .fileuploadsubmission a[href*="pluginfile.php"]');
-              for (const al of aLinks) {
-                if (!isExporting) break;
-                const aData = await fetchBinary(al.href, al.innerText.trim() || item.name, abortController.signal);
-                if (aData) {
-                  zip.file(`${course.folderName}/${item.category}/${aData.filename}`, aData.data);
-                  totalFiles++;
-                  totalBytes += aData.data.byteLength;
-                  courseDownloadedCount++;
+              const fData = await fetchBinary(file.url, file.name, currentController.signal, undefined, skipVideos);
+              if (fData?.data) {
+                let path = course.folderName + '/' + item.category + '/' + fData.filename;
+                if (zip.file(path)) {
+                  const suffix = (await globalThis.UmSpecSync.hashParts([item.url, file.url])).slice(0, 8);
+                  path = course.folderName + '/' + item.category + '/' + suffix + '_' + fData.filename;
                 }
-              }
-            } else {
-              const fData = await fetchBinary(item.url, item.name, abortController.signal);
-              if (fData) {
-                zip.file(`${course.folderName}/${item.category}/${fData.filename}`, fData.data);
-                totalFiles++;
-                totalBytes += fData.data.byteLength;
-                courseDownloadedCount++;
+                zip.file(path, fData.data);
+                totalFiles++; totalBytes += fData.data.byteLength; courseDownloadedCount++;
+              } else if (fData?.isExternal) {
+                externalLinks.push({ title: fData.filename, url: fData.url, section: item.section });
               }
             }
           } catch (e) {
-            if (e.name === 'AbortError' || !isExporting) break;
+            if (e.name === 'AbortError' || !active()) break;
             console.warn(`[UmSpec] Failed item ${item.name}:`, e);
+            // Never hang the pipeline: preserve link in markdown
+            externalLinks.push({
+              title: `${item.name} (Download skipped: ${e.message || 'network restriction'})`,
+              url: item.url,
+              section: item.section
+            });
           }
         }
 
-        if (!isExporting) break;
+        if (!active()) break;
 
-        // Save external links markdown if present
+        // Save external links markdown into both Lecture Slides and Recordings folders
         if (externalLinks.length > 0) {
-          let linksMd = `# ${course.fullName} - Lecture & Video Links\n\n`;
+          let linksMd = `# ${globalThis.UmSpecMaterials.markdownText(course.fullName)} - Lecture & Video Links\n\n`;
+          linksMd += `> Captured by UmSpec Smart Exporter on ${new Date().toLocaleString()}\n\n`;
           let curSec = null;
+          let rejectedLinks = 0;
           externalLinks.forEach(el => {
+            let link;
+            try { link = globalThis.UmSpecMaterials.markdownLink(el.title, el.url); }
+            catch { rejectedLinks++; return; }
             if (el.section !== curSec) {
               curSec = el.section;
-              linksMd += `\n### ${curSec}\n\n`;
+              linksMd += `\n### ${globalThis.UmSpecMaterials.markdownText(curSec || 'General')}\n\n`;
             }
-            linksMd += `- [${el.title}](${el.url})\n`;
+            linksMd += `- ${link}\n`;
           });
+          if (rejectedLinks) linksMd += `\n> ${rejectedLinks} unsafe link(s) omitted.\n`;
           zip.file(`${course.folderName}/1.Lecture Slide/Lecture_Videos_and_Links.md`, linksMd);
+          zip.file(`${course.folderName}/7.Recordings & Media/Lecture_Videos_and_Links.md`, linksMd);
           courseDownloadedCount++;
           totalFiles++;
         }
@@ -1811,7 +3351,7 @@
         auditRows.push(`| **${course.folderName}** | ${course.fullName} | ${courseDownloadedCount} files | ${courseStatus} |`);
       }
 
-      if (!isExporting) {
+      if (!active()) {
         console.log('[UmSpec] Download cancelled before compression');
         return;
       }
@@ -1835,6 +3375,7 @@
 * **Detected Programme:** ${studentProfile?.bachelor || 'Bachelor of Computer Science'}
 * **Academic Period:** ${studentProfile?.yearSem || 'Year 2, Semester 1'}
 * **Total Enrolled Courses:** ${detectedCourses.length} Courses (${coursesToExport.length} Exported)
+* **Video Optimization:** ${skipVideos ? 'Links Indexed (Fast)' : 'Full Media Download'}
 
 ---
 
@@ -1870,14 +3411,14 @@ ${Array.from(discoveredCategories).map(c => `* **${c}**`).join('\n')}
       const zipBlob = await zip.generateAsync(
         { type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 5 } },
         (meta) => {
-          if (!isExporting) return;
+          if (!active()) return;
           percentEl.innerText = `${Math.round(meta.percent)}%`;
           fillEl.style.width = `${meta.percent}%`;
           statusEl.innerText = `Compressing: ${Math.round(meta.percent)}% done...`;
         }
       );
 
-      if (!isExporting) return;
+      if (!active()) return;
 
       const downloadUrl = URL.createObjectURL(zipBlob);
       const downloadLink = document.createElement('a');
@@ -1897,21 +3438,93 @@ ${Array.from(discoveredCategories).map(c => `* **${c}**`).join('\n')}
       }
 
     } catch (err) {
-      if (err.name === 'AbortError' || !isExporting) {
+      if (err.name === 'AbortError' || !active()) {
         console.log('[UmSpec] Export was aborted by user');
         return;
       }
       console.error('[UmSpec] Smart export error:', err);
+      runnerInstance?.stop('ABORTED');
       statusEl.innerText = `ERROR // ${err.message}`;
       alert(`Smart export failed: ${err.message}`);
     } finally {
-      isExporting = false;
-      window.onbeforeunload = null;
-      if (cancelBtn) cancelBtn.style.display = 'none';
-      startBtn.disabled = false;
+      if (runId === exportRunId) {
+        isExporting = false;
+        abortController = null;
+        window.onbeforeunload = null;
+        if (cancelBtn) cancelBtn.style.display = 'none';
+        if (backBtn) backBtn.disabled = false;
+        startBtn.disabled = false;
+      }
     }
   }
 
+  function syncUserId(doc) {
+    const profile = doc.querySelector('.usermenu a[href*="/user/profile.php"], .usermenu a[href*="/user/view.php"], [data-region="usermenu"] a[href*="/user/profile.php"]');
+    const href = profile?.getAttribute('href');
+    const userId = href && new URL(href, location.origin).searchParams.get('id');
+    return /^[1-9]\d*$/.test(userId || '') ? userId : null;
+  }
+  function getSyncContext() {
+    if (location.origin !== 'https://spectrum.um.edu.my' || /\/login[/.]/.test(location.pathname) || !getSesskey()) return null;
+    const userId = syncUserId(document);
+    return userId ? { userId, origin: location.origin } : null;
+  }
+  async function verifySyncContext() {
+    const current = getSyncContext();
+    if (!current) throw Object.assign(new Error('Sign in to Spectrum again.'), { code: 'LOGIN_REQUIRED' });
+    // Verify the cookie session rather than trusting a tab whose user-menu DOM may be stale.
+    const response = await fetchWithTimeout(location.origin + '/my/', {
+      credentials: 'include', cache: 'no-store', redirect: 'error'
+    }, 20000);
+    if (!response.ok || new URL(response.url).origin !== location.origin) {
+      throw Object.assign(new Error('Spectrum session could not be verified.'), { code: 'LOGIN_REQUIRED' });
+    }
+    const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+    if (syncUserId(doc) !== current.userId) {
+      throw Object.assign(new Error('Spectrum account changed. Refresh this tab before syncing.'), { code: 'ACCOUNT_CHANGED' });
+    }
+    return current;
+  }
+  async function resolveCourseMaterials(course, selectedUrls, signal) {
+    const parsed = await fetchAndParseCourseItems(course.id, signal);
+    const materials = [];
+    for (const item of parsed.items) {
+      if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
+      if (selectedUrls && !selectedUrls.has(item.url)) continue;
+      const files = item.isVideo && videoDownloadPreference !== 'include'
+        ? [{ url: item.url, name: item.name, kind: 'link' }]
+        : await globalThis.UmSpecMaterials.resolveItemFiles(item, signal, videoDownloadPreference === 'include' ? 'include' : 'links');
+      for (const file of files) materials.push(await globalThis.UmSpecMaterials.describeMaterial(course, item, file, ''));
+    }
+    return [...new Map(materials.map(item => [item.sourceKey, item])).values()];
+  }
+  globalThis.UmSpecExporter = {
+    getContext: getSyncContext, verifyContext: verifySyncContext, getSesskey, generateDeadlinesICS, resolveCourseMaterials,
+    discoverCourses: async () => {
+      detectedCourses = await discoverCourses();
+      return detectedCourses;
+    },
+    selectedCourses: () => detectedCourses.filter(c => selectedCourseIds.has(c.id)),
+    selectedUrls: courseId => courseItemsSelected.get(Number(courseId)) || null,
+    videoPolicy: () => videoDownloadPreference === 'include' ? 'include' : 'links',
+    applySettings(settings) {
+      videoDownloadPreference = settings.videoPolicy === 'include' ? 'include' : 'skip';
+      localStorage.setItem('umspec_video_pref', videoDownloadPreference);
+      destinationMode = settings.mode === 'drive' ? 'drive' : 'zip';
+      updateSelectionUI();
+    },
+    showTab: showModalTab,
+    setSelectedCourses(ids) { selectedCourseIds = new Set(ids.map(Number)); if (document.getElementById('umspec-course-count')) renderCoursesList(); },
+    exportZip: () => runZeroTouchExport({ skipVideos: videoDownloadPreference !== 'include' }),
+    openModal,
+    fetchCourse: async (courseId, signal) => {
+      const response = await fetchWithTimeout('https://spectrum.um.edu.my/course/view.php?id=' + courseId, { credentials: 'include', signal }, 25000);
+      if (!response.ok || new URL(response.url).origin !== location.origin || /\/login[/.]/.test(new URL(response.url).pathname)) throw new Error('Sign in to Spectrum again.');
+      const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+      if (doc.querySelector('form#login, input[name="password"]')) throw new Error('Spectrum session expired.');
+      return doc;
+    }
+  };
   // Inject UI on SPeCTRUM
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', injectTriggerButton);
