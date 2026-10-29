@@ -2041,7 +2041,7 @@
 
     // If items not cached, fetch from SPeCTRUM
     if (!courseItemsCache.has(courseId)) {
-      const scrollEl = document.getElementById('umspec-right-materials-list') || document.getElementById('umspec-left-materials-list');
+      const scrollEl = document.getElementById('umspec-right-materials-list');
       if (scrollEl) {
         scrollEl.innerHTML = `
           <div style="padding: 32px 16px; text-align: center; color: #94a3b8; font-family: var(--umspec-font-mono); font-size: 10px; display: flex; align-items: center; justify-content: center; gap: 8px;">
@@ -2059,7 +2059,7 @@
         // Background probe video sizes for this course
         probeCourseVideos(parsed.items);
       } catch (err) {
-        const scrollEl = document.getElementById('umspec-right-materials-list') || document.getElementById('umspec-left-materials-list');
+        const scrollEl = document.getElementById('umspec-right-materials-list');
         if (scrollEl) {
           scrollEl.innerHTML = `
             <div style="padding: 24px; text-align: center; color: #ef4444; font-size: 10px; font-family: var(--umspec-font-mono);">
@@ -2077,11 +2077,11 @@
 
   // Render Material Items inside Right Inspector Drawer
   function renderRightDrawerMaterials(courseId) {
-    const scrollEl = document.getElementById('umspec-right-materials-list') || document.getElementById('umspec-left-materials-list');
-    const badgeCount = document.getElementById('umspec-right-item-badge') || document.getElementById('umspec-left-item-badge');
-    const selCountEl = document.getElementById('umspec-right-selected-count') || document.getElementById('umspec-left-selected-count');
-    const totCountEl = document.getElementById('umspec-right-total-count') || document.getElementById('umspec-left-total-count');
-    const footerSummary = document.getElementById('umspec-right-footer-summary') || document.getElementById('umspec-left-footer-summary');
+    const scrollEl = document.getElementById('umspec-right-materials-list');
+    const badgeCount = document.getElementById('umspec-right-item-badge');
+    const selCountEl = document.getElementById('umspec-right-selected-count');
+    const totCountEl = document.getElementById('umspec-right-total-count');
+    const footerSummary = document.getElementById('umspec-right-footer-summary');
     if (!scrollEl) return;
 
     const allItems = courseItemsCache.get(courseId) || [];
@@ -2192,9 +2192,6 @@
       footerSummary.innerText = `${selectedSet.size} of ${allItems.length} Files Selected`;
     }
   }
-
-  // Backward compatibility alias
-  const renderLeftDrawerMaterials = renderRightDrawerMaterials;
 
   // Probe media size for video items in a course
   async function probeCourseVideos(items) {
