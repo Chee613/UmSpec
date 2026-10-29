@@ -51,7 +51,8 @@ if (typeof importScripts === 'function') {
       } else {
         const all = Object.values(state.bindings || {});
         if (all.length > 0) {
-          binding = all.find(b => b.hash === state.contexts[String(state.lastTabId)]?.bindingHash) || all[0];
+          binding = all.find(b => b.googleSub && b.googleSub === state.google?.sub) ||
+            all.find(b => b.hash === state.contexts[String(state.lastTabId)]?.bindingHash) || all[0];
         }
       }
     }
@@ -65,6 +66,9 @@ if (typeof importScripts === 'function') {
         };
       }
       binding = state.bindings[defaultHash];
+    }
+    if (!context && tabId != null) {
+      context = state.contexts[String(tabId)] = { bindingHash: binding.hash, userId: binding.spectrumUserId };
     }
     return { binding, context, tabId };
   }
@@ -270,8 +274,13 @@ if (typeof importScripts === 'function') {
       connected.features = [...new Set([...(connected.features || []), message.feature])];
       connected.settings[message.feature === 'drive' ? 'mode' : 'calendarEnabled'] = message.feature === 'drive' ? 'drive' : true;
       state.bindings[hash] = connected;
+      if (binding.hash === 'default_student_binding') delete state.bindings['default_student_binding'];
       state.google = account;
-      context.bindingHash = hash;
+      if (context) {
+        context.bindingHash = hash;
+      } else if (tabId != null) {
+        state.contexts[String(tabId)] = { bindingHash: hash, userId: binding.spectrumUserId };
+      }
       if (state.activeJob) state.activeJob.status = 'paused';
       for (const feature of ['drive', 'calendar']) if (state[jobField(feature)]?.bindingHash !== hash) parkJob(state, feature);
       await save(state);

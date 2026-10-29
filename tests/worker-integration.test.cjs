@@ -649,3 +649,13 @@ test('disconnect removes a parked partial-upload URL while retaining its writer 
   assert.equal(uploaded.sha256Checksum, hash);
   assert.equal([...env.files.values()].filter(file => file.appProperties?.sourceKey === material().sourceKey).length, 1);
 });
+
+test('options dashboard connects Google Calendar directly without prior SET_CONTEXT and without bindingHash crash', async t => {
+  const env = environment(t);
+  const optionsSender = { id: 'integration', url: 'chrome-extension://integration/options/options.html#calendar' };
+  const connected = await send({ type: 'CONNECT_GOOGLE', feature: 'calendar' }, optionsSender);
+  assert.equal(connected.ok, true, JSON.stringify(connected));
+  assert.ok(connected.data.account?.email);
+  assert.ok(connected.data.account?.features.includes('calendar'));
+  assert.equal(connected.data.settings.calendarEnabled, true);
+});
