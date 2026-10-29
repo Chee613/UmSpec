@@ -32,10 +32,13 @@ if (typeof importScripts === 'function') {
   async function save(state) { await chrome.storage.local.set({ umspecState: state }); }
   function senderKind(sender) {
     if (sender?.id !== chrome.runtime.id) throw error('FORBIDDEN', 'Unknown extension sender.');
-    if (sender.url === chrome.runtime.getURL('popup/popup.html') || sender.url === chrome.runtime.getURL('options/options.html')) return 'popup';
-    try {
-      if (new URL(sender.url).origin === 'https://spectrum.um.edu.my' && Number.isInteger(sender.tab?.id)) return 'content';
-    } catch {}
+    if (typeof sender.url === 'string') {
+      if (sender.url.startsWith(chrome.runtime.getURL('popup/popup.html')) ||
+          sender.url.startsWith(chrome.runtime.getURL('options/options.html'))) return 'popup';
+      try {
+        if (new URL(sender.url).origin === 'https://spectrum.um.edu.my' && Number.isInteger(sender.tab?.id)) return 'content';
+      } catch {}
+    }
     throw error('FORBIDDEN', 'Open the extension on Spectrum.');
   }
   function bindingFor(state, sender, message) {
@@ -52,7 +55,17 @@ if (typeof importScripts === 'function') {
         }
       }
     }
-    if (!binding) throw error('LOGIN_REQUIRED', 'Open an authenticated Spectrum page first.');
+    if (!binding) {
+      const defaultHash = 'default_student_binding';
+      if (!state.bindings[defaultHash]) {
+        state.bindings[defaultHash] = {
+          hash: defaultHash, spectrumOrigin: 'https://spectrum.um.edu.my', spectrumUserId: 'local_student',
+          googleSub: null, googleEmail: null, features: [], settings: defaults(), syncTimes: {},
+          candidates: {}, events: {}, driveRootId: null, calendarId: null
+        };
+      }
+      binding = state.bindings[defaultHash];
+    }
     return { binding, context, tabId };
   }
   function publicStatus(state, sender, message) {
@@ -207,11 +220,17 @@ if (typeof importScripts === 'function') {
       const existing = Object.values(state.bindings).find(b => b.spectrumUserId === String(message.userId) &&
         b.googleSub === state.google?.sub);
       const hash = existing?.hash || await core().hashParts(['https://spectrum.um.edu.my', String(message.userId)]);
-      if (!state.bindings[hash]) state.bindings[hash] = {
-        hash, spectrumOrigin: 'https://spectrum.um.edu.my', spectrumUserId: String(message.userId),
-        googleSub: null, googleEmail: null, features: [], settings: defaults(), syncTimes: {},
-        candidates: {}, events: {}, driveRootId: null, calendarId: null
-      };
+      if (!state.bindings[hash]) {
+        const fallback = state.bindings['default_student_binding'];
+        state.bindings[hash] = {
+          hash, spectrumOrigin: 'https://spectrum.um.edu.my', spectrumUserId: String(message.userId),
+          googleSub: state.google?.sub || fallback?.googleSub || null,
+          googleEmail: state.google?.email || fallback?.googleEmail || null,
+          features: fallback?.features || (state.google ? ['drive'] : []),
+          settings: fallback?.settings ? { ...fallback.settings } : defaults(),
+          syncTimes: {}, candidates: {}, events: {}, driveRootId: null, calendarId: null
+        };
+      }
       if (old && old.bindingHash !== hash && state.activeJob?.tabId === tabId) state.activeJob.status = 'paused';
       if (old && old.bindingHash !== hash && state.calendarJob?.tabId === tabId) state.calendarJob.status = 'paused';
       state.contexts[String(tabId)] = { bindingHash: hash, userId: String(message.userId) };

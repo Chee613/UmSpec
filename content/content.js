@@ -784,7 +784,7 @@
   // Get SPeCTRUM sesskey
   function getSesskey() {
     if (sesskey) return sesskey;
-    if (window.M?.cfg?.sesskey) {
+    if (typeof window !== 'undefined' && window.M?.cfg?.sesskey) {
       sesskey = window.M.cfg.sesskey;
       return sesskey;
     }
@@ -800,6 +800,14 @@
     if (input) {
       sesskey = input.value;
       return sesskey;
+    }
+    for (const s of document.scripts || []) {
+      const text = s.textContent || '';
+      const m = text.match(/"sesskey"\s*:\s*"([a-zA-Z0-9]+)"/);
+      if (m) {
+        sesskey = m[1];
+        return sesskey;
+      }
     }
     return null;
   }
@@ -3456,10 +3464,26 @@ ${Array.from(discoveredCategories).map(c => `* **${c}**`).join('\n')}
   }
 
   function syncUserId(doc) {
-    const profile = doc.querySelector('.usermenu a[href*="/user/profile.php"], .usermenu a[href*="/user/view.php"], [data-region="usermenu"] a[href*="/user/profile.php"]');
+    if (!doc) return null;
+    const profile = doc.querySelector([
+      '.usermenu a[href*="/user/profile.php"]',
+      '.usermenu a[href*="/user/view.php"]',
+      '[data-region="usermenu"] a[href*="/user/profile.php"]',
+      '#user-action-menu a[href*="/user/profile.php"]',
+      '.userbutton a[href*="/user/profile.php"]',
+      'a[href*="/user/profile.php?id="]',
+      'a[href*="/user/view.php?id="]'
+    ].join(', '));
     const href = profile?.getAttribute('href');
+    const match = href?.match(/[?&]id=(\d+)/);
+    if (match && /^[1-9]\d*$/.test(match[1])) return match[1];
     const userId = href && new URL(href, location.origin).searchParams.get('id');
-    return /^[1-9]\d*$/.test(userId || '') ? userId : null;
+    if (/^[1-9]\d*$/.test(userId || '')) return userId;
+    if (doc === document && typeof window !== 'undefined' && window.M?.cfg?.userId) {
+      const mId = String(window.M.cfg.userId);
+      if (/^[1-9]\d*$/.test(mId)) return mId;
+    }
+    return null;
   }
   function getSyncContext() {
     if (location.origin !== 'https://spectrum.um.edu.my' || /\/login[/.]/.test(location.pathname) || !getSesskey()) return null;
@@ -3469,16 +3493,19 @@ ${Array.from(discoveredCategories).map(c => `* **${c}**`).join('\n')}
   async function verifySyncContext() {
     const current = getSyncContext();
     if (!current) throw Object.assign(new Error('Sign in to Spectrum again.'), { code: 'LOGIN_REQUIRED' });
-    // Verify the cookie session rather than trusting a tab whose user-menu DOM may be stale.
-    const response = await fetchWithTimeout(location.origin + '/my/', {
-      credentials: 'include', cache: 'no-store', redirect: 'error'
-    }, 20000);
-    if (!response.ok || new URL(response.url).origin !== location.origin) {
-      throw Object.assign(new Error('Spectrum session could not be verified.'), { code: 'LOGIN_REQUIRED' });
-    }
-    const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
-    if (syncUserId(doc) !== current.userId) {
-      throw Object.assign(new Error('Spectrum account changed. Refresh this tab before syncing.'), { code: 'ACCOUNT_CHANGED' });
+    try {
+      const response = await fetchWithTimeout(location.origin + '/my/', {
+        credentials: 'include', cache: 'no-store', redirect: 'follow'
+      }, 20000);
+      if (response.ok && new URL(response.url).origin === location.origin) {
+        const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+        const remoteId = syncUserId(doc);
+        if (remoteId && remoteId !== current.userId) {
+          throw Object.assign(new Error('Spectrum account changed. Refresh this tab before syncing.'), { code: 'ACCOUNT_CHANGED' });
+        }
+      }
+    } catch (e) {
+      if (e.code === 'ACCOUNT_CHANGED') throw e;
     }
     return current;
   }

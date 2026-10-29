@@ -355,3 +355,4 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadAcademicProfile();
   await detectContext();
 });
+
