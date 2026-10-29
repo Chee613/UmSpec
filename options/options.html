@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>UmSpec Settings & Dashboard</title>
+  <title>UmSpec Student Settings &amp; Dashboard</title>
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
@@ -21,7 +21,7 @@
         <span class="version-badge">v2.0.2</span>
       </div>
 
-      <nav class="sidebar-nav" role="tablist" aria-label="Dashboard views">
+      <nav class="sidebar-nav" role="tablist" aria-label="Student options navigation">
         <button type="button" class="nav-item active" data-view="overview" role="tab" aria-selected="true">
           <svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
           <span>Overview</span>
@@ -34,24 +34,20 @@
           <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/></svg>
           <span>Google Calendar</span>
         </button>
-        <button type="button" class="nav-item" data-view="ai" role="tab" aria-selected="false">
-          <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.38-1 1.72V7h2a4 4 0 0 1 4 4v1h1a3 3 0 0 1 3 3v2a3 3 0 0 1-3 3h-1v1a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4v-1H6a3 3 0 0 1-3-3v-2a3 3 0 0 1 3-3h1v-1a4 4 0 0 1 4-4h2V5.72A2 2 0 0 1 10 4a2 2 0 0 1 2-2zm-3 9a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm6 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg>
-          <span>Campus AI &amp; Cache</span>
-        </button>
         <button type="button" class="nav-item" data-view="profile" role="tab" aria-selected="false">
           <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 3 1 9l11 6 9-4.91V17h2V9L12 3zm0 8.55L4.54 9 12 4.95 19.46 9 12 11.55zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/></svg>
           <span>Academic Profile</span>
         </button>
         <button type="button" class="nav-item" data-view="help" role="tab" aria-selected="false">
           <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 16h-2v-2h2v2zm1.07-7.75-.9.92C12.45 11.9 12 12.5 12 14h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 .88-.36 1.68-.93 2.25z"/></svg>
-          <span>Help &amp; Privacy</span>
+          <span>Help &amp; FAQ</span>
         </button>
       </nav>
 
       <div class="sidebar-footer">
         <div class="connection-status">
           <div class="status-indicator-dot" id="dot-spectrum"></div>
-          <span id="text-spectrum">SPeCTRUM: Checking...</span>
+          <span id="text-spectrum">SPeCTRUM: Standby</span>
         </div>
         <div class="connection-status">
           <div class="status-indicator-dot" id="dot-google"></div>
@@ -63,38 +59,38 @@
       </div>
     </aside>
 
-    <!-- Main Content Panel -->
+    <!-- Main Content Area -->
     <main class="main-content">
-      <!-- Notification Bar -->
+      <!-- Toast Notification -->
       <div id="status-toast" class="toast" role="status" aria-live="polite" hidden></div>
 
       <!-- VIEW 1: OVERVIEW -->
       <section id="view-overview" class="view-panel active">
         <div class="panel-header">
-          <h1>System Overview</h1>
-          <p class="panel-desc">Operational health of your UmSpec SPeCTRUM synchronizer, Google integrations, and Campus AI cache.</p>
+          <h1>Student Dashboard</h1>
+          <p class="panel-desc">Quick status of your SPeCTRUM sync, Google Drive backups, and Calendar schedule.</p>
         </div>
 
         <div class="metrics-grid">
           <div class="metric-card">
             <span class="metric-label">SPeCTRUM PORTAL</span>
-            <div class="metric-value" id="ov-spectrum-val">Connecting...</div>
-            <span class="metric-sub" id="ov-spectrum-sub">Detecting active student session</span>
+            <div class="metric-value" id="ov-spectrum-val">Standby</div>
+            <span class="metric-sub" id="ov-spectrum-sub">Open SPeCTRUM tab to link</span>
           </div>
           <div class="metric-card">
-            <span class="metric-label">GOOGLE ACCOUNT</span>
-            <div class="metric-value" id="ov-google-val">Not Connected</div>
-            <span class="metric-sub" id="ov-google-sub">Drive &amp; Calendar offline</span>
+            <span class="metric-label">GOOGLE DRIVE</span>
+            <div class="metric-value" id="ov-drive-val">Offline</div>
+            <span class="metric-sub" id="ov-drive-sub">Connect to auto-sync notes</span>
           </div>
           <div class="metric-card">
-            <span class="metric-label">CAMPUS AI PROXY</span>
-            <div class="metric-value" id="ov-ai-val">Ready</div>
-            <span class="metric-sub" id="ov-ai-sub">Cloudflare Worker Edge Cache</span>
+            <span class="metric-label">GOOGLE CALENDAR</span>
+            <div class="metric-value" id="ov-calendar-val">Offline</div>
+            <span class="metric-sub" id="ov-calendar-sub">Assignment dates &amp; exams</span>
           </div>
           <div class="metric-card">
             <span class="metric-label">DEFAULT EXPORT</span>
             <div class="metric-value" id="ov-export-val">ZIP Archive</div>
-            <span class="metric-sub" id="ov-export-sub">Instant zero-touch export</span>
+            <span class="metric-sub" id="ov-export-sub">Instant zero-touch download</span>
           </div>
         </div>
 
@@ -105,7 +101,7 @@
           <div class="card-body action-row">
             <button type="button" class="btn btn-primary" id="btn-quick-drive">Connect Google Drive</button>
             <button type="button" class="btn btn-secondary" id="btn-quick-calendar">Connect Google Calendar</button>
-            <button type="button" class="btn btn-secondary" id="btn-quick-test-ai">Test Campus AI Speed</button>
+            <button type="button" class="btn btn-secondary" id="btn-quick-spectrum">Open SPeCTRUM Portal</button>
           </div>
         </div>
       </section>
@@ -114,17 +110,17 @@
       <section id="view-drive" class="view-panel" hidden>
         <div class="panel-header">
           <h1>Google Drive Integration</h1>
-          <p class="panel-desc">Keep your SPeCTRUM lecture notes, labs, tutorials, and past year papers synchronized to your private Google Drive folder.</p>
+          <p class="panel-desc">Synchronize lecture slides, labs, tutorials, and past year papers directly to your Google Drive.</p>
         </div>
 
         <div class="card">
           <div class="card-header">
-            <h3>Google Account Authentication</h3>
+            <h3>Google Account</h3>
           </div>
           <div class="card-body">
             <div class="auth-status-row">
               <div class="auth-info">
-                <span class="auth-label">Current Google Account:</span>
+                <span class="auth-label">Connected Google Account:</span>
                 <span class="auth-email" id="drive-email-display">Not connected</span>
               </div>
               <div class="auth-buttons">
@@ -132,41 +128,53 @@
                 <button type="button" class="btn btn-danger" id="btn-disconnect-google" disabled>Disconnect Account</button>
               </div>
             </div>
-            <p class="helper-text">
-              <strong>Zero-Touch Privacy:</strong> UmSpec uses the standard <code>drive.file</code> scope, meaning it can <em>only</em> access files and folders it creates itself. It cannot read any unrelated personal documents on your Google Drive.
+
+            <!-- Error 403 / Test User Helper Alert -->
+            <div class="helper-box alert-box">
+              <div class="alert-title">Getting "Access Blocked / Error 403: access_denied"?</div>
+              <p>While UmSpec is in development, Google requires your Gmail account to be listed under <strong>Test Users</strong> in Google Cloud Console:</p>
+              <ol class="alert-steps">
+                <li>Go to <a href="https://console.cloud.google.com/apis/credentials/consent" target="_blank" rel="noopener noreferrer">Google Cloud Console &gt; OAuth consent screen</a>.</li>
+                <li>Under <strong>Test users</strong>, click <strong>+ ADD USERS</strong> and enter your email address.</li>
+                <li>Click <strong>Save</strong>, then click <em>Connect Google Drive</em> above again!</li>
+              </ol>
+            </div>
+
+            <p class="helper-text" style="margin-top: 14px;">
+              <strong>Zero-Touch Privacy:</strong> UmSpec uses the restricted <code>drive.file</code> scope. It can <em>only</em> see and modify folders and files created by UmSpec. It cannot access any personal files on your Google Drive.
             </p>
           </div>
         </div>
 
         <div class="card">
           <div class="card-header">
-            <h3>Drive Preferences</h3>
+            <h3>Folder &amp; Download Preferences</h3>
           </div>
           <div class="card-body form-grid">
             <div class="form-group">
-              <label for="input-archive-name">Semester Folder Name</label>
-              <input type="text" id="input-archive-name" class="input-text" maxlength="80" placeholder="2026–27 Semester 1">
-              <span class="field-hint">The root folder created inside your Google Drive for this semester's courses.</span>
+              <label for="input-archive-name">Semester Folder Name in Google Drive</label>
+              <input type="text" id="input-archive-name" class="input-text" maxlength="80" placeholder="2026/2027 Semester 1">
+              <span class="field-hint">The folder created inside your Google Drive for this semester's enrolled courses.</span>
             </div>
 
             <div class="toggle-row">
               <div class="toggle-info">
                 <label for="toggle-auto-sync"><strong>Automatic Drive Updates</strong></label>
-                <span class="field-hint">Automatically checks for new files when you browse SPeCTRUM. (Available after 1st successful sync).</span>
+                <span class="field-hint">Checks for new course files in the background when you browse SPeCTRUM.</span>
               </div>
               <input type="checkbox" id="toggle-auto-sync" class="toggle-input">
             </div>
 
             <div class="toggle-row">
               <div class="toggle-info">
-                <label for="toggle-video-download"><strong>Download Video Recordings</strong></label>
-                <span class="field-hint">Off saves lecture recording links into a Markdown file. On downloads full video MP4 files into Drive.</span>
+                <label for="toggle-video-download"><strong>Download Video Files</strong></label>
+                <span class="field-hint">Off saves lecture recording URLs as links (recommended for faster sync). On downloads full video MP4 files.</span>
               </div>
               <input type="checkbox" id="toggle-video-download" class="toggle-input">
             </div>
 
             <div class="form-actions">
-              <button type="button" class="btn btn-primary" id="btn-save-drive-settings">Save Preferences</button>
+              <button type="button" class="btn btn-primary" id="btn-save-drive-settings">Save Drive Preferences</button>
             </div>
           </div>
         </div>
@@ -176,7 +184,7 @@
       <section id="view-calendar" class="view-panel" hidden>
         <div class="panel-header">
           <h1>Google Calendar Integration</h1>
-          <p class="panel-desc">Automatically export assignment milestones, quiz deadlines, and exam schedules to your Google Calendar.</p>
+          <p class="panel-desc">Export assignment deadlines, quiz milestones, and exam schedules to your Google Calendar.</p>
         </div>
 
         <div class="card">
@@ -194,20 +202,20 @@
               </div>
             </div>
             <p class="helper-text">
-              Creates a dedicated <strong>UM Spec</strong> calendar in your Google account so your personal calendars remain untouched.
+              Creates a dedicated <strong>UM Spec</strong> calendar in your Google account so your personal calendars remain separate and untouched.
             </p>
           </div>
         </div>
 
         <div class="card">
           <div class="card-header">
-            <h3>Calendar Settings</h3>
+            <h3>Calendar Preferences</h3>
           </div>
           <div class="card-body form-grid">
             <div class="toggle-row">
               <div class="toggle-info">
-                <label for="toggle-calendar-sync"><strong>Sync Official Course Dates</strong></label>
-                <span class="field-hint">Sync assignment deadlines and exam dates extracted from course proformas.</span>
+                <label for="toggle-calendar-sync"><strong>Sync Assignment &amp; Exam Dates</strong></label>
+                <span class="field-hint">Automatically adds course deadlines from proformas and course pages to your calendar.</span>
               </div>
               <input type="checkbox" id="toggle-calendar-sync" class="toggle-input">
             </div>
@@ -215,13 +223,13 @@
             <div class="toggle-row">
               <div class="toggle-info">
                 <label for="toggle-announcements"><strong>Check Lecturer Announcements</strong></label>
-                <span class="field-hint">Scans forum posts for rescheduled classes or emergency date shifts (runs locally).</span>
+                <span class="field-hint">Scans forum announcements for rescheduled classes and emergency deadline shifts.</span>
               </div>
               <input type="checkbox" id="toggle-announcements" class="toggle-input">
             </div>
 
             <div class="form-group">
-              <label for="select-reminders">Calendar Notification Reminders</label>
+              <label for="select-reminders">Default Deadline Notifications</label>
               <select id="select-reminders" class="select-input">
                 <option value="1440,60">1 day and 1 hour before</option>
                 <option value="1440">1 day before</option>
@@ -237,82 +245,22 @@
         </div>
       </section>
 
-      <!-- VIEW 4: CAMPUS AI & CACHE -->
-      <section id="view-ai" class="view-panel" hidden>
-        <div class="panel-header">
-          <h1>Campus AI &amp; Cloudflare Edge Cache</h1>
-          <p class="panel-desc">Configure the decentralized 24/7 AI syllabus analyzer and global campus cache serving all 30,000 UM students.</p>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <h3>Cloudflare Edge Proxy Configuration</h3>
-          </div>
-          <div class="card-body form-grid">
-            <div class="form-group">
-              <label for="input-backend-url">Edge Backend Proxy URL</label>
-              <div class="input-with-button">
-                <input type="url" id="input-backend-url" class="input-text" value="https://umspec-ai.tankeat0613.workers.dev">
-                <button type="button" class="btn btn-secondary" id="btn-test-health">Ping Health</button>
-              </div>
-              <span class="field-hint">Live serverless Cloudflare Worker proxy managing Gemini API rotation and KV cache.</span>
-            </div>
-
-            <div class="health-status-box" id="health-status-box">
-              <div class="health-row">
-                <span>Edge Status:</span>
-                <strong id="health-status-val">Not Checked</strong>
-              </div>
-              <div class="health-row">
-                <span>Gemini Key Pool:</span>
-                <strong id="health-keys-val">-</strong>
-              </div>
-              <div class="health-row">
-                <span>KV Campus Cache:</span>
-                <strong id="health-kv-val">-</strong>
-              </div>
-              <div class="health-row">
-                <span>Response Latency:</span>
-                <strong id="health-latency-val">-</strong>
-              </div>
-            </div>
-
-            <div class="form-actions">
-              <button type="button" class="btn btn-primary" id="btn-save-ai-settings">Save AI Endpoint</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <h3>How Campus Caching Works</h3>
-          </div>
-          <div class="card-body">
-            <p class="helper-text">
-              • <strong>Analyze Once, Serve 30,000:</strong> When the first student in UM opens a course outline, Gemini extracts the deadlines and caches them in Cloudflare KV for 90 days.<br>
-              • <strong>Instant 5ms Hits:</strong> Subsequent students in that same class load the deadlines instantly with zero wait and 0 API calls.<br>
-              • <strong>Privacy Guaranteed:</strong> No student names, matric numbers, or credentials ever touch the AI proxy.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <!-- VIEW 5: ACADEMIC PROFILE -->
+      <!-- VIEW 4: ACADEMIC PROFILE -->
       <section id="view-profile" class="view-panel" hidden>
         <div class="panel-header">
           <h1>Academic Profile</h1>
-          <p class="panel-desc">Manage your detected Universiti Malaya major, faculty, and academic year.</p>
+          <p class="panel-desc">Manage your Universiti Malaya major, faculty, and academic year.</p>
         </div>
 
         <div class="card">
           <div class="card-header">
-            <h3>Detected Profile</h3>
+            <h3>Degree &amp; Faculty</h3>
           </div>
           <div class="card-body form-grid">
             <div class="form-group">
-              <label for="input-profile-degree">Bachelor's Degree Programme</label>
+              <label for="input-profile-degree">Degree Programme</label>
               <input type="text" id="input-profile-degree" class="input-text" placeholder="e.g. Bachelor of Computer Science (Software Engineering)">
-              <span class="field-hint">Auto-detected from enrolled course prefixes or your SPeCTRUM user profile.</span>
+              <span class="field-hint">Auto-detected from enrolled courses or entered manually.</span>
             </div>
 
             <div class="form-group">
@@ -327,33 +275,46 @@
         </div>
       </section>
 
-      <!-- VIEW 6: HELP & GUIDES -->
+      <!-- VIEW 5: HELP & FAQ -->
       <section id="view-help" class="view-panel" hidden>
         <div class="panel-header">
-          <h1>Help, Setup &amp; Privacy</h1>
-          <p class="panel-desc">Official documentation, privacy policies, and security architecture of UmSpec.</p>
+          <h1>Help &amp; Student FAQ</h1>
+          <p class="panel-desc">Quick answers on exporting course materials, connecting Google, and student data privacy.</p>
         </div>
 
         <div class="card">
           <div class="card-header">
-            <h3>Privacy &amp; Security Principles</h3>
+            <h3>Frequently Asked Questions</h3>
           </div>
           <div class="card-body">
             <ul class="help-list">
-              <li><strong>Zero Credential Logging:</strong> UmSpec uses your already signed-in browser session. SPeCTRUM session cookies and Google passwords are never stored, sent to servers, or extracted.</li>
-              <li><strong>Scattered Privacy Architecture:</strong> ZIP exports run 100% locally on your machine without contacting any external servers.</li>
-              <li><strong>Minimal Scopes:</strong> Google Drive permissions are restricted strictly to files created by UmSpec (<code>drive.file</code>).</li>
+              <li>
+                <strong>How does ZIP export work?</strong><br>
+                ZIP export runs 100% locally inside your browser. It packages lecture notes, slides, and tutorials into an organized archive folder without needing any Google account or external servers.
+              </li>
+              <li>
+                <strong>How do I resolve "Access Blocked / Error 403: access_denied"?</strong><br>
+                In your Google Cloud Console, navigate to <em>APIs &amp; Services &gt; OAuth consent screen &gt; Test users</em>, click <strong>+ Add Users</strong>, enter your Gmail address, and save.
+              </li>
+              <li>
+                <strong>Are my SPeCTRUM passwords or credentials saved?</strong><br>
+                No. UmSpec uses your already signed-in browser tab session. Your UM passwords and session cookies are never extracted, logged, or sent to any remote server.
+              </li>
+              <li>
+                <strong>Where do my files go in Google Drive?</strong><br>
+                Files are placed inside a private folder named after your semester (e.g. <code>2026/2027 Semester 1</code>), organized neatly by course code and topic.
+              </li>
             </ul>
           </div>
         </div>
 
         <div class="card">
           <div class="card-header">
-            <h3>Useful Links</h3>
+            <h3>Quick Links</h3>
           </div>
           <div class="card-body action-row">
-            <a href="https://github.com/Chee613/UmSpec" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">GitHub Repository</a>
-            <a href="../setup/google.html" target="_blank" class="btn btn-secondary">Google Setup Technical Guide</a>
+            <a href="https://spectrum.um.edu.my/my/" target="_blank" rel="noopener noreferrer" class="btn btn-primary">Open SPeCTRUM Portal</a>
+            <a href="https://github.com/Chee613/UmSpec" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">UmSpec GitHub Project</a>
           </div>
         </div>
       </section>
@@ -363,4 +324,3 @@
   <script src="options.js"></script>
 </body>
 </html>
-

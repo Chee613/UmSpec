@@ -1,6 +1,6 @@
 /**
- * UmSpec Options & Dashboard
- * Enterprise settings controller for Google Drive, Calendar, Edge AI, and Academic Profile
+ * UmSpec Student Settings & Dashboard
+ * Clean, student-focused controller for Google Drive, Calendar, and SPeCTRUM synchronization
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     if (!response?.ok) {
-      const err = new Error(response?.error?.message || 'Extension communication failed.');
+      const err = new Error(response?.error?.message || 'Operation failed.');
       err.code = response?.error?.code;
       throw err;
     }
@@ -98,7 +98,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         isSpectrumActive = true;
       }
     } catch {
-      // Tab query error fallback
+      // Tab query fallback
     }
 
     try {
@@ -111,7 +111,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // --------------------------------------------------------------------------
-  // UI Render Controller
+  // Student UI Render Controller
   // --------------------------------------------------------------------------
   function renderStatus() {
     const status = currentStatus;
@@ -122,7 +122,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const hasCalendar = features.includes('calendar');
     const hasBinding = Boolean(status?.bindingHash);
 
-    // Sidebar Indicators
+    // Sidebar Indicator Pills
     const dotSpectrum = $('dot-spectrum');
     const textSpectrum = $('text-spectrum');
     if (hasBinding || isSpectrumActive) {
@@ -143,12 +143,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       textGoogle.textContent = 'Google: Not connected';
     }
 
-    // Overview Metrics
-    $('ov-spectrum-val').textContent = hasBinding ? 'Authenticated' : (isSpectrumActive ? 'Open' : 'Standby');
-    $('ov-spectrum-sub').textContent = hasBinding ? 'Active student session verified' : 'Open SPeCTRUM tab to link';
+    // Overview Metric Cards
+    $('ov-spectrum-val').textContent = hasBinding ? 'Active' : (isSpectrumActive ? 'Detected' : 'Standby');
+    $('ov-spectrum-sub').textContent = hasBinding ? 'Student session authenticated' : 'Open SPeCTRUM tab to link';
 
-    $('ov-google-val').textContent = account?.email ? 'Connected' : 'Offline';
-    $('ov-google-sub').textContent = account?.email ? account.email : 'Google Drive & Calendar optional';
+    $('ov-drive-val').textContent = hasDrive ? 'Connected' : 'Offline';
+    $('ov-drive-sub').textContent = hasDrive ? (account?.email || 'Synced') : 'Click to connect Google Drive';
+
+    $('ov-calendar-val').textContent = hasCalendar ? 'Active' : 'Offline';
+    $('ov-calendar-sub').textContent = hasCalendar ? 'Deadlines & exams synced' : 'Export dates to Google Calendar';
 
     $('ov-export-val').textContent = settings.mode === 'drive' && hasDrive ? 'Google Drive' : 'ZIP Archive';
     $('ov-export-sub').textContent = settings.mode === 'drive' && hasDrive ? 'Private UM Spec folder' : 'Zero-touch instant export';
@@ -176,10 +179,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const reminders = (settings.reminderMinutes || []).join(',');
     $('select-reminders').value = ['1440,60', '1440', '60', ''].includes(reminders) ? reminders : '1440,60';
 
-    // Quick Action Buttons
-    $('btn-quick-drive').textContent = hasDrive ? 'Drive Synced' : 'Connect Google Drive';
+    // Quick Action Buttons on Overview
+    $('btn-quick-drive').textContent = hasDrive ? 'Drive Synced ✓' : 'Connect Google Drive';
     $('btn-quick-drive').disabled = hasDrive;
-    $('btn-quick-calendar').textContent = hasCalendar ? 'Calendar Synced' : 'Connect Google Calendar';
+    $('btn-quick-calendar').textContent = hasCalendar ? 'Calendar Synced ✓' : 'Connect Google Calendar';
     $('btn-quick-calendar').disabled = hasCalendar;
   }
 
@@ -200,7 +203,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderStatus();
       showToast(`Google ${feature === 'drive' ? 'Drive' : 'Calendar'} connected successfully!`, 'success');
     } catch (err) {
-      showToast(err.message || `Failed to connect Google ${feature}.`, 'error');
+      if (err.message && err.message.includes('access_denied')) {
+        showToast('Google blocked access (Error 403). See the Guide in Google Drive tab to add test user.', 'error', 6000);
+      } else {
+        showToast(err.message || `Failed to connect Google ${feature}.`, 'error');
+      }
     }
   }
 
@@ -271,59 +278,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // --------------------------------------------------------------------------
-  // Campus AI Proxy & Health Ping
-  // --------------------------------------------------------------------------
-  const DEFAULT_BACKEND_URL = 'https://umspec-ai.tankeat0613.workers.dev';
-
-  async function loadBackendUrl() {
-    const stored = await chrome.storage.local.get('umspecBackendUrl');
-    const url = stored.umspecBackendUrl || DEFAULT_BACKEND_URL;
-    $('input-backend-url').value = url;
-  }
-
-  async function pingHealth() {
-    const rawUrl = $('input-backend-url').value.trim() || DEFAULT_BACKEND_URL;
-    const healthUrl = rawUrl.replace(/\/+$/, '') + '/api/health';
-
-    $('health-status-val').textContent = 'Pinging...';
-    $('health-keys-val').textContent = '...';
-    $('health-kv-val').textContent = '...';
-    $('health-latency-val').textContent = '...';
-
-    const startTime = performance.now();
-    try {
-      const res = await fetch(healthUrl, { method: 'GET', headers: { Accept: 'application/json' } });
-      const latency = Math.round(performance.now() - startTime);
-
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-
-      $('health-status-val').textContent = `${res.status} OK (Healthy)`;
-      $('health-keys-val').textContent = `${data.geminiKeyCount || 0} API Keys Active`;
-      $('health-kv-val').textContent = data.cacheEnabled ? 'Active (Cloudflare KV)' : 'In-Memory Cache';
-      $('health-latency-val').textContent = `${latency} ms`;
-
-      showToast(`Edge AI Proxy responded in ${latency}ms`, 'success');
-    } catch (err) {
-      $('health-status-val').textContent = 'Offline / Error';
-      $('health-latency-val').textContent = 'Timeout';
-      showToast(`Health check failed: ${err.message}`, 'error');
-    }
-  }
-
-  $('btn-test-health')?.addEventListener('click', pingHealth);
-  $('btn-quick-test-ai')?.addEventListener('click', () => {
-    switchView('ai');
-    pingHealth();
-  });
-
-  $('btn-save-ai-settings')?.addEventListener('click', async () => {
-    const url = $('input-backend-url').value.trim() || DEFAULT_BACKEND_URL;
-    await chrome.storage.local.set({ umspecBackendUrl: url });
-    showToast('Edge backend proxy URL saved.', 'success');
-  });
-
-  // --------------------------------------------------------------------------
   // Academic Profile
   // --------------------------------------------------------------------------
   async function loadAcademicProfile() {
@@ -344,15 +298,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // --------------------------------------------------------------------------
-  // Navigation & SPeCTRUM Shortcuts
+  // SPeCTRUM Navigation Shortcuts
   // --------------------------------------------------------------------------
-  $('btn-open-spectrum')?.addEventListener('click', () => {
-    chrome.tabs.create({ url: 'https://spectrum.um.edu.my/my/' });
-  });
+  const openSpectrumTab = () => chrome.tabs.create({ url: 'https://spectrum.um.edu.my/my/' });
+  $('btn-open-spectrum')?.addEventListener('click', openSpectrumTab);
+  $('btn-quick-spectrum')?.addEventListener('click', openSpectrumTab);
 
   // Initialize
-  await loadBackendUrl();
   await loadAcademicProfile();
   await detectContext();
 });
-
