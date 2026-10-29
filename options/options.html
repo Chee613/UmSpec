@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UmSpec Settings & Dashboard</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="dashboard-layout">
+    <!-- Left Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <svg class="brand-icon" viewBox="0 0 128 128" aria-hidden="true">
+          <path fill="currentColor" fill-rule="evenodd" d="M24 12h77q4 0 7 3l14 14q2 2 2 6v11q0 3-3 3H42l7 8h47q4 0 7 3l14 14q3 3 3 8v29q0 4-4 4H28q-4 0-7-3L8 99q-4-4-4-8v-8q0-3 4-3h77l-9-9H30q-4 0-7-3L10 55q-2-2-2-6V32q0-4 3-7l10-10q2-3 3-3Zm75 8v17h17L99 20Zm-3 45v16h16L96 65Z"/>
+        </svg>
+        <div class="brand-text">
+          <h2>UmSpec</h2>
+          <span class="brand-sub">Universiti Malaya</span>
+        </div>
+        <span class="version-badge">v2.0.2</span>
+      </div>
+
+      <nav class="sidebar-nav" role="tablist" aria-label="Dashboard views">
+        <button type="button" class="nav-item active" data-view="overview" role="tab" aria-selected="true">
+          <svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+          <span>Overview</span>
+        </button>
+        <button type="button" class="nav-item" data-view="drive" role="tab" aria-selected="false">
+          <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+          <span>Google Drive</span>
+        </button>
+        <button type="button" class="nav-item" data-view="calendar" role="tab" aria-selected="false">
+          <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/></svg>
+          <span>Google Calendar</span>
+        </button>
+        <button type="button" class="nav-item" data-view="ai" role="tab" aria-selected="false">
+          <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.38-1 1.72V7h2a4 4 0 0 1 4 4v1h1a3 3 0 0 1 3 3v2a3 3 0 0 1-3 3h-1v1a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4v-1H6a3 3 0 0 1-3-3v-2a3 3 0 0 1 3-3h1v-1a4 4 0 0 1 4-4h2V5.72A2 2 0 0 1 10 4a2 2 0 0 1 2-2zm-3 9a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zm6 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z"/></svg>
+          <span>Campus AI &amp; Cache</span>
+        </button>
+        <button type="button" class="nav-item" data-view="profile" role="tab" aria-selected="false">
+          <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 3 1 9l11 6 9-4.91V17h2V9L12 3zm0 8.55L4.54 9 12 4.95 19.46 9 12 11.55zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/></svg>
+          <span>Academic Profile</span>
+        </button>
+        <button type="button" class="nav-item" data-view="help" role="tab" aria-selected="false">
+          <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 16h-2v-2h2v2zm1.07-7.75-.9.92C12.45 11.9 12 12.5 12 14h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 .88-.36 1.68-.93 2.25z"/></svg>
+          <span>Help &amp; Privacy</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="connection-status">
+          <div class="status-indicator-dot" id="dot-spectrum"></div>
+          <span id="text-spectrum">SPeCTRUM: Checking...</span>
+        </div>
+        <div class="connection-status">
+          <div class="status-indicator-dot" id="dot-google"></div>
+          <span id="text-google">Google: Not connected</span>
+        </div>
+        <div class="sidebar-actions">
+          <button type="button" class="sidebar-action-btn" id="btn-open-spectrum">Open SPeCTRUM</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Content Panel -->
+    <main class="main-content">
+      <!-- Notification Bar -->
+      <div id="status-toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+      <!-- VIEW 1: OVERVIEW -->
+      <section id="view-overview" class="view-panel active">
+        <div class="panel-header">
+          <h1>System Overview</h1>
+          <p class="panel-desc">Operational health of your UmSpec SPeCTRUM synchronizer, Google integrations, and Campus AI cache.</p>
+        </div>
+
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <span class="metric-label">SPeCTRUM PORTAL</span>
+            <div class="metric-value" id="ov-spectrum-val">Connecting...</div>
+            <span class="metric-sub" id="ov-spectrum-sub">Detecting active student session</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">GOOGLE ACCOUNT</span>
+            <div class="metric-value" id="ov-google-val">Not Connected</div>
+            <span class="metric-sub" id="ov-google-sub">Drive &amp; Calendar offline</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">CAMPUS AI PROXY</span>
+            <div class="metric-value" id="ov-ai-val">Ready</div>
+            <span class="metric-sub" id="ov-ai-sub">Cloudflare Worker Edge Cache</span>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">DEFAULT EXPORT</span>
+            <div class="metric-value" id="ov-export-val">ZIP Archive</div>
+            <span class="metric-sub" id="ov-export-sub">Instant zero-touch export</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Quick Actions</h3>
+          </div>
+          <div class="card-body action-row">
+            <button type="button" class="btn btn-primary" id="btn-quick-drive">Connect Google Drive</button>
+            <button type="button" class="btn btn-secondary" id="btn-quick-calendar">Connect Google Calendar</button>
+            <button type="button" class="btn btn-secondary" id="btn-quick-test-ai">Test Campus AI Speed</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 2: GOOGLE DRIVE -->
+      <section id="view-drive" class="view-panel" hidden>
+        <div class="panel-header">
+          <h1>Google Drive Integration</h1>
+          <p class="panel-desc">Keep your SPeCTRUM lecture notes, labs, tutorials, and past year papers synchronized to your private Google Drive folder.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Google Account Authentication</h3>
+          </div>
+          <div class="card-body">
+            <div class="auth-status-row">
+              <div class="auth-info">
+                <span class="auth-label">Current Google Account:</span>
+                <span class="auth-email" id="drive-email-display">Not connected</span>
+              </div>
+              <div class="auth-buttons">
+                <button type="button" class="btn btn-primary" id="btn-auth-drive">Connect Google Drive</button>
+                <button type="button" class="btn btn-danger" id="btn-disconnect-google" disabled>Disconnect Account</button>
+              </div>
+            </div>
+            <p class="helper-text">
+              <strong>Zero-Touch Privacy:</strong> UmSpec uses the standard <code>drive.file</code> scope, meaning it can <em>only</em> access files and folders it creates itself. It cannot read any unrelated personal documents on your Google Drive.
+            </p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Drive Preferences</h3>
+          </div>
+          <div class="card-body form-grid">
+            <div class="form-group">
+              <label for="input-archive-name">Semester Folder Name</label>
+              <input type="text" id="input-archive-name" class="input-text" maxlength="80" placeholder="2026–27 Semester 1">
+              <span class="field-hint">The root folder created inside your Google Drive for this semester's courses.</span>
+            </div>
+
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <label for="toggle-auto-sync"><strong>Automatic Drive Updates</strong></label>
+                <span class="field-hint">Automatically checks for new files when you browse SPeCTRUM. (Available after 1st successful sync).</span>
+              </div>
+              <input type="checkbox" id="toggle-auto-sync" class="toggle-input">
+            </div>
+
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <label for="toggle-video-download"><strong>Download Video Recordings</strong></label>
+                <span class="field-hint">Off saves lecture recording links into a Markdown file. On downloads full video MP4 files into Drive.</span>
+              </div>
+              <input type="checkbox" id="toggle-video-download" class="toggle-input">
+            </div>
+
+            <div class="form-actions">
+              <button type="button" class="btn btn-primary" id="btn-save-drive-settings">Save Preferences</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 3: GOOGLE CALENDAR -->
+      <section id="view-calendar" class="view-panel" hidden>
+        <div class="panel-header">
+          <h1>Google Calendar Integration</h1>
+          <p class="panel-desc">Automatically export assignment milestones, quiz deadlines, and exam schedules to your Google Calendar.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Calendar Connection</h3>
+          </div>
+          <div class="card-body">
+            <div class="auth-status-row">
+              <div class="auth-info">
+                <span class="auth-label">Calendar Sync Status:</span>
+                <span class="auth-email" id="calendar-status-display">Not connected</span>
+              </div>
+              <div class="auth-buttons">
+                <button type="button" class="btn btn-primary" id="btn-auth-calendar">Connect Google Calendar</button>
+              </div>
+            </div>
+            <p class="helper-text">
+              Creates a dedicated <strong>UM Spec</strong> calendar in your Google account so your personal calendars remain untouched.
+            </p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Calendar Settings</h3>
+          </div>
+          <div class="card-body form-grid">
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <label for="toggle-calendar-sync"><strong>Sync Official Course Dates</strong></label>
+                <span class="field-hint">Sync assignment deadlines and exam dates extracted from course proformas.</span>
+              </div>
+              <input type="checkbox" id="toggle-calendar-sync" class="toggle-input">
+            </div>
+
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <label for="toggle-announcements"><strong>Check Lecturer Announcements</strong></label>
+                <span class="field-hint">Scans forum posts for rescheduled classes or emergency date shifts (runs locally).</span>
+              </div>
+              <input type="checkbox" id="toggle-announcements" class="toggle-input">
+            </div>
+
+            <div class="form-group">
+              <label for="select-reminders">Calendar Notification Reminders</label>
+              <select id="select-reminders" class="select-input">
+                <option value="1440,60">1 day and 1 hour before</option>
+                <option value="1440">1 day before</option>
+                <option value="60">1 hour before</option>
+                <option value="">No reminders</option>
+              </select>
+            </div>
+
+            <div class="form-actions">
+              <button type="button" class="btn btn-primary" id="btn-save-calendar-settings">Save Calendar Preferences</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 4: CAMPUS AI & CACHE -->
+      <section id="view-ai" class="view-panel" hidden>
+        <div class="panel-header">
+          <h1>Campus AI &amp; Cloudflare Edge Cache</h1>
+          <p class="panel-desc">Configure the decentralized 24/7 AI syllabus analyzer and global campus cache serving all 30,000 UM students.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Cloudflare Edge Proxy Configuration</h3>
+          </div>
+          <div class="card-body form-grid">
+            <div class="form-group">
+              <label for="input-backend-url">Edge Backend Proxy URL</label>
+              <div class="input-with-button">
+                <input type="url" id="input-backend-url" class="input-text" value="https://umspec-ai.tankeat0613.workers.dev">
+                <button type="button" class="btn btn-secondary" id="btn-test-health">Ping Health</button>
+              </div>
+              <span class="field-hint">Live serverless Cloudflare Worker proxy managing Gemini API rotation and KV cache.</span>
+            </div>
+
+            <div class="health-status-box" id="health-status-box">
+              <div class="health-row">
+                <span>Edge Status:</span>
+                <strong id="health-status-val">Not Checked</strong>
+              </div>
+              <div class="health-row">
+                <span>Gemini Key Pool:</span>
+                <strong id="health-keys-val">-</strong>
+              </div>
+              <div class="health-row">
+                <span>KV Campus Cache:</span>
+                <strong id="health-kv-val">-</strong>
+              </div>
+              <div class="health-row">
+                <span>Response Latency:</span>
+                <strong id="health-latency-val">-</strong>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button type="button" class="btn btn-primary" id="btn-save-ai-settings">Save AI Endpoint</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>How Campus Caching Works</h3>
+          </div>
+          <div class="card-body">
+            <p class="helper-text">
+              • <strong>Analyze Once, Serve 30,000:</strong> When the first student in UM opens a course outline, Gemini extracts the deadlines and caches them in Cloudflare KV for 90 days.<br>
+              • <strong>Instant 5ms Hits:</strong> Subsequent students in that same class load the deadlines instantly with zero wait and 0 API calls.<br>
+              • <strong>Privacy Guaranteed:</strong> No student names, matric numbers, or credentials ever touch the AI proxy.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 5: ACADEMIC PROFILE -->
+      <section id="view-profile" class="view-panel" hidden>
+        <div class="panel-header">
+          <h1>Academic Profile</h1>
+          <p class="panel-desc">Manage your detected Universiti Malaya major, faculty, and academic year.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Detected Profile</h3>
+          </div>
+          <div class="card-body form-grid">
+            <div class="form-group">
+              <label for="input-profile-degree">Bachelor's Degree Programme</label>
+              <input type="text" id="input-profile-degree" class="input-text" placeholder="e.g. Bachelor of Computer Science (Software Engineering)">
+              <span class="field-hint">Auto-detected from enrolled course prefixes or your SPeCTRUM user profile.</span>
+            </div>
+
+            <div class="form-group">
+              <label>Faculty</label>
+              <input type="text" id="display-profile-faculty" class="input-text" value="Universiti Malaya" disabled>
+            </div>
+
+            <div class="form-actions">
+              <button type="button" class="btn btn-primary" id="btn-save-profile">Save Academic Profile</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VIEW 6: HELP & GUIDES -->
+      <section id="view-help" class="view-panel" hidden>
+        <div class="panel-header">
+          <h1>Help, Setup &amp; Privacy</h1>
+          <p class="panel-desc">Official documentation, privacy policies, and security architecture of UmSpec.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Privacy &amp; Security Principles</h3>
+          </div>
+          <div class="card-body">
+            <ul class="help-list">
+              <li><strong>Zero Credential Logging:</strong> UmSpec uses your already signed-in browser session. SPeCTRUM session cookies and Google passwords are never stored, sent to servers, or extracted.</li>
+              <li><strong>Scattered Privacy Architecture:</strong> ZIP exports run 100% locally on your machine without contacting any external servers.</li>
+              <li><strong>Minimal Scopes:</strong> Google Drive permissions are restricted strictly to files created by UmSpec (<code>drive.file</code>).</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Useful Links</h3>
+          </div>
+          <div class="card-body action-row">
+            <a href="https://github.com/Chee613/UmSpec" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">GitHub Repository</a>
+            <a href="../setup/google.html" target="_blank" class="btn btn-secondary">Google Setup Technical Guide</a>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

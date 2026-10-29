@@ -129,6 +129,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   }));
   el('drive-settings').addEventListener('click', () => { selectTab(el('tab-settings')); selectTab(el('tab-account'), true); });
   el('google-setup').addEventListener('click', () => action(async () => { await chrome.tabs.create({ url: chrome.runtime.getURL('setup/google.html') }); }));
+  const openFullDashboard = () => {
+    if (chrome.runtime.openOptionsPage) chrome.runtime.openOptionsPage();
+    else chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html') });
+  };
+  el('open-options-page')?.addEventListener('click', openFullDashboard);
+  el('btn-open-options-dashboard')?.addEventListener('click', openFullDashboard);
   el('action-btn').addEventListener('click', async () => {
     if (!activeTab) return;
     el('action-btn').disabled = true;

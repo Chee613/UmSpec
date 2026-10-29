@@ -32,7 +32,7 @@ if (typeof importScripts === 'function') {
   async function save(state) { await chrome.storage.local.set({ umspecState: state }); }
   function senderKind(sender) {
     if (sender?.id !== chrome.runtime.id) throw error('FORBIDDEN', 'Unknown extension sender.');
-    if (sender.url === chrome.runtime.getURL('popup/popup.html')) return 'popup';
+    if (sender.url === chrome.runtime.getURL('popup/popup.html') || sender.url === chrome.runtime.getURL('options/options.html')) return 'popup';
     try {
       if (new URL(sender.url).origin === 'https://spectrum.um.edu.my' && Number.isInteger(sender.tab?.id)) return 'content';
     } catch {}
@@ -40,8 +40,18 @@ if (typeof importScripts === 'function') {
   }
   function bindingFor(state, sender, message) {
     const tabId = sender.tab?.id ?? message.tabId ?? state.lastTabId;
-    const context = state.contexts[String(tabId)];
-    const binding = context && state.bindings[context.bindingHash];
+    let context = state.contexts[String(tabId)];
+    let binding = context && state.bindings[context.bindingHash];
+    if (!binding) {
+      if (message.bindingHash && state.bindings[message.bindingHash]) {
+        binding = state.bindings[message.bindingHash];
+      } else {
+        const all = Object.values(state.bindings || {});
+        if (all.length > 0) {
+          binding = all.find(b => b.hash === state.contexts[String(state.lastTabId)]?.bindingHash) || all[0];
+        }
+      }
+    }
     if (!binding) throw error('LOGIN_REQUIRED', 'Open an authenticated Spectrum page first.');
     return { binding, context, tabId };
   }
@@ -183,6 +193,11 @@ if (typeof importScripts === 'function') {
     if (!message || typeof message.type !== 'string') throw error('INVALID_MESSAGE', 'Invalid command.');
     const popupOnly = ['CONNECT_GOOGLE', 'DISCONNECT_GOOGLE'];
     if (popupOnly.includes(message.type) && kind !== 'popup') throw error('FORBIDDEN', 'Connect Google from the extension popup.');
+    if (message.type === 'OPEN_OPTIONS') {
+      if (chrome.runtime.openOptionsPage) chrome.runtime.openOptionsPage();
+      else chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html') });
+      return { ok: true };
+    }
     const state = await readState();
     if (message.type === 'GET_STATUS' || message.type === 'GET_REVIEW_QUEUE') return publicStatus(state, sender, message);
     if (message.type === 'SET_CONTEXT') {
