@@ -12,3 +12,14 @@ ehthumbs.db
 # Temporary files
 *.zip
 *.log
+*.docx
+output/documents/
+
+# Environment & Dependencies
+.env
+.env.local
+node_modules/
+
+# Local implementation/review scratch and original-working-tree baseline
+.implementation/
+docs/superpowers/
