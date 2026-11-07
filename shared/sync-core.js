@@ -25,6 +25,10 @@
     if (!remote) return 'create';
     if (remote.trashed) return 'trashed';
     if (remote.md5Checksum && remote.uploadedMd5 && remote.md5Checksum !== remote.uploadedMd5) return 'conflict';
+    // An interrupted job's empty placeholder holds no student content, so a later job may fill it.
+    if (remote.pendingSha256 && !remote.uploadedMd5 && (!remote.md5Checksum || remote.md5Checksum === 'd41d8cd98f00b204e9800998ecf8427e')) {
+      return source.contentSha256 ? 'update' : 'download';
+    }
     if (!remote.md5Checksum || !remote.uploadedMd5) {
       if (!source.contentSha256) return 'download';
       return remote.contentSha256 === source.contentSha256 ? 'skip' : 'conflict';

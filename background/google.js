@@ -5,6 +5,7 @@
     calendar: ['openid', 'email', 'https://www.googleapis.com/auth/calendar.app.created',
       'https://www.googleapis.com/auth/calendar.calendarlist.readonly']
   };
+  const aliases = { email: 'https://www.googleapis.com/auth/userinfo.email' };
   const identities = new Map();
   let expectedSub = null;
   const fail = (code, message) => Object.assign(new Error(message), { code });
@@ -18,7 +19,9 @@
     const result = await chrome.identity.getAuthToken({ interactive: Boolean(interactive), scopes: scopes[feature] });
     const token = typeof result === 'string' ? result : result?.token;
     if (!token) throw fail('RECONNECT_REQUIRED', 'Reconnect your Google account.');
-    if (Array.isArray(result?.grantedScopes) && scopes[feature].some(scope => !result.grantedScopes.includes(scope))) {
+    // Google reports `email` as its userinfo URL; `openid` is proven by the userinfo `sub` check instead.
+    const granted = scope => result.grantedScopes.includes(scope) || result.grantedScopes.includes(aliases[scope]);
+    if (Array.isArray(result?.grantedScopes) && scopes[feature].some(scope => scope !== 'openid' && !granted(scope))) {
       throw fail('SCOPE_REQUIRED', 'Google did not grant the permissions needed for this feature.');
     }
     return token;

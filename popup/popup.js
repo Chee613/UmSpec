@@ -45,8 +45,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const settings = status?.settings || {}, features = status?.account?.features || [];
     const available = Boolean(isSpectrum && contextReady && status?.bindingHash);
     const drive = features.includes('drive'), calendar = features.includes('calendar');
-    el('status-title').textContent = isSpectrum ? 'Spectrum is open' : 'Open Spectrum to begin';
-    el('status-desc').textContent = isSpectrum ? available ? 'Choose courses and save the files you need.' : 'Open courses to sign in and choose your files.' : 'Your course files stay a click away.';
+    el('status-title').textContent = available ? 'Spectrum is ready' : isSpectrum ? 'Confirm your Spectrum session' : 'Open Spectrum to begin';
+    el('status-desc').textContent = isSpectrum ? available ? 'Choose courses, save files and manage dates.' : 'Open courses to sign in and choose your files.' : 'Your course files stay a click away.';
     el('status-indicator').classList.toggle('active', available);
     el('drive-settings').disabled = false;
     el('drive-settings').hidden = drive;
@@ -74,17 +74,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     el('announcement-scanning').checked = Boolean(settings.announcementScanning);
     el('announcement-scanning').disabled = !available;
     el('account-email').textContent = status?.account?.email || 'Not connected';
-    el('connect-drive').textContent = drive ? 'Drive connected' : 'Connect Drive';
-    el('connect-calendar').textContent = calendar ? 'Calendar connected' : 'Connect Google Calendar';
+    el('connect-drive-label').textContent = drive ? 'Drive connected' : 'Connect Drive';
+    el('connect-calendar-label').textContent = calendar ? 'Calendar connected' : 'Connect Google Calendar';
     el('connect-drive').disabled = !available || !status?.configured || drive;
     el('connect-calendar').disabled = !available || !status?.configured || calendar;
     el('disconnect-google').disabled = !available || !status?.account;
     const canSync = available && settings.courseIds?.length > 0 && ((settings.mode === 'drive' && drive) || (settings.calendarEnabled && calendar) || settings.announcementScanning);
     el('sync-now').hidden = !canSync;
     el('sync-now').disabled = !canSync;
+    el('selected-course-count').textContent = available ? String(settings.courseIds?.length || 0) : '—';
     const reviews = status?.candidates?.length || 0;
     el('home-summary').textContent = reviews ? reviews + (reviews === 1 ? ' announcement date needs' : ' announcement dates need') + ' review in Open courses.' :
-      settings.calendarEnabled ? 'Calendar is on. Review announcement dates in Open courses.' : 'Choose your courses before saving files.';
+      settings.calendarEnabled ? 'Review announcement dates in Open courses.' : settings.courseIds?.length ? 'Open courses to review or change your selection.' : 'Choose your courses before saving files.';
   }
   function normalMessage() {
     if (!isSpectrum) return 'Open Spectrum to use your saved preferences.';

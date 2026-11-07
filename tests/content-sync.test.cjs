@@ -21,6 +21,15 @@ test('feature cooldowns stay independent and manual runs bypass them', () => {
   assert.equal(sync.shouldRunFeature('drive', { ...status, job: { done: false, status: 'running', scopeChanged: true } }, true, 2000000), false);
 });
 
+test('automatic Drive visits require a first successful sync but can resume an active job', () => {
+  const status = { settings: { mode: 'drive', autoSync: true }, syncTimes: {} };
+  assert.equal(sync.shouldRunFeature('drive', status, true), false);
+  assert.equal(sync.shouldRunFeature('drive', status, false), true);
+  assert.equal(sync.shouldRunFeature('drive', { ...status, job: { done: false, status: 'running' } }, true), true);
+  assert.equal(sync.shouldRunFeature('drive', { ...status, job: { done: false, status: 'paused' } }, true), false);
+  assert.equal(sync.shouldRunFeature('drive', { ...status, syncTimes: { drive: { lastSuccessfulSyncAt: 1 } } }, true), true);
+});
+
 test('Spectrum URL boundary rejects foreign hosts, login paths and session secrets', () => {
   assert.equal(sync.safeSpectrumUrl('/mod/forum/discuss.php?d=7'), 'https://spectrum.um.edu.my/mod/forum/discuss.php?d=7');
   for (const url of ['https://spectrum.um.edu.my.attacker.example/course/view.php?id=1',
@@ -104,8 +113,10 @@ test('calendar API denial reports incomplete coverage without inventing records'
 });
 
 test('manual sync remembers explicitly selected courses while automatic visits keep stored scope', async t => {
-  const oldChrome = global.chrome, oldExporter = global.UmSpecExporter;
-  t.after(() => { global.chrome = oldChrome; global.UmSpecExporter = oldExporter; });
+  const oldChrome = global.chrome, oldExporter = global.UmSpecExporter, oldDocument = global.document;
+  t.after(() => { global.chrome = oldChrome; global.UmSpecExporter = oldExporter; global.document = oldDocument; });
+  const output = { textContent: '' };
+  global.document = { getElementById: id => id === 'umspec-sync-status' ? output : null };
   const messages = [];
   let status = { settings: { mode: 'zip', courseIds: ['456'], autoSync: false, calendarEnabled: false, announcementScanning: false }, syncTimes: {} };
   global.chrome = { runtime: { sendMessage: async message => {
@@ -117,6 +128,7 @@ test('manual sync remembers explicitly selected courses while automatic visits k
     selectedCourses: () => [{ id: 123 }], videoPolicy: () => 'links' };
   await sync.syncNow({ automatic: true });
   assert.equal(messages.some(m => m.type === 'SAVE_SETTINGS'), false);
+  assert.equal(output.textContent, '', 'an automatic visit with no enabled sync should not claim that files were synced');
   await sync.syncNow();
   assert.deepEqual(messages.find(m => m.type === 'SAVE_SETTINGS').settings.courseIds, ['123']);
 });
@@ -131,6 +143,18 @@ test('ZIP selection hands control back to the existing exporter', async t => {
   } } };
   assert.equal(await sync.exportOrSync(), false);
   assert.deepEqual(commands, ['GET_STATUS']);
+});
+
+test('an explicitly selected local ZIP bypasses saved Drive mode when Spectrum verification is unavailable', async t => {
+  const oldChrome = global.chrome, oldExporter = global.UmSpecExporter;
+  t.after(() => { global.chrome = oldChrome; global.UmSpecExporter = oldExporter; });
+  const commands = [];
+  global.UmSpecExporter = { destination: () => 'zip', verifyContext: async () => { throw new Error('Session could not be verified'); } };
+  global.chrome = { runtime: { sendMessage: async message => {
+    commands.push(message.type); return { ok: true, data: { settings: { mode: 'drive' } } };
+  } } };
+  assert.equal(await sync.exportOrSync(), false, 'the visible ZIP action must return to the local exporter');
+  assert.deepEqual(commands, [], 'choosing local ZIP must neither read nor change an unverified account');
 });
 
 test('manual sync does not commit an unsaved semester folder from the hidden Settings tab', async t => {
@@ -206,4 +230,161 @@ test('calendar review and restore results stay visibly unresolved after job comp
   const message = await coordinatorResult(t, 'calendar', { results: [{ action: 'review' }, { action: 'restore' }] });
   assert.match(message, /2.*review/i);
   assert.doesNotMatch(message, /up to date/i);
+});
+
+test('local date discovery works without Google, preserves Drive scope and shows deadlines beyond seven days', async t => {
+  const previous = { chrome: global.chrome, exporter: global.UmSpecExporter, fetch: global.fetch, parser: global.DOMParser };
+  t.after(() => { global.chrome = previous.chrome; global.UmSpecExporter = previous.exporter; global.fetch = previous.fetch; global.DOMParser = previous.parser; });
+  const messages = [];
+  const state = { bindingHash: 'local', settings: { mode: 'zip', courseIds: ['456'] }, events: [], candidates: [] };
+  global.UmSpecExporter = { getContext: () => ({ userId: '42', origin: 'https://spectrum.um.edu.my' }),
+    selectedCourses: () => [{ id: 123 }], getSesskey: () => 'fixture' };
+  global.chrome = { runtime: { sendMessage: async message => {
+    messages.push(message);
+    if (message.type === 'SAVE_DATE_SCAN') state.dateScan = { ...message, completedAt: Date.now() };
+    return { ok: true, data: structuredClone(state) };
+  } } };
+  global.DOMParser = class { parseFromString() { return { querySelector: () => null, querySelectorAll: () => [] }; } };
+  global.fetch = async url => ({ ok: true, url, text: async () => '<html></html>', json: async () => [{ data: { weeks: [{ days: [{ events: [
+    { id: 77, courseid: 123, name: 'Report', eventtype: 'due', modulename: 'assign', timestart: 1794758340, timeduration: 0 }
+  ] }] }] } }] });
+  await sync.analyseDates({ force: true });
+  const saved = messages.find(m => m.type === 'SAVE_DATE_SCAN');
+  assert.deepEqual(saved.courseIds, ['123']);
+  assert.equal(saved.bindingHash, 'local');
+  assert.equal(saved.complete, true);
+  assert.equal(saved.records.length, 1);
+  assert.deepEqual(state.settings.courseIds, ['456']);
+  assert.equal(messages.some(m => ['SAVE_SETTINGS', 'BEGIN_CALENDAR_SYNC', 'BEGIN_DRIVE_SYNC'].includes(m.type)), false);
+  assert.equal(sync.dateRecords(state, new Date('2026-10-30T00:00:00Z')).length, 1);
+  assert.equal(sync.dateRecords({ ...state, events: saved.records }, new Date('2026-10-30T00:00:00Z')).length, 1, 'local and Google copies deduplicate');
+});
+
+test('stopping a date scan never commits a partial post-cancellation inventory', async t => {
+  const previous = { chrome: global.chrome, exporter: global.UmSpecExporter, fetch: global.fetch };
+  t.after(() => { global.chrome = previous.chrome; global.UmSpecExporter = previous.exporter; global.fetch = previous.fetch; });
+  const messages = []; let entered;
+  const reading = new Promise(resolve => { entered = resolve; });
+  global.UmSpecExporter = { getContext: () => ({ userId: '42', origin: 'https://spectrum.um.edu.my' }),
+    selectedCourses: () => [{ id: 123 }], getSesskey: () => 'fixture' };
+  global.chrome = { runtime: { sendMessage: async message => { messages.push(message); return { ok: true, data: { bindingHash: 'local', settings: {} } }; } } };
+  global.fetch = async (_url, options) => { entered(); return new Promise((_resolve, reject) => options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true })); };
+  const pending = sync.analyseDates({ force: true });
+  await reading; sync.stopDateAnalysis(); await pending;
+  assert.equal(messages.some(m => m.type === 'SAVE_DATE_SCAN' || m.type === 'BEGIN_CALENDAR_SYNC'), false);
+});
+
+test('stopping dates during a pending Drive handoff resolves without cancelling the file writer', async t => {
+  const previous = { chrome: global.chrome, exporter: global.UmSpecExporter, fetch: global.fetch, parser: global.DOMParser };
+  t.after(() => { global.chrome = previous.chrome; global.UmSpecExporter = previous.exporter; global.fetch = previous.fetch; global.DOMParser = previous.parser; });
+  const messages = [];
+  let enterDrive, releaseDrive, savedDates, driveFinished = false;
+  const driveEntered = new Promise(resolve => { enterDrive = resolve; });
+  const driveRelease = new Promise(resolve => { releaseDrive = resolve; });
+  const scanSaved = new Promise(resolve => { savedDates = resolve; });
+  let state = { configured: true, bindingHash: 'same-student', tabId: 1, account: { features: ['drive', 'calendar'] },
+    settings: { mode: 'drive', autoSync: true, calendarEnabled: true, announcementScanning: false, courseIds: ['123'], archiveId: 'Semester' },
+    syncTimes: { calendar: { lastAttemptAt: Date.now() } }, events: [], candidates: [],
+    job: { id: 'drive-job', tabId: 1, status: 'running', done: false, cursor: 0, total: 1 } };
+  global.UmSpecExporter = { getContext: () => ({ userId: '42', origin: 'https://spectrum.um.edu.my' }),
+    selectedCourses: () => [{ id: 123 }], getSesskey: () => 'fixture' };
+  global.DOMParser = class { parseFromString() { return { querySelector: () => null, querySelectorAll: () => [] }; } };
+  global.fetch = async url => ({ ok: true, url, text: async () => '<html></html>',
+    json: async () => [{ data: { weeks: [] } }] });
+  global.chrome = { runtime: { sendMessage: async message => {
+    messages.push(message);
+    if (message.type === 'DRIVE_STEP') {
+      enterDrive();
+      await driveRelease;
+      state = { ...state, job: { ...state.job, done: true, status: 'complete', summary: { failed: 0, conflicts: 0 } } };
+    }
+    if (message.type === 'SAVE_DATE_SCAN') {
+      state.dateScan = { ...message, completedAt: Date.now() };
+      savedDates();
+    }
+    return { ok: true, data: structuredClone(state) };
+  } } };
+  const fileJob = sync.syncNow({ automatic: true }).finally(() => { driveFinished = true; });
+  let dateJob;
+  try {
+    await driveEntered;
+    dateJob = sync.analyseDates({ force: true });
+    await scanSaved;
+    await new Promise(setImmediate);
+    sync.stopDateAnalysis();
+    const stopped = await Promise.race([dateJob.then(() => true), new Promise(resolve => setImmediate(() => resolve(false)))]);
+    assert.equal(stopped, true, 'date cancellation must not wait for the unfinished Drive request');
+    assert.equal(driveFinished, false, 'the file writer must remain independently active');
+    assert.equal(messages.some(message => message.type === 'PAUSE_SYNC' || message.type === 'BEGIN_CALENDAR_SYNC'), false,
+      'stopping before Calendar owns the writer must not pause Drive or start Calendar');
+  } finally {
+    releaseDrive();
+    await fileJob;
+    await dateJob;
+  }
+});
+
+function backgroundScanFixture(t) {
+  const saved = { chrome: global.chrome, exporter: global.UmSpecExporter, fetch: global.fetch, document: global.document };
+  t.after(() => { global.chrome = saved.chrome; global.UmSpecExporter = saved.exporter; global.fetch = saved.fetch; global.document = saved.document; });
+  global.document = undefined;
+  const events = [];
+  // First-ever Drive sync: Drive is connected, no successful sync yet, announcement checks on by default.
+  const state = { configured: true, bindingHash: 'verified', account: { email: 'student@example.test', features: ['drive'] },
+    settings: { mode: 'drive', archiveId: 'Semester 1', courseIds: ['123'], videoPolicy: 'links', autoSync: true, calendarEnabled: false, announcementScanning: true },
+    syncTimes: {}, candidates: [], events: [] };
+  global.chrome = { runtime: { sendMessage: async message => { events.push(message.type); return { ok: true, data: structuredClone(state) }; } } };
+  global.UmSpecExporter = { getContext: () => ({ userId: '42', origin: 'https://spectrum.um.edu.my' }),
+    selectedCourses: () => [{ id: 123 }], selectedUrls: () => null, videoPolicy: () => 'links',
+    discoverCourses: async () => [{ id: 123, fullName: 'Networks' }], resolveCourseMaterials: async () => Object.assign([], { skipped: 0 }) };
+  let scanStarted, crawling = false;
+  const started = new Promise(resolve => { scanStarted = resolve; });
+  // A slow Spectrum page: the background crawl sits on its first request until it is aborted.
+  global.fetch = (url, { signal }) => {
+    events.push('FETCH');
+    if (crawling) return Promise.reject(new Error('offline'));
+    crawling = true;
+    scanStarted();
+    return new Promise((_, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
+  };
+  return { events, started };
+}
+
+test('a sync the student asks for is not absorbed by a running background check', async t => {
+  const { events, started } = backgroundScanFixture(t);
+  const background = sync.syncNow({ automatic: true }).catch(() => {});
+  await started;
+  const outcome = await Promise.race([sync.syncNow().then(() => 'finished'),
+    new Promise(resolve => setTimeout(resolve, 200, 'still waiting on the background scan'))]);
+  assert.equal(outcome, 'finished');
+  assert.ok(events.includes('BEGIN_DRIVE_SYNC'), 'the requested Drive sync must actually start');
+  await background;
+});
+
+test('a background scan records its attempt before crawling so leaving the page cannot restart it', async t => {
+  const { events, started } = backgroundScanFixture(t);
+  const background = sync.syncNow({ automatic: true }).catch(() => {});
+  await started;
+  const firstFetch = events.indexOf('FETCH');
+  assert.ok(events.slice(0, firstFetch).includes('MARK_SYNC_ATTEMPT'), 'the 15-minute cooldown must start before the first Spectrum request');
+  await Promise.race([sync.syncNow(), new Promise(resolve => setTimeout(resolve, 200))]);
+  await Promise.race([background, new Promise(resolve => setTimeout(resolve, 200))]);
+});
+
+test('a finished Drive sync names the items that failed instead of only counting them', async t => {
+  const saved = { chrome: global.chrome, exporter: global.UmSpecExporter, document: global.document };
+  t.after(() => { global.chrome = saved.chrome; global.UmSpecExporter = saved.exporter; global.document = saved.document; });
+  const output = { textContent: '' };
+  global.document = { getElementById: id => id === 'umspec-sync-status' ? output : null };
+  const base = { configured: true, bindingHash: 'verified', account: { email: 'student@example.test', features: ['drive'] },
+    settings: { mode: 'drive', archiveId: 'Semester 1', courseIds: ['123'], videoPolicy: 'links', autoSync: true, calendarEnabled: false, announcementScanning: false },
+    syncTimes: {}, candidates: [], events: [] };
+  global.chrome = { runtime: { sendMessage: async message => ({ ok: true, data: message.type === 'BEGIN_DRIVE_SYNC' ? { ...base, job: { id: 'job', done: true, status: 'complete',
+    summary: { failed: 1, conflicts: 0 }, attention: [{ name: 'Notes.pdf', action: 'failed', detail: 'SPECTRUM_HTTP_404' }] } } : base }) } };
+  global.UmSpecExporter = { getContext: () => ({ userId: '42', origin: 'https://spectrum.um.edu.my' }),
+    selectedCourses: () => [{ id: 123 }], selectedUrls: () => null, videoPolicy: () => 'links',
+    discoverCourses: async () => [{ id: 123, fullName: 'Networks' }], resolveCourseMaterials: async () => Object.assign([], { skipped: 0 }) };
+  await sync.syncNow();
+  assert.match(output.textContent, /1 failed/);
+  assert.match(output.textContent, /Affected: Notes\.pdf \(SPECTRUM_HTTP_404\)\./);
 });

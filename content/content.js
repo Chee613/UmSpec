@@ -24,10 +24,11 @@
   let abortController = null;
   let runnerInstance = null;
   let sesskey = null;
-  let videoDownloadPreference = localStorage.getItem('umspec_video_pref') || 'skip';
+  let videoDownloadPreference = localStorage.getItem('umspec_video_pref') || 'include';
   let cachedCourseAnalysis = null;
   let destinationMode = 'zip';
   let coursePage = 0;
+  let courseSearch = '';
   let materialPage = 0;
 
   // Granular Course Materials & Right Flyout Drawer State
@@ -49,8 +50,15 @@
   let geminiFallbackModel = localStorage.getItem('umspec_gemini_fallback_model') || 'gemini-3.1-flash-lite';
   let geminiCustomPrimary = localStorage.getItem('umspec_gemini_custom_primary') || '';
   let geminiCustomFallback = localStorage.getItem('umspec_gemini_custom_fallback') || '';
-  let geminiEnabled = localStorage.getItem('umspec_gemini_enabled') === 'true' && localStorage.getItem('umspec_ai_disclosure') === '1';
+  let geminiEnabled = localStorage.getItem('umspec_gemini_enabled') !== 'false';
   let currentKeyIndex = 0;
+
+  function confirmAIAnalysis() {
+    if (localStorage.getItem('umspec_ai_disclosure') === '1') return true;
+    if (!confirm('AI analysis sends selected proforma documents to the configured UM Spec proxy and Google Gemini. Continue?')) return false;
+    localStorage.setItem('umspec_ai_disclosure', '1');
+    return true;
+  }
 
   // Solid Glyph SVG Icons (SVGRepo Glyph Collection)
   const ICONS = {
@@ -1307,9 +1315,122 @@
       <span class="umspec-trigger-label">SMART EXPORT</span>
       <span class="umspec-badge">UMSPEC // OS</span>
     `;
-    btn.title = 'UmSpec: Zero-Touch Smart Export for all SPeCTRUM courses';
+    btn.title = 'UM Spec: open the exporter. Drag to move; Shift+Arrow keys nudge it, Shift+Home returns it to the corner.';
+    btn.setAttribute('aria-label', 'Open UM Spec');
+    btn.setAttribute('aria-keyshortcuts', 'Shift+ArrowUp Shift+ArrowDown Shift+ArrowLeft Shift+ArrowRight Shift+Home');
     btn.onclick = openModal;
     document.body.appendChild(btn);
+    makeTriggerDraggable(btn);
+  }
+
+  // Floating trigger position. It is anchored to the nearest viewport edges so it follows window resizes,
+  // and kept in Spectrum-origin storage beside the other UI preferences (it is not sensitive).
+  const TRIGGER_POSITION_KEY = 'umspec_trigger_position';
+  const TRIGGER_MARGIN = 8, TRIGGER_DRAG_THRESHOLD = 6, TRIGGER_NUDGE = 24;
+  function readTriggerPosition() {
+    try {
+      const value = JSON.parse(localStorage.getItem(TRIGGER_POSITION_KEY) || 'null');
+      if (value && ['left', 'right'].includes(value.h) && ['top', 'bottom'].includes(value.v) &&
+          Number.isFinite(value.x) && Number.isFinite(value.y)) return value;
+    } catch {}
+    return null;
+  }
+  function saveTriggerPosition(position) {
+    try {
+      if (position) localStorage.setItem(TRIGGER_POSITION_KEY, JSON.stringify(position));
+      else localStorage.removeItem(TRIGGER_POSITION_KEY);
+    } catch {}
+  }
+  function triggerBounds(btn) {
+    const width = btn.offsetWidth || 44, height = btn.offsetHeight || 44;
+    const viewWidth = document.documentElement.clientWidth || window.innerWidth;
+    const viewHeight = document.documentElement.clientHeight || window.innerHeight;
+    return { width, height, viewWidth, viewHeight,
+      maxLeft: Math.max(TRIGGER_MARGIN, viewWidth - width - TRIGGER_MARGIN), maxTop: Math.max(TRIGGER_MARGIN, viewHeight - height - TRIGGER_MARGIN) };
+  }
+  const clampTrigger = (value, max) => Math.min(Math.max(value, TRIGGER_MARGIN), max);
+  // Converts a top-left point into distances from the closest horizontal and vertical edges.
+  function anchoredTriggerPosition(btn, left, top) {
+    const bounds = triggerBounds(btn);
+    left = clampTrigger(left, bounds.maxLeft); top = clampTrigger(top, bounds.maxTop);
+    const right = bounds.viewWidth - left - bounds.width, bottom = bounds.viewHeight - top - bounds.height;
+    return { h: left <= right ? 'left' : 'right', x: Math.round(Math.min(left, right)),
+      v: top <= bottom ? 'top' : 'bottom', y: Math.round(Math.min(top, bottom)) };
+  }
+  function applyTriggerPosition(btn, position = readTriggerPosition()) {
+    for (const side of ['left', 'right', 'top', 'bottom']) btn.style.removeProperty(side);
+    if (!position) return;
+    const bounds = triggerBounds(btn);
+    btn.style.setProperty(position.h, clampTrigger(position.x, position.h === 'left' ? bounds.maxLeft : bounds.viewWidth - bounds.width - TRIGGER_MARGIN) + 'px');
+    btn.style.setProperty(position.v, clampTrigger(position.y, position.v === 'top' ? bounds.maxTop : bounds.viewHeight - bounds.height - TRIGGER_MARGIN) + 'px');
+    btn.style.setProperty(position.h === 'left' ? 'right' : 'left', 'auto');
+    btn.style.setProperty(position.v === 'top' ? 'bottom' : 'top', 'auto');
+  }
+  function resetTriggerPosition() {
+    saveTriggerPosition(null);
+    const btn = document.getElementById('umspec-trigger-btn');
+    if (btn) applyTriggerPosition(btn, null);
+  }
+  function makeTriggerDraggable(btn) {
+    let drag = null, suppressClickUntil = 0;
+    applyTriggerPosition(btn);
+    // Move/up are read from window: a quick flick leaves the button before its first move event arrives.
+    const listen = add => {
+      for (const [type, handler] of [['pointermove', move], ['pointerup', finish], ['pointercancel', finish]]) {
+        window[add ? 'addEventListener' : 'removeEventListener'](type, handler, true);
+      }
+    };
+    btn.addEventListener('pointerdown', event => {
+      if (event.button !== 0 || !event.isPrimary) return;
+      const rect = btn.getBoundingClientRect();
+      drag = { id: event.pointerId, startX: event.clientX, startY: event.clientY, left: rect.left, top: rect.top, position: null };
+      suppressClickUntil = 0;
+      listen(true);
+    });
+    function move(event) {
+      if (!drag || event.pointerId !== drag.id) return;
+      const dx = event.clientX - drag.startX, dy = event.clientY - drag.startY;
+      // Small wobbles during a click or tap stay a click; only a deliberate drag moves the button.
+      if (!drag.position && Math.hypot(dx, dy) < TRIGGER_DRAG_THRESHOLD) return;
+      if (!drag.position) {
+        try { btn.setPointerCapture(event.pointerId); } catch {}
+        btn.classList.add('umspec-dragging');
+      }
+      event.preventDefault();
+      drag.position = anchoredTriggerPosition(btn, drag.left + dx, drag.top + dy);
+      applyTriggerPosition(btn, drag.position);
+    }
+    function finish(event) {
+      if (!drag || event.pointerId !== drag.id) return;
+      listen(false);
+      if (drag.position) {
+        saveTriggerPosition(drag.position);
+        btn.classList.remove('umspec-dragging');
+        // The browser still sends a click after the drag's pointerup; it must not open the exporter.
+        suppressClickUntil = Date.now() + 600;
+      }
+      drag = null;
+    }
+    btn.addEventListener('click', event => {
+      if (Date.now() >= suppressClickUntil) return;
+      suppressClickUntil = 0;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    }, true);
+    btn.addEventListener('keydown', event => {
+      if (!event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.key === 'Home') { event.preventDefault(); resetTriggerPosition(); return; }
+      const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
+      if (!step) return;
+      event.preventDefault();
+      const rect = btn.getBoundingClientRect(), position = anchoredTriggerPosition(btn, rect.left + step[0] * TRIGGER_NUDGE, rect.top + step[1] * TRIGGER_NUDGE);
+      applyTriggerPosition(btn, position);
+      saveTriggerPosition(position);
+    });
+    window.addEventListener('resize', () => applyTriggerPosition(btn));
+    document.addEventListener('click', event => {
+      if (event.target?.closest?.('#umspec-trigger-reset')) resetTriggerPosition();
+    });
   }
 
   // Abort Export Function
@@ -1402,6 +1523,11 @@
     if (isCurrentlyCollapsed) renderCoursesList();
   }
 
+  function setProgressCardVisible(visible) {
+    document.getElementById('umspec-progress-card').style.display = visible ? 'block' : 'none';
+    document.getElementById('umspec-view-courses')?.classList.toggle('umspec-progress-visible', visible);
+  }
+
   function showModalTab(tab) {
     closeCourseInspector();
     document.querySelectorAll('[data-umspec-tab]').forEach(button => {
@@ -1411,9 +1537,11 @@
     document.querySelectorAll('[data-umspec-view]').forEach(view => { view.hidden = view.dataset.umspecView !== tab; });
     const footer = document.querySelector('#umspec-modal .umspec-modal-footer');
     if (footer) footer.hidden = tab !== 'courses';
+    globalThis.UmSpecStudentSync?.onTabChange?.(tab);
   }
 
   function addPageControls(container, total, page, size, change) {
+    if (container.nextElementSibling?.classList.contains('umspec-pager')) container.nextElementSibling.remove();
     if (total <= size) return;
     const pager = document.createElement('nav'); pager.className = 'umspec-pager'; pager.setAttribute('aria-label', 'List pages');
     const previous = document.createElement('button'), next = document.createElement('button'), label = document.createElement('span');
@@ -1421,7 +1549,7 @@
     previous.disabled = page === 0; next.disabled = (page + 1) * size >= total;
     label.textContent = (page + 1) + ' / ' + Math.ceil(total / size);
     previous.onclick = () => change(page - 1); next.onclick = () => change(page + 1);
-    pager.append(previous, label, next); container.append(pager);
+    pager.append(previous, label, next); container.after(pager);
   }
 
   // Create & Inject Modal DOM
@@ -1442,7 +1570,7 @@
             </div>
           </div>
           <div class="umspec-header-meta">
-            <span class="umspec-live-pill"><span class="umspec-red-dot"></span> Spectrum</span>
+            <span class="umspec-live-pill"><span class="umspec-red-dot"></span><span id="umspec-spectrum-status">Spectrum</span></span>
             <button class="umspec-close-btn" id="umspec-close-modal" title="Close" aria-label="Close exporter">${ICONS.close}</button>
           </div>
         </div>
@@ -1457,9 +1585,10 @@
           <div id="umspec-sync-home-host"></div>
           <!-- Course Overview Section -->
           <div class="umspec-selection-section" id="umspec-selection-section">
+            <label class="umspec-course-search" for="umspec-course-search"><svg class="umspec-search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><span class="umspec-search-label">Search courses</span><input id="umspec-course-search" type="search" placeholder="Search courses by code or name" autocomplete="off"></label>
             <div class="umspec-section-label" id="umspec-section-header">
               <div class="umspec-section-title-wrap">
-                <span>Choose courses · <span id="umspec-selected-count">0</span> of <span id="umspec-course-count">0</span></span>
+                <span><strong>Choose courses</strong><span class="umspec-selection-fraction"> · <span id="umspec-selected-count">0</span> of <span id="umspec-course-count">0</span> selected</span></span>
               </div>
               <div class="umspec-selection-tools" id="umspec-selection-tools">
                 <button type="button" class="umspec-link-btn" id="umspec-select-all">Select all</button>
@@ -1566,12 +1695,19 @@
             </div>
             <div class="umspec-ai-card-right">
               <label class="umspec-switch" title="Toggle AI Proforma Extraction">
-                <input type="checkbox" id="umspec-ai-enable-chk" ${geminiEnabled ? 'checked' : ''} />
+                <input type="checkbox" id="umspec-ai-enable-chk" aria-label="AI proforma analysis" ${geminiEnabled ? 'checked' : ''} />
                 <span class="umspec-slider"></span>
               </label>
             </div>
           </div>
 
+          <div class="umspec-ai-card umspec-trigger-setting">
+            <div>
+              <div class="umspec-ai-card-title">Floating button</div>
+              <div class="umspec-ai-card-sub">Drag it anywhere. Shift+Arrow keys also move it.</div>
+            </div>
+            <button type="button" id="umspec-trigger-reset">Reset position</button>
+          </div>
 </div>
           </section>
         </div>
@@ -1602,19 +1738,19 @@
 
         <!-- Filter Chips -->
         <div class="umspec-drawer-filters" id="umspec-right-filter-chips">
-          <button type="button" class="umspec-filter-chip active" data-filter="all">ALL</button>
-          <button type="button" class="umspec-filter-chip" data-filter="doc">DOCUMENTS</button>
-          <button type="button" class="umspec-filter-chip" data-filter="video">VIDEOS</button>
-          <button type="button" class="umspec-filter-chip" data-filter="external">STREAMING</button>
+          <button type="button" class="umspec-filter-chip active" data-filter="all">All</button>
+          <button type="button" class="umspec-filter-chip" data-filter="doc">Documents</button>
+          <button type="button" class="umspec-filter-chip" data-filter="video">Videos</button>
+          <button type="button" class="umspec-filter-chip" data-filter="external">Links</button>
         </div>
 
         <!-- Actions Bar -->
         <div class="umspec-drawer-actions-bar">
-          <span>SELECTION // [<span id="umspec-right-selected-count">0</span>/<span id="umspec-right-total-count">0</span> FILES SELECTED]</span>
+          <span>Files · <span id="umspec-right-selected-count">0</span> of <span id="umspec-right-total-count">0</span> selected</span>
           <div style="display: flex; gap: 8px; align-items: center;">
-            <button type="button" class="umspec-drawer-link" id="umspec-right-select-all" style="background: none; border: none; color: #ffffff; cursor: pointer; font-family: var(--umspec-font-mono); font-size: 9.5px; font-weight: 700;">SELECT ALL</button>
+            <button type="button" class="umspec-drawer-link" id="umspec-right-select-all">Select all</button>
             <span class="umspec-sep" style="color: #475569;">//</span>
-            <button type="button" class="umspec-drawer-link" id="umspec-right-deselect-all" style="background: none; border: none; color: #94a3b8; cursor: pointer; font-family: var(--umspec-font-mono); font-size: 9.5px; font-weight: 700;">DESELECT</button>
+            <button type="button" class="umspec-drawer-link" id="umspec-right-deselect-all">Clear</button>
           </div>
         </div>
 
@@ -1628,10 +1764,10 @@
         <!-- Drawer Footer -->
         <div class="umspec-drawer-footer">
           <div class="umspec-drawer-footer-metric">
-            <span style="font-family: var(--umspec-font-mono); font-size: 9px; color: #94a3b8; text-transform: uppercase;">SELECTED SUMMARY</span>
-            <span id="umspec-right-footer-summary" style="font-family: var(--umspec-font-mono); font-size: 10.5px; font-weight: 700; color: #ffffff;">0 Files Selected</span>
+            <span class="umspec-drawer-summary-label">Selection</span>
+            <span id="umspec-right-footer-summary">0 files selected</span>
           </div>
-          <button type="button" class="umspec-btn-drawer-done" id="umspec-right-done-btn">DONE</button>
+          <button type="button" class="umspec-btn-drawer-done" id="umspec-right-done-btn">Done</button>
         </div>
       </div>
     `;
@@ -1660,7 +1796,7 @@
     document.getElementById('umspec-export-back').onclick = () => {
       if (isExporting) return;
       runnerInstance?.stop('IDLE');
-      document.getElementById('umspec-progress-card').style.display = 'none';
+      setProgressCardVisible(false);
       setSelectionPanelCollapsed(false); renderCoursesList();
     };
 
@@ -1748,11 +1884,7 @@
     const aiEnableChk = document.getElementById('umspec-ai-enable-chk');
     if (aiEnableChk) {
       aiEnableChk.addEventListener('change', () => {
-        if (aiEnableChk.checked && localStorage.getItem('umspec_ai_disclosure') !== '1') {
-          const accepted = confirm('AI analysis sends selected proforma documents to the configured UM Spec proxy and Google Gemini. Continue?');
-          if (!accepted) { aiEnableChk.checked = false; return; }
-          localStorage.setItem('umspec_ai_disclosure', '1');
-        }
+        if (aiEnableChk.checked && !confirmAIAnalysis()) aiEnableChk.checked = false;
         geminiEnabled = aiEnableChk.checked;
         localStorage.setItem('umspec_gemini_enabled', String(geminiEnabled));
       });
@@ -1805,6 +1937,8 @@
   // Open & Populate Modal
   async function openModal() {
     createModalDOM();
+    const search = document.getElementById('umspec-course-search');
+    if (search) search.oninput = () => { courseSearch = search.value.trim().toLocaleLowerCase(); coursePage = 0; renderCoursesList(); };
     const overlay = document.getElementById('umspec-modal-overlay');
     overlay.classList.add('umspec-active');
     showModalTab('courses');
@@ -1838,6 +1972,7 @@
     if (advCard) advCard.style.display = 'none';
     const overlay = document.getElementById('umspec-modal-overlay');
     if (overlay) overlay.classList.remove('umspec-active');
+    globalThis.UmSpecStudentSync?.onTabChange?.(null);
     document.getElementById('umspec-trigger-btn')?.focus?.();
   }
 
@@ -1866,6 +2001,15 @@
     if (totalCountEl) totalCountEl.innerText = total;
 
     if (isExporting) return;
+    const footer = document.getElementById('umspec-footer-stats');
+    if (footer) {
+      let files = 0, complete = true;
+      for (const courseId of selectedCourseIds) {
+        files += courseItemsSelected.get(courseId)?.size || 0;
+        if (!courseItemsCache.has(courseId)) complete = false;
+      }
+      footer.innerHTML = `<div class="umspec-selection-summary"><strong class="umspec-summary-count">${count} course${count === 1 ? '' : 's'} selected</strong><span class="umspec-summary-files">${ICONS.fileText}${complete ? files + ' files' : 'Counting files…'}</span></div>`;
+    }
     startBtn.disabled = count === 0;
     startBtn.innerHTML = `${ICONS.download} <span>${destinationMode === 'drive' ? 'Sync to Drive' : 'Download ZIP'}</span>`;
   }
@@ -1897,6 +2041,8 @@
         const link = act.querySelector('a');
         if (!link || !link.href) return;
         const actUrl = link.href;
+        // Labels and inline files have no view.php link, so keep Moodle's own module ID for a stable Drive identity.
+        const moduleId = (act.id || '').match(/^module-(\d+)$/)?.[1] || act.getAttribute?.('data-id') || undefined;
         if (seenUrls.has(actUrl)) return;
         seenUrls.add(actUrl);
 
@@ -1926,6 +2072,7 @@
           name: actName,
           url: actUrl,
           type: modType,
+          moduleId,
           category: cat.id,
           section: secName,
           isVideo,
@@ -1983,8 +2130,9 @@
     const total = items.length;
 
     if (pill) {
-      pill.innerText = total > 0 ? `[${count}/${total} FILES]` : 'FILES';
+      pill.innerText = total > 0 ? `${count === total ? total : count + ' of ' + total} files` : '0 files';
     }
+    updateSelectionUI();
   }
 
   // Synchronize master course row checkbox with granular drawer items
@@ -2139,7 +2287,7 @@
         <div class="umspec-item-row ${isChecked ? '' : 'umspec-item-unselected'}" data-url="${escapeAttr(item.url)}" title="${escapeAttr(item.name)}">
           <div class="umspec-item-left">
             <label class="umspec-checkbox-label" for="umspec-right-chk-${idx}">
-              <input type="checkbox" id="umspec-right-chk-${idx}" class="umspec-item-checkbox" data-url="${escapeAttr(item.url)}" ${isChecked ? 'checked' : ''} />
+              <input type="checkbox" id="umspec-right-chk-${idx}" class="umspec-item-checkbox" aria-label="Select ${escapeHtml(item.name)}" data-url="${escapeAttr(item.url)}" ${isChecked ? 'checked' : ''} />
               <span class="umspec-custom-checkbox" aria-hidden="true">
                 <svg class="umspec-check-glyph" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
                   <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/>
@@ -2197,7 +2345,7 @@
     });
 
     if (footerSummary) {
-      footerSummary.innerText = `${selectedSet.size} of ${allItems.length} Files Selected`;
+      footerSummary.innerText = `${selectedSet.size} of ${allItems.length} files selected`;
     }
   }
 
@@ -2266,7 +2414,7 @@
       const all = courseItemsCache.get(inspectingCourseId) || [];
       const footerSummary = document.getElementById('umspec-right-footer-summary') || document.getElementById('umspec-left-footer-summary');
       if (footerSummary) {
-        footerSummary.innerText = `${set.size} of ${all.length} Files Selected`;
+        footerSummary.innerText = `${set.size} of ${all.length} files selected`;
       }
     }
   }
@@ -2313,23 +2461,25 @@
       return;
     }
 
-    const pageSize = (window.innerHeight < 650 ? 3 : 5) - (document.getElementById('umspec-progress-card')?.style.display === 'block' ? 1 : 0);
-    coursePage = Math.min(coursePage, Math.max(0, Math.ceil(detectedCourses.length / pageSize) - 1));
-    container.innerHTML = detectedCourses.slice(coursePage * pageSize, (coursePage + 1) * pageSize).map(c => {
+    const matches = detectedCourses.filter(c => `${c.fullName} ${c.shortName}`.toLocaleLowerCase().includes(courseSearch));
+    const pageSize = (window.innerHeight < 650 ? 2 : 5) - (document.getElementById('umspec-progress-card')?.style.display === 'block' ? 1 : 0);
+    coursePage = Math.min(coursePage, Math.max(0, Math.ceil(matches.length / pageSize) - 1));
+    container.innerHTML = matches.slice(coursePage * pageSize, (coursePage + 1) * pageSize).map(c => {
       const isSelected = selectedCourseIds.has(c.id);
       const isInspecting = inspectingCourseId === c.id;
       const cachedItems = courseItemsCache.get(c.id);
       const selectedSet = courseItemsSelected.get(c.id);
       const countLabel = cachedItems
-        ? `[${selectedSet ? selectedSet.size : cachedItems.length}/${cachedItems.length} FILES]`
-        : 'FILES';
+        ? `${selectedSet && selectedSet.size !== cachedItems.length ? selectedSet.size + ' of ' : ''}${cachedItems.length} files`
+        : 'Checking…';
+      const title = c.fullName.match(/^([A-Z]{2,}\d{3,}(?:\/[A-Z]{2,}\d{3,})?)\s+(.+)$/i);
 
       return `
         <div class="umspec-course-group" id="umspec-group-${c.id}">
           <div class="umspec-course-row ${isSelected ? '' : 'umspec-row-unselected'} ${isInspecting ? 'active-inspector' : ''}" id="umspec-row-${c.id}" data-id="${c.id}">
             <div class="umspec-course-info">
               <label class="umspec-checkbox-label" for="umspec-chk-${c.id}" title="Toggle course selection">
-                <input type="checkbox" id="umspec-chk-${c.id}" class="umspec-course-checkbox" data-id="${c.id}" ${isSelected ? 'checked' : ''} />
+                <input type="checkbox" id="umspec-chk-${c.id}" class="umspec-course-checkbox" aria-label="Select ${escapeHtml(c.fullName)}" data-id="${c.id}" ${isSelected ? 'checked' : ''} />
                 <span class="umspec-custom-checkbox" aria-hidden="true">
                   <svg class="umspec-check-glyph" viewBox="0 0 24 24" focusable="false" aria-hidden="true">
                     <path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/>
@@ -2337,7 +2487,7 @@
                 </span>
               </label>
               <div class="umspec-course-text-wrap">
-                <div class="umspec-course-title" id="umspec-title-${c.id}" title="${escapeAttr(c.fullName)}">${escapeHtml(c.fullName)}</div>
+                <div class="umspec-course-title" id="umspec-title-${c.id}" title="${escapeAttr(c.fullName)}">${title ? `<span class="umspec-course-code">${escapeHtml(title[1])}</span><span class="umspec-course-name">${escapeHtml(title[2])}</span>` : `<span class="umspec-course-name">${escapeHtml(c.fullName)}</span>`}</div>
               </div>
             </div>
             <div class="umspec-course-actions">
@@ -2350,9 +2500,9 @@
           </div>
         </div>
       `;
-    }).join('');
+    }).join('') || '<p class="umspec-course-empty" role="status">No courses match your search.</p>';
 
-    addPageControls(container, detectedCourses.length, coursePage, pageSize, page => { coursePage = page; renderCoursesList(); });
+    addPageControls(container, matches.length, coursePage, pageSize, page => { coursePage = page; renderCoursesList(); });
 
     // Attach row toggle and drawer inspector handlers
     container.querySelectorAll('.umspec-course-row').forEach(row => {
@@ -2739,7 +2889,7 @@
 
   // Scan and analyze course proforma PDFs using Gemini
   async function analyzeCourseProformas(coursesToExport, signal, statusEl) {
-    if (!geminiEnabled) {
+    if (!geminiEnabled || !confirmAIAnalysis()) {
       return null;
     }
 
@@ -3147,6 +3297,7 @@ Output STRICTLY a JSON object with this exact structure:
     if (advCard) advCard.style.display = 'none';
 
     const runId = ++exportRunId;
+    globalThis.UmSpecStudentSync?.analyseDates?.().catch(() => {});
     const currentController = new AbortController();
     const active = () => isExporting && runId === exportRunId && !currentController.signal.aborted;
     isExporting = true;
@@ -3163,8 +3314,7 @@ Output STRICTLY a JSON object with this exact structure:
     const cancelBtn = document.getElementById('umspec-cancel-btn');
     if (cancelBtn) cancelBtn.style.display = 'inline-flex';
 
-    const progressCard = document.getElementById('umspec-progress-card');
-    progressCard.style.display = 'block';
+    setProgressCardVisible(true);
 
     const fillEl = document.getElementById('umspec-progress-fill');
     const percentEl = document.getElementById('umspec-progress-percent');
@@ -3465,24 +3615,32 @@ ${Array.from(discoveredCategories).map(c => `* **${c}**`).join('\n')}
 
   function syncUserId(doc) {
     if (!doc) return null;
+    if (doc === document && typeof window !== 'undefined' && window.M?.cfg?.userId) {
+      const mId = String(window.M.cfg.userId);
+      if (/^[1-9]\d*$/.test(mId)) return mId;
+    }
+    // ponytail: parse literal configuration JSON; never execute page scripts.
+    for (const script of doc.scripts || []) {
+      const config = (script.textContent || '').match(/(?:^|[;\r\n])\s*M\s*\.\s*cfg\s*=\s*(\{[\s\S]*?\})\s*(?:;|$)/);
+      if (!config) continue;
+      try {
+        const mId = String(JSON.parse(config[1]).userId ?? '');
+        if (/^[1-9]\d*$/.test(mId)) return mId;
+      } catch {}
+    }
     const profile = doc.querySelector([
       '.usermenu a[href*="/user/profile.php"]',
       '.usermenu a[href*="/user/view.php"]',
       '[data-region="usermenu"] a[href*="/user/profile.php"]',
       '#user-action-menu a[href*="/user/profile.php"]',
-      '.userbutton a[href*="/user/profile.php"]',
-      'a[href*="/user/profile.php?id="]',
-      'a[href*="/user/view.php?id="]'
+      '.userbutton a[href*="/user/profile.php"]'
     ].join(', '));
     const href = profile?.getAttribute('href');
-    const match = href?.match(/[?&]id=(\d+)/);
-    if (match && /^[1-9]\d*$/.test(match[1])) return match[1];
-    const userId = href && new URL(href, location.origin).searchParams.get('id');
-    if (/^[1-9]\d*$/.test(userId || '')) return userId;
-    if (doc === document && typeof window !== 'undefined' && window.M?.cfg?.userId) {
-      const mId = String(window.M.cfg.userId);
-      if (/^[1-9]\d*$/.test(mId)) return mId;
-    }
+    try {
+      const url = href && new URL(href, location.origin);
+      const userId = url?.searchParams.get('id');
+      if (url?.origin === location.origin && /^\/user\/(?:profile|view)\.php$/.test(url.pathname) && /^[1-9]\d*$/.test(userId || '')) return userId;
+    } catch {}
     return null;
   }
   function getSyncContext() {
@@ -3490,40 +3648,63 @@ ${Array.from(discoveredCategories).map(c => `* **${c}**`).join('\n')}
     const userId = syncUserId(document);
     return userId ? { userId, origin: location.origin } : null;
   }
+  // The worker re-verifies before every Drive/Calendar step; a short reuse window avoids one /my/ fetch per step.
+  let verifiedSync = null;
   async function verifySyncContext() {
+    const loginRequired = message => Object.assign(new Error(message), { code: 'LOGIN_REQUIRED' });
     const current = getSyncContext();
-    if (!current) throw Object.assign(new Error('Sign in to Spectrum again.'), { code: 'LOGIN_REQUIRED' });
+    if (!current) { verifiedSync = null; throw loginRequired('Could not identify your Spectrum account. Sign in and refresh this tab.'); }
+    if (verifiedSync?.userId === current.userId && Date.now() - verifiedSync.at < 30000) return current;
+    verifiedSync = null;
     try {
       const response = await fetchWithTimeout(location.origin + '/my/', {
         credentials: 'include', cache: 'no-store', redirect: 'follow'
       }, 20000);
-      if (response.ok && new URL(response.url).origin === location.origin) {
-        const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
-        const remoteId = syncUserId(doc);
-        if (remoteId && remoteId !== current.userId) {
-          throw Object.assign(new Error('Spectrum account changed. Refresh this tab before syncing.'), { code: 'ACCOUNT_CHANGED' });
-        }
+      const url = new URL(response.url);
+      if (!response.ok || url.origin !== location.origin || /\/login[/.]/.test(url.pathname)) {
+        throw loginRequired('Spectrum session could not be verified. Sign in again and refresh this tab.');
+      }
+      const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+      if (doc.querySelector('form#login, input[name="password"]')) throw loginRequired('Spectrum session expired. Sign in again and refresh this tab.');
+      const remoteId = syncUserId(doc);
+      if (!remoteId) throw loginRequired('Could not identify your current Spectrum account. Refresh this tab and retry.');
+      if (remoteId !== current.userId) {
+        throw Object.assign(new Error('Spectrum account changed. Refresh this tab before syncing.'), { code: 'ACCOUNT_CHANGED' });
       }
     } catch (e) {
-      if (e.code === 'ACCOUNT_CHANGED') throw e;
+      if (e.code === 'ACCOUNT_CHANGED' || e.code === 'LOGIN_REQUIRED') throw e;
+      throw loginRequired('Could not verify Spectrum. Check your connection, refresh this tab and retry.');
     }
+    verifiedSync = { userId: current.userId, at: Date.now() };
     return current;
   }
-  async function resolveCourseMaterials(course, selectedUrls, signal) {
+  async function resolveCourseMaterials(course, selectedUrls, signal, onProgress) {
     const parsed = await fetchAndParseCourseItems(course.id, signal);
     const materials = [];
-    for (const item of parsed.items) {
+    let skipped = 0;
+    const items = selectedUrls ? parsed.items.filter(item => selectedUrls.has(item.url)) : parsed.items;
+    for (const [index, item] of items.entries()) {
       if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
-      if (selectedUrls && !selectedUrls.has(item.url)) continue;
-      const files = item.isVideo && videoDownloadPreference !== 'include'
-        ? [{ url: item.url, name: item.name, kind: 'link' }]
-        : await globalThis.UmSpecMaterials.resolveItemFiles(item, signal, videoDownloadPreference === 'include' ? 'include' : 'links');
-      for (const file of files) materials.push(await globalThis.UmSpecMaterials.describeMaterial(course, item, file, ''));
+      onProgress?.(index + 1, items.length);
+      // One unreadable item (http:// link, timeout, unusual layout) must not stop the rest of the Drive sync.
+      try {
+        const files = item.isVideo && videoDownloadPreference !== 'include'
+          ? [{ url: item.url, name: item.name, kind: 'link' }]
+          : await globalThis.UmSpecMaterials.resolveItemFiles(item, signal, videoDownloadPreference === 'include' ? 'include' : 'links');
+        for (const file of files) {
+          try { materials.push(await globalThis.UmSpecMaterials.describeMaterial(course, item, file, '')); }
+          catch { skipped++; }
+        }
+      } catch (error) {
+        if (error?.name === 'AbortError' || signal?.aborted || error?.code === 'LOGIN_REQUIRED') throw error;
+        skipped++;
+      }
     }
-    return [...new Map(materials.map(item => [item.sourceKey, item])).values()];
+    return Object.assign([...new Map(materials.map(item => [item.sourceKey, item])).values()], { skipped });
   }
   globalThis.UmSpecExporter = {
     getContext: getSyncContext, verifyContext: verifySyncContext, getSesskey, generateDeadlinesICS, resolveCourseMaterials,
+    createDateAnalysisRunner: (canvas, score) => new UmSpecDragonRunner(canvas, score),
     discoverCourses: async () => {
       detectedCourses = await discoverCourses();
       return detectedCourses;
@@ -3531,6 +3712,7 @@ ${Array.from(discoveredCategories).map(c => `* **${c}**`).join('\n')}
     selectedCourses: () => detectedCourses.filter(c => selectedCourseIds.has(c.id)),
     selectedUrls: courseId => courseItemsSelected.get(Number(courseId)) || null,
     videoPolicy: () => videoDownloadPreference === 'include' ? 'include' : 'links',
+    destination: () => destinationMode,
     applySettings(settings) {
       videoDownloadPreference = settings.videoPolicy === 'include' ? 'include' : 'skip';
       localStorage.setItem('umspec_video_pref', videoDownloadPreference);

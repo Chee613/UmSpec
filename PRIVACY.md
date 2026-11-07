@@ -1,6 +1,6 @@
 # Privacy Policy for UM Spec
 
-Last updated: 24 October 2026.
+Last updated: 30 October 2026.
 
 UM Spec helps Universiti Malaya students export and organise selected SPeCTRUM course content. Features are optional and process different data as described below.
 
@@ -18,13 +18,17 @@ Source IDs, revisions and checksums allow updates to existing managed files. Mis
 
 When enabled, official dates and reviewed announcement dates are copied to a dedicated UM Spec calendar. Details may include course names, descriptions, reminders, original Spectrum links and meeting links.
 
+On first use or recovery, UM Spec makes its managed calendar visible in Google Calendar. Later visibility choices are preserved.
+
 Permissions manage UM Spec-created calendars and read calendar names/IDs to recover the existing calendar. They do not grant access to events on unrelated calendars. UM Spec does not send meeting invitations or create meeting rooms.
 
 ## Announcements and AI
 
-Announcement scanning defaults off. Extraction runs locally and saves bounded excerpts/date suggestions for review. Only approved event details and joining links are copied to Google Calendar.
+Automatic announcement scanning defaults on for new preferences; saved choices are preserved. Opening Dates, choosing Analyse dates, or exporting selected courses starts a local check of official Spectrum dates and announcement forums. It runs alongside file exports and stores the results in extension storage. Each announcement pass reads up to 100 discussion opening posts; replies and attachment contents are not analysed. An incomplete pass can be continued with Analyse dates.
 
-The existing optional proforma AI feature is separate. After you accept its disclosure and enable it, selected proforma documents and prompts are sent to the configured UM Spec proxy and Google Gemini. The bundled default proxy may cache analysis output for up to 90 days. These requests exclude Spectrum cookies and Google access tokens. Automatic Drive/Calendar checks do not call this AI feature.
+Date extraction runs locally and saves bounded excerpts/date suggestions for review. It does not send announcements to an AI service. Only approved announcement event details and joining links are copied to Google Calendar. Official dates sync when Calendar is connected and enabled. Stop cancels date analysis and pauses its Calendar writes without stopping a file export.
+
+The separate proforma AI preference defaults on and can be turned off in Settings. Before its first analysis, you must accept the disclosure that selected proforma documents and prompts are sent to the configured UM Spec proxy and Google Gemini. Declining skips AI analysis for that export. The bundled default proxy may cache analysis output for up to 90 days. These requests exclude Spectrum cookies and Google access tokens. Automatic Drive/Calendar checks do not call this AI feature.
 
 ## Local storage
 

@@ -184,3 +184,16 @@ test('Open courses stays usable while authoritative settings are still loading',
     assert.equal(opened, 1);
   } finally { completeStatus(); await started; }
 });
+
+test('course totals and ready state appear only after Spectrum context is verified', async () => {
+  const status = defaultStatus();
+  status.settings.courseIds = ['123', '456'];
+  const ready = popup(status); await ready.start();
+  assert.equal(ready.el('selected-course-count').textContent, '2');
+  assert.equal(ready.el('status-title').textContent, 'Spectrum is ready');
+  const locked = popup(status, { tabMessage: async () => ({ ok: false, error: { code: 'LOGIN_REQUIRED', message: 'Refresh Spectrum.' } }) });
+  await locked.start();
+  assert.equal(locked.el('selected-course-count').textContent, '—');
+  assert.equal(locked.el('status-title').textContent, 'Confirm your Spectrum session');
+  assert.equal(locked.el('destination-drive').disabled, true);
+});

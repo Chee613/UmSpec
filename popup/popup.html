@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>UmSpec</title>
+  <title>UM Spec</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <div class="popup">
     <header class="popup-header">
-      <svg class="brand-icon" viewBox="0 0 128 128" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M24 12h77q4 0 7 3l14 14q2 2 2 6v11q0 3-3 3H42l7 8h47q4 0 7 3l14 14q3 3 3 8v29q0 4-4 4H28q-4 0-7-3L8 99q-4-4-4-8v-8q0-3 4-3h77l-9-9H30q-4 0-7-3L10 55q-2-2-2-6V32q0-4 3-7l10-10q2-3 3-3Zm75 8v17h17L99 20Zm-3 45v16h16L96 65Z"/></svg>
-      <div><h1>UmSpec</h1><p>Course files and dates</p></div>
-      <span class="version">2.0.2</span>
+      <span class="brand-mark"><svg class="brand-icon" viewBox="0 0 128 128" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M24 12h77q4 0 7 3l14 14q2 2 2 6v11q0 3-3 3H42l7 8h47q4 0 7 3l14 14q3 3 3 8v29q0 4-4 4H28q-4 0-7-3L8 99q-4-4-4-8v-8q0-3 4-3h77l-9-9H30q-4 0-7-3L10 55q-2-2-2-6V32q0-4 3-7l10-10q2-3 3-3Zm75 8v17h17L99 20Zm-3 45v16h16L96 65Z"/></svg></span>
+      <div class="brand-copy"><p>Universiti Malaya</p><h1>UM Spec</h1></div>
+      <span class="version">v2.0.4</span>
     </header>
     <nav class="main-tabs" role="tablist" aria-label="Popup sections">
       <button id="tab-home" type="button" role="tab" data-tab-group="main" aria-selected="true" aria-controls="panel-home" tabindex="0">Home</button>
@@ -21,12 +21,12 @@
       <section id="panel-home" class="home-panel" role="tabpanel" aria-labelledby="tab-home">
         <div class="spectrum-status"><span id="status-indicator" aria-hidden="true"></span><div><h2 id="status-title">Checking Spectrum…</h2><p id="status-desc">Finding your active tab.</p></div></div>
         <fieldset id="sync-destination"><legend>Save course files to</legend><div class="destinations">
-          <label><input id="destination-zip" type="radio" name="destination" value="zip" data-control disabled checked>ZIP download</label>
-          <label><input id="destination-drive" type="radio" name="destination" value="drive" data-control disabled>Google Drive</label>
+          <label><input id="destination-zip" type="radio" name="destination" value="zip" data-control disabled checked><span>ZIP file</span></label>
+          <label><input id="destination-drive" type="radio" name="destination" value="drive" data-control disabled><img class="provider-icon" src="../icons/google-drive.svg" width="20" height="20" alt=""><span>Google Drive</span></label>
         </div></fieldset>
         <div class="destination-help"><p id="destination-hint">ZIP works without a Google account.</p><button id="drive-settings" class="text-button" type="button" data-control disabled>Connect Drive in settings</button></div>
-        <div class="home-actions"><button id="action-btn" class="primary" type="button" data-control disabled><svg class="glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg><span id="action-label">Open courses</span></button><button id="sync-now" type="button" data-control disabled hidden>Sync now</button></div>
-        <p id="home-summary" class="muted">Choose your courses before saving files.</p>
+        <div class="course-selection"><span id="selected-course-count" class="selection-count">—</span><div><strong>Selected courses</strong><p id="home-summary" class="muted">Choose your courses before saving files.</p></div></div>
+        <div class="home-actions"><button id="action-btn" class="primary" type="button" data-control disabled><svg class="glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 1H5a2 2 0 0 0-2 2v18a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2zm-1 18H6V4h12v15zm-2-8H8v-2h8v2zm0-4H8V5h8v2z"/></svg><span id="action-label">Open courses</span></button><button id="sync-now" type="button" data-control disabled hidden>Sync now</button></div>
       </section>
       <section id="panel-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
         <nav class="settings-tabs" role="tablist" aria-label="Settings categories">
@@ -35,31 +35,34 @@
           <button id="tab-account" type="button" role="tab" data-tab-group="settings" aria-selected="false" aria-controls="panel-account" tabindex="-1">Account</button>
         </nav>
         <section id="panel-files" class="settings-panel" role="tabpanel" aria-labelledby="tab-files">
-          <label class="field" for="archive-name">Semester archive<input id="archive-name" type="text" maxlength="80" placeholder="2026–27 Semester 1" data-control disabled></label>
-          <div class="setting"><label class="check-row"><input id="download-videos" type="checkbox" data-control disabled><span>Download videos</span></label><p class="hint">Off by default. Save video links for faster exports.</p></div>
-          <div class="setting"><label class="check-row"><input id="auto-sync" type="checkbox" data-control disabled><span>Update Drive when I open Spectrum</span></label><p id="auto-sync-hint" class="hint">Available after your first successful Drive sync.</p></div>
+          <h2 class="panel-title">File preferences</h2>
+          <label class="field" for="archive-name">Semester folder<input id="archive-name" type="text" maxlength="80" placeholder="e.g. Semester 1" data-control disabled></label>
+          <div class="setting"><label class="check-row"><input id="download-videos" type="checkbox" data-control disabled><span>Download videos</span></label><p class="hint">Turn off to save video links for faster exports.</p></div>
+          <div class="setting"><label class="check-row"><input id="auto-sync" type="checkbox" data-control disabled><span>Automatic Drive updates</span></label><p id="auto-sync-hint" class="hint">Available after your first successful Drive sync.</p></div>
           <p class="hint">Your chosen courses stay selected. New courses wait for you to choose them.</p>
         </section>
         <section id="panel-calendar" class="settings-panel" role="tabpanel" aria-labelledby="tab-calendar" hidden>
-          <button id="connect-calendar" type="button" data-control disabled>Connect Google Calendar</button>
-          <p class="hint">Uses a separate UM Spec calendar. Reading calendar names helps find it again.</p>
+          <h2 class="panel-title">Calendar preferences</h2>
+          <button id="connect-calendar" class="provider-button" type="button" data-control disabled><img class="provider-icon" src="../icons/google-calendar.svg" width="20" height="20" alt=""><span id="connect-calendar-label">Connect Google Calendar</span></button>
+          <p class="hint">Course dates go to a separate UM Spec calendar.</p>
           <label class="check-row"><input id="calendar-enabled" type="checkbox" data-control disabled><span>Sync official course dates</span></label>
           <label class="field" for="calendar-reminders">Calendar reminders<select id="calendar-reminders" data-control disabled><option value="1440,60">1 day and 1 hour before</option><option value="1440">1 day before</option><option value="60">1 hour before</option><option value="">No reminders</option><option id="custom-reminders" value="custom" hidden>Custom reminders</option></select></label>
           <div class="setting"><label class="check-row"><input id="announcement-scanning" type="checkbox" data-control disabled><span>Check announcement dates</span></label><p class="hint">Processed locally. Review dates in Open courses before they are added to Calendar.</p></div>
         </section>
         <section id="panel-account" class="settings-panel" role="tabpanel" aria-labelledby="tab-account" hidden>
-          <div><h2 class="small-title">Google account</h2><p id="account-email" class="account-email">Not connected</p></div>
-          <div class="account-actions"><button id="connect-drive" type="button" data-control disabled>Connect Drive</button><button id="disconnect-google" type="button" data-control disabled>Disconnect</button></div>
+          <h2 class="panel-title">Account & connections</h2>
+          <div class="account-card"><h3 class="small-title">Google account</h3><p id="account-email" class="account-email">Not connected</p></div>
+          <div class="account-actions"><button id="connect-drive" class="provider-button" type="button" data-control disabled><img class="provider-icon" src="../icons/google-drive.svg" width="20" height="20" alt=""><span id="connect-drive-label">Connect Drive</span></button><button id="disconnect-google" type="button" data-control disabled>Disconnect</button></div>
           <p class="hint">Drive receives files you select in a private UM Spec folder. Google is optional; ZIP stays available.</p>
           <button id="google-setup" class="text-button" type="button" data-control disabled>Google setup guide</button>
-          <button id="btn-open-options-dashboard" type="button" class="text-button" style="text-align: center; margin-top: 6px; border: 1px solid #333; border-radius: 6px; padding: 6px;">Open Full Settings Dashboard ↗</button>
+          <button id="btn-open-options-dashboard" type="button" class="dashboard-button">Open full settings <span aria-hidden="true">↗</span></button>
         </section>
       </section>
     </main>
     <div class="message-area"><p id="sync-status" role="status" aria-live="polite">Loading your preferences…</p></div>
     <footer>
-      <button id="open-options-page" class="text-button" type="button" style="font-size: 10px; padding: 0; min-height: auto;">Full Dashboard ↗</button>
-      <a href="https://github.com/Chee613/UmSpec" target="_blank" rel="noopener noreferrer">About UmSpec</a>
+      <button id="open-options-page" class="text-button" type="button">All settings <span aria-hidden="true">↗</span></button>
+      <a href="https://github.com/Chee613/UmSpec" target="_blank" rel="noopener noreferrer">About UM Spec</a>
     </footer>
   </div>
   <script src="popup.js"></script>

@@ -12,8 +12,8 @@ if (typeof importScripts === 'function') {
   const announcements = () => dep('UmSpecAnnouncements', '../shared/announcement-core.js');
   const error = (code, message) => Object.assign(new Error(message), { code });
   const defaults = () => ({
-    mode: 'zip', autoSync: false, calendarEnabled: false, announcementScanning: false,
-    archiveId: '', courseIds: [], videoPolicy: 'links', reminderMinutes: [1440, 60]
+    mode: 'zip', autoSync: true, calendarEnabled: true, announcementScanning: true,
+    archiveId: '', courseIds: [], videoPolicy: 'include', reminderMinutes: [1440, 60]
   });
   const freshState = () => ({
     schemaVersion: 1, bindings: {}, contexts: {}, google: null, activeJob: null,
@@ -27,6 +27,7 @@ if (typeof importScripts === 'function') {
     state.savedJobs ||= { drive: {}, calendar: {} };
     state.savedJobs.drive ||= {};
     state.savedJobs.calendar ||= {};
+    for (const binding of Object.values(state.bindings)) binding.settings = { ...defaults(), ...binding.settings };
     return state;
   }
   async function save(state) { await chrome.storage.local.set({ umspecState: state }); }
@@ -45,6 +46,9 @@ if (typeof importScripts === 'function') {
     const tabId = sender.tab?.id ?? message.tabId ?? state.lastTabId;
     let context = state.contexts[String(tabId)];
     let binding = context && state.bindings[context.bindingHash];
+    if (senderKind(sender) === 'content' && (!binding || !/^[1-9]\d*$/.test(binding.spectrumUserId) || context.userId !== binding.spectrumUserId)) {
+      throw error('LOGIN_REQUIRED', 'Confirm your Spectrum account before changing settings.');
+    }
     if (!binding) {
       if (message.bindingHash && state.bindings[message.bindingHash]) {
         binding = state.bindings[message.bindingHash];
@@ -82,11 +86,15 @@ if (typeof importScripts === 'function') {
         ? { email: binding.googleEmail, features: binding.features || [] } : null,
       settings: binding?.settings || defaults(), bindingHash: binding?.hash || null, tabId,
       announcementCursor: binding?.announcementCursor || null,
+      dateScan: binding?.dateScan ? structuredClone(binding.dateScan) : null,
       syncTimes: binding?.syncTimes || {}, driveRootId: binding?.driveRootId || null,
       calendarId: binding?.calendarId || null,
+      calendarVisibilityNotice: binding?.calendarId && binding.calendarVisibilityIssue?.calendarId === binding.calendarId ? binding.calendarVisibilityIssue.message : null,
       job: job ? { id: job.id, tabId: job.tabId, done: Boolean(job.done), status: job.status, cursor: job.cursor || 0,
         total: job.materials.length, scopeChanged: !scopeMatches(job, binding, 'drive'),
-        summary: core().summariseResults(job.results || []), error: job.error || null } : null,
+        summary: core().summariseResults(job.results || []), error: job.error || null,
+        attention: (job.results || []).filter(result => ['failed', 'conflict', 'trashed'].includes(result.action)).slice(0, 5)
+          .map(result => ({ name: result.name, action: result.action, detail: result.detail || null })) } : null,
       calendarJob: calendarJob ? { ...calendarJob, scopeChanged: !scopeMatches(calendarJob, binding, 'calendar'), records: undefined } : null,
       candidates: Object.values(binding?.candidates || {}).filter(c => ['pending', 'stale'].includes(c.state)),
       events: Object.values(binding?.events || {}),
@@ -132,9 +140,17 @@ if (typeof importScripts === 'function') {
     const courses = [...settings.courseIds].sort();
     return JSON.stringify(feature === 'drive' ? [settings.archiveId, courses, settings.videoPolicy] : [courses]);
   }
+  function calendarScopeKey(binding, useDateScan) {
+    if (!useDateScan) return scopeKey(binding.settings, 'calendar');
+    const courseIds = [...(binding.dateScan?.courseIds || [])].sort();
+    const sources = (binding.dateScan?.records || []).filter(record => courseIds.includes(String(record.courseId)))
+      .map(record => [record.sourceKey, record.sourceRevision]).sort((a, b) => a[0].localeCompare(b[0]));
+    return JSON.stringify(['dateScan', courseIds, sources, binding.dateScan?.complete === true,
+      binding.settings.calendarEnabled, binding.settings.reminderMinutes]);
+  }
   function scopeMatches(job, binding, feature) {
     const key = job.scopeKey ?? (feature === 'drive' && job.binding?.settings ? scopeKey(job.binding.settings, feature) : null);
-    return key === scopeKey(binding.settings, feature);
+    return key === (feature === 'calendar' ? calendarScopeKey(binding, job.useDateScan === true) : scopeKey(binding.settings, feature));
   }
   function pauseForScope(job, binding, feature) {
     if (!job || job.done) return;
@@ -180,6 +196,47 @@ if (typeof importScripts === 'function') {
     }
     state.recentChanges = state.recentChanges.filter(c => now - c.at < 30 * 86400000).slice(0, 100);
   }
+  async function queueAnnouncementPosts(state, binding, posts, courseIds) {
+    if (!Array.isArray(posts) || posts.length > 100) throw error('CAPACITY', 'Read announcements in smaller batches.');
+    const now = Date.now();
+    // Dates that have already passed cannot be added usefully, so they leave the review queue.
+    for (const candidate of Object.values(binding.candidates)) {
+      const end = candidate.suggestedEnd || candidate.suggestedStart;
+      if (['pending', 'stale'].includes(candidate.state) && end && Date.parse(end.length === 10 ? end + 'T23:59:59+08:00' : end) < now) {
+        candidate.state = 'expired';
+        candidate.evidence = '';
+      }
+    }
+    for (const raw of posts) {
+      if (!raw || !courseIds.includes(String(raw.courseId))) throw error('INVALID_SOURCE', 'Unselected course.');
+      const post = await announcements().normalisePost(raw);
+      const prior = Object.values(binding.candidates).filter(c => c.postId === post.postId && c.courseId === post.courseId && c.forumId === post.forumId);
+      if (prior.length && prior.every(c => c.sourceRevision === post.sourceRevision)) continue;
+      // Edited posts keep every suggestion so their earlier reviews are reconciled; new posts skip past dates.
+      const suggestions = announcements().extractSuggestions(post, prior.length ? {} : { now });
+      if (!prior.length && !suggestions.length) continue;
+      addChanges(state, binding, [{ action: 'review', feature: 'announcements',
+        sourceKey: 'announcement:' + [post.courseId, post.forumId, post.postId].join(':'),
+        sourceRevision: post.sourceRevision, title: post.title.slice(0, 500),
+        reason: prior.length ? 'Announcement changed; review required' : 'New announcement; review required' }]);
+      if (prior.length && (prior.length !== 1 || suggestions.length !== 1)) {
+        for (const candidate of prior) Object.assign(candidate, {
+          state: 'stale', sourceRevision: post.sourceRevision, reason: 'multiple_dates',
+          evidence: post.text.slice(0, 300), suggestedStart: null, suggestedEnd: null
+        });
+        continue;
+      }
+      for (const suggestion of suggestions) {
+        if (Object.values(binding.candidates).filter(c => ['pending', 'stale'].includes(c.state)).length >= 500) throw error('BACKLOG_FULL', 'Review the pending dates before scanning more announcements.');
+        const candidate = prior[0] || { candidateId: crypto.randomUUID(), slotId: crypto.randomUUID() };
+        Object.assign(candidate, suggestion, { courseId: post.courseId, forumId: post.forumId,
+          postId: post.postId, sourceUrl: post.sourceUrl, sourceRevision: post.sourceRevision,
+          state: prior.length ? 'stale' : 'pending', acceptedRevision: null });
+        candidate.sourceKey = 'announcement:' + [post.courseId, post.forumId, post.postId, candidate.slotId].join(':');
+        binding.candidates[candidate.candidateId] = candidate;
+      }
+    }
+  }
   async function validateMaterials(materials, binding) {
     if (!Array.isArray(materials) || materials.length > 5000) throw error('CAPACITY', 'Select fewer materials for this sync.');
     const seen = new Set();
@@ -223,17 +280,16 @@ if (typeof importScripts === 'function') {
       const old = state.contexts[String(tabId)];
       const existing = Object.values(state.bindings).find(b => b.spectrumUserId === String(message.userId) &&
         b.googleSub === state.google?.sub);
-      const hash = existing?.hash || await core().hashParts(['https://spectrum.um.edu.my', String(message.userId)]);
+      const pending = !existing && Object.values(state.bindings).find(b => b.spectrumUserId === 'local_student' &&
+        (!b.googleSub || b.googleSub === state.google?.sub));
+      const hash = existing?.hash || await core().hashParts(['https://spectrum.um.edu.my', String(message.userId), ...(pending?.googleSub ? [pending.googleSub] : [])]);
       if (!state.bindings[hash]) {
-        const fallback = state.bindings['default_student_binding'];
         state.bindings[hash] = {
-          hash, spectrumOrigin: 'https://spectrum.um.edu.my', spectrumUserId: String(message.userId),
-          googleSub: state.google?.sub || fallback?.googleSub || null,
-          googleEmail: state.google?.email || fallback?.googleEmail || null,
-          features: fallback?.features || (state.google ? ['drive'] : []),
-          settings: fallback?.settings ? { ...fallback.settings } : defaults(),
-          syncTimes: {}, candidates: {}, events: {}, driveRootId: null, calendarId: null
+          googleSub: null, googleEmail: null, features: [], settings: defaults(),
+          syncTimes: {}, candidates: {}, events: {}, driveRootId: null, calendarId: null,
+          ...pending, hash, spectrumOrigin: 'https://spectrum.um.edu.my', spectrumUserId: String(message.userId)
         };
+        if (pending) delete state.bindings[pending.hash];
       }
       if (old && old.bindingHash !== hash && state.activeJob?.tabId === tabId) state.activeJob.status = 'paused';
       if (old && old.bindingHash !== hash && state.calendarJob?.tabId === tabId) state.calendarJob.status = 'paused';
@@ -266,13 +322,14 @@ if (typeof importScripts === 'function') {
       const connected = state.bindings[hash] || {
         hash, spectrumOrigin: binding.spectrumOrigin, spectrumUserId: binding.spectrumUserId,
         googleSub: account.sub, googleEmail: account.email, features: [],
-        settings: { ...defaults(), courseIds: [...binding.settings.courseIds], archiveId: binding.settings.archiveId,
+        settings: { ...defaults(), ...(local ? binding.settings : {}), courseIds: [...binding.settings.courseIds], archiveId: binding.settings.archiveId,
           videoPolicy: binding.settings.videoPolicy, reminderMinutes: [...binding.settings.reminderMinutes] },
         syncTimes: {}, candidates: local ? structuredClone(binding.candidates || {}) : {},
-        events: local ? structuredClone(binding.events || {}) : {}, calendarEvents: {}, driveRootId: null, calendarId: null
+        events: local ? structuredClone(binding.events || {}) : {}, dateScan: local ? structuredClone(binding.dateScan || null) : null,
+        calendarEvents: {}, driveRootId: null, calendarId: null
       };
       connected.features = [...new Set([...(connected.features || []), message.feature])];
-      connected.settings[message.feature === 'drive' ? 'mode' : 'calendarEnabled'] = message.feature === 'drive' ? 'drive' : true;
+      if (message.feature === 'drive') connected.settings.mode = 'drive';
       state.bindings[hash] = connected;
       if (binding.hash === 'default_student_binding') delete state.bindings['default_student_binding'];
       state.google = account;
@@ -304,8 +361,19 @@ if (typeof importScripts === 'function') {
       return publicStatus(state, sender, message);
     }
     if (message.type === 'PAUSE_SYNC') {
-      if (state.activeJob?.bindingHash === binding.hash) state.activeJob.status = 'paused';
+      if (message.feature !== undefined) {
+        if (message.feature !== 'calendar') throw error('INVALID_MESSAGE', 'Unsupported pause feature.');
+        if (kind !== 'content' || !message.bindingHash) throw error('FORBIDDEN', 'A verified Calendar tab is required.');
+        if (state.calendarJob?.bindingHash === binding.hash && state.calendarJob.tabId !== tabId) throw error('BUSY', 'Calendar sync is running in another Spectrum tab.');
+      }
+      if (message.feature !== 'calendar' && state.activeJob?.bindingHash === binding.hash) state.activeJob.status = 'paused';
       if (state.calendarJob?.bindingHash === binding.hash) state.calendarJob.status = 'paused';
+      await save(state);
+      return publicStatus(state, sender, message);
+    }
+    if (message.type === 'MARK_SYNC_ATTEMPT') {
+      if (kind !== 'content' || !['drive', 'calendar', 'announcements'].includes(message.feature)) throw error('INVALID_MESSAGE', 'Unsupported sync feature.');
+      binding.syncTimes[message.feature] = { ...binding.syncTimes[message.feature], lastAttemptAt: Date.now() };
       await save(state);
       return publicStatus(state, sender, message);
     }
@@ -348,6 +416,7 @@ if (typeof importScripts === 'function') {
         await authorise(state, tabId, binding, 'drive');
         state.activeJob = await dep('UmSpecDrive', './drive.js').runDriveStep(job);
         binding.driveRootId = state.activeJob.binding.driveRootId ?? binding.driveRootId;
+        binding.driveLinks = state.activeJob.binding.driveLinks ?? binding.driveLinks;
         addChanges(state, binding, state.activeJob.results.slice(before));
         if (state.activeJob.done) {
           state.activeJob.status = 'complete';
@@ -364,19 +433,26 @@ if (typeof importScripts === 'function') {
     if (message.type === 'BEGIN_CALENDAR_SYNC') {
       if (!binding.settings.calendarEnabled) throw error('DISABLED', 'Enable Google Calendar first.');
       await authorise(state, tabId, binding, 'calendar');
-      if (!Array.isArray(message.records) || message.records.length > 5000) throw error('CAPACITY', 'Too many dates in one pass.');
-      const records = message.records.filter(record => binding.settings.courseIds.includes(String(record.courseId)));
+      const useDateScan = message.useDateScan === true;
+      if (useDateScan && (!message.bindingHash || !binding.dateScan)) throw error('INVALID_SOURCE', 'Complete a verified local date scan first.');
+      const sourceRecords = useDateScan ? binding.dateScan.records : message.records;
+      const courseIds = useDateScan ? binding.dateScan.courseIds : binding.settings.courseIds;
+      if (!Array.isArray(sourceRecords) || sourceRecords.length > 5000) throw error('CAPACITY', 'Too many dates in one pass.');
+      const records = sourceRecords.filter(record => courseIds.includes(String(record.courseId)));
       for (const record of records) if (!calendar().validateEvent(record).valid || record.sourceType !== 'moodle') throw error('INVALID_EVENT', 'Official dates failed validation.');
       const existing = selectJob(state, 'calendar', binding);
-      const changed = existing && !scopeMatches(existing, binding, 'calendar');
+      const changed = existing && (Boolean(existing.useDateScan) !== useDateScan || !scopeMatches(existing, binding, 'calendar'));
       if (existing && !existing.done && changed && message.freshInventory !== true) throw error('SCOPE_CHANGED', 'Choose Sync now to read the new selected-course calendar.');
       if (existing && !existing.done && !changed) {
         await joinJob(state, existing, tabId, binding);
       } else {
         state.calendarJob = { id: crypto.randomUUID(), bindingHash: binding.hash, tabId, records, cursor: 0,
-          scopeKey: scopeKey(binding.settings, 'calendar'), scopeChanged: false, results: [], done: false, status: 'running', complete: message.complete === true };
+          scopeKey: calendarScopeKey(binding, useDateScan), useDateScan, scopeChanged: false, results: [], done: false, status: 'running',
+          complete: useDateScan ? binding.dateScan.complete === true : message.complete === true };
         binding.syncTimes.calendar = { ...binding.syncTimes.calendar, lastAttemptAt: Date.now() };
       }
+      // Each sync may try once more to show the calendar after an earlier refusal.
+      delete binding.calendarVisibilityIssue;
       await save(state);
       return publicStatus(state, sender, message);
     }
@@ -397,7 +473,9 @@ if (typeof importScripts === 'function') {
       }
       try {
         await authorise(state, tabId, binding, 'calendar');
-        if (!binding.calendarId && job.records.length) {
+        if ((!binding.calendarId && job.records.length) ||
+            (binding.calendarId && !job.records.length && binding.calendarVisibilityId !== binding.calendarId &&
+              binding.calendarVisibilityIssue?.calendarId !== binding.calendarId)) {
           await dep('UmSpecCalendar', './calendar.js').ensureCalendar(binding, false, () => save(state));
         } else if (job.cursor < job.records.length) {
           const record = { ...job.records[job.cursor], reminderMinutes: binding.settings.reminderMinutes };
@@ -416,36 +494,38 @@ if (typeof importScripts === 'function') {
       finally { await save(state); }
       return publicStatus(state, sender, message);
     }
+    if (message.type === 'SAVE_DATE_SCAN') {
+      if (kind !== 'content' || typeof message.bindingHash !== 'string' || !message.bindingHash) throw error('FORBIDDEN', 'A verified date scan binding is required.');
+      if (!Array.isArray(message.courseIds) || message.courseIds.length > 100 ||
+          message.courseIds.some(id => !/^[1-9]\d*$/.test(String(id))) || typeof message.complete !== 'boolean') throw error('INVALID_SOURCE', 'Invalid date scan course scope.');
+      const courseIds = [...new Set(message.courseIds.map(String))];
+      if (!Array.isArray(message.records) || message.records.length > 5000) throw error('CAPACITY', 'Too many dates in one scan.');
+      for (const record of message.records) {
+        if (!calendar().validateEvent(record).valid || record.sourceType !== 'moodle' || !courseIds.includes(String(record.courseId))) throw error('INVALID_EVENT', 'Official dates failed validation.');
+      }
+      const failures = message.failures ?? [];
+      if (!Array.isArray(failures) || failures.length > 200 || failures.some(item => !item || typeof item.message !== 'string' ||
+          item.message.length > 500 || (item.courseId != null && !courseIds.includes(String(item.courseId))))) throw error('INVALID_SOURCE', 'Invalid date scan failures.');
+      const cursor = message.announcementCursor ?? null;
+      if (cursor !== null && (typeof cursor !== 'object' || Array.isArray(cursor) || JSON.stringify(cursor).length > 8192 ||
+          (cursor.courseId != null && !courseIds.includes(String(cursor.courseId))))) throw error('INVALID_SOURCE', 'Invalid date scan cursor.');
+      const records = new Map((message.complete ? [] : binding.dateScan?.records || []).map(record => [record.sourceKey, record]));
+      for (const record of message.records) records.set(record.sourceKey, record);
+      if (records.size > 5000) throw error('CAPACITY', 'Too many dates in one scan.');
+      await liveContext(state, tabId, binding);
+      await queueAnnouncementPosts(state, binding, message.posts, courseIds);
+      binding.dateScan = { courseIds, records: structuredClone([...records.values()]), completedAt: Date.now(),
+        complete: message.complete, announcementCursor: structuredClone(cursor),
+        failures: failures.map(item => ({ message: item.message, ...(item.courseId != null ? { courseId: String(item.courseId) } : {}) })) };
+      if (state.calendarJob?.bindingHash === binding.hash) pauseForScope(state.calendarJob, binding, 'calendar');
+      pauseForScope(state.savedJobs.calendar[binding.hash], binding, 'calendar');
+      await save(state);
+      return publicStatus(state, sender, message);
+    }
     if (message.type === 'QUEUE_ANNOUNCEMENTS') {
       if (!binding.settings.announcementScanning) throw error('DISABLED', 'Enable announcement scanning first.');
-      if (!Array.isArray(message.posts) || message.posts.length > 100) throw error('CAPACITY', 'Read announcements in smaller batches.');
-      for (const raw of message.posts) {
-        if (!binding.settings.courseIds.includes(String(raw.courseId))) throw error('INVALID_SOURCE', 'Unselected course.');
-        const post = await announcements().normalisePost(raw);
-        const prior = Object.values(binding.candidates).filter(c => c.postId === post.postId && c.courseId === post.courseId && c.forumId === post.forumId);
-        if (prior.length && prior.every(c => c.sourceRevision === post.sourceRevision)) continue;
-        const suggestions = announcements().extractSuggestions(post);
-        addChanges(state, binding, [{ action: 'review', feature: 'announcements',
-          sourceKey: 'announcement:' + [post.courseId, post.forumId, post.postId].join(':'),
-          sourceRevision: post.sourceRevision, title: post.title.slice(0, 500),
-          reason: prior.length ? 'Announcement changed; review required' : 'New announcement; review required' }]);
-        if (prior.length && (prior.length !== 1 || suggestions.length !== 1)) {
-          for (const candidate of prior) Object.assign(candidate, {
-            state: 'stale', sourceRevision: post.sourceRevision, reason: 'multiple_dates',
-            evidence: post.text.slice(0, 300), suggestedStart: null, suggestedEnd: null
-          });
-          continue;
-        }
-        for (const suggestion of suggestions) {
-          if (Object.values(binding.candidates).filter(c => ['pending', 'stale'].includes(c.state)).length >= 500) throw error('BACKLOG_FULL', 'Review the pending dates before scanning more announcements.');
-          const candidate = prior[0] || { candidateId: crypto.randomUUID(), slotId: crypto.randomUUID() };
-          Object.assign(candidate, suggestion, { courseId: post.courseId, forumId: post.forumId,
-            postId: post.postId, sourceUrl: post.sourceUrl, sourceRevision: post.sourceRevision,
-            state: prior.length ? 'stale' : 'pending', acceptedRevision: null });
-          candidate.sourceKey = 'announcement:' + [post.courseId, post.forumId, post.postId, candidate.slotId].join(':');
-          binding.candidates[candidate.candidateId] = candidate;
-        }
-      }
+      await liveContext(state, tabId, binding);
+      await queueAnnouncementPosts(state, binding, message.posts, binding.settings.courseIds);
       binding.syncTimes.announcements = { ...binding.syncTimes.announcements, lastAttemptAt: Date.now() };
       if (message.complete === true) binding.syncTimes.announcements.lastSuccessfulSyncAt = Date.now();
       binding.announcementCursor = message.cursor || null;

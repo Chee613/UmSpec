@@ -51,6 +51,8 @@
 
 After updating the extension files, click **Reload** on UmSpec in the browser’s Extensions page, then refresh your SPeCTRUM tab. Existing tabs keep the previous injected UI until refreshed.
 
+If `Extension context invalidated` appears during a reload, close **all** Spectrum tabs, reload UM Spec, clear its old error entries, and open Spectrum again. This retires older injected scripts in every tab. Version **2.0.4** includes the guarded runtime; its popup and dashboard show the same version.
+
 ---
 
 ## 📖 How to Use
@@ -84,7 +86,7 @@ After updating the extension files, click **Reload** on UmSpec in the browser’
 | Announcements | Local English/Malay date extraction, source evidence, meeting links and a review queue |
 | Daily use | Remembered courses, a seven-day upcoming panel and recent changes |
 
-The popup has Home and Settings tabs. The course dialog separates Courses, Dates and Settings, with paged lists that fit the window. Videos and recordings are saved as links by default. Enable **Settings → Files → Download videos** to include available video files in ZIP or Drive; hosted recordings remain links and Drive files over 50 MiB remain linked.
+The popup has Home and Settings tabs. The course dialog separates Courses, Dates and Settings, with paged lists that fit the window. Download videos, automatic Drive updates, official date sync, announcement checks and proforma AI analysis default on for new preferences; saved choices are preserved. Turn off **Settings → Files → Download videos** to save video links; hosted recordings and Drive files over 50 MiB remain linked. Google features require connection, and proforma AI requires its first-use disclosure.
 
 ZIP exports show the interactive Chrome Dino Runner with jump controls, cancellation/retry, and a completion screen. After exporting, use **Back to courses** to return to selection. The popup waits for Spectrum account verification before enabling settings; **Open courses** remains available during loading.
 
@@ -93,8 +95,10 @@ ZIP exports show the interactive Chrome Dino Runner with jump controls, cancella
 1. Reload the extension and refresh Spectrum after updating.
 2. Open Courses, select courses, then set the semester folder under Settings → Files.
 3. Choose ZIP, or connect Drive from the popup and run a manual sync.
-4. After a successful Drive pass, opt into checks on Spectrum visits.
-5. Connect Calendar and enable announcements separately. Review ambiguous or changed announcement dates.
+4. After a successful Drive pass, automatic updates check on Spectrum visits unless you turn them off.
+5. Connect Calendar separately from Drive, then open Dates → Analyse dates. Official dates sync when enabled; announcement suggestions require review before saving.
+
+Events appear in the separate **UM Spec** calendar under the connected Google account. UM Spec makes that calendar visible on first use or recovery. Dates reports the saved count, pending reviews and sync errors; Settings → Calendar reports Calendar's own connection status.
 
 Checks run while Spectrum is open and signed in, with a 15-minute cooldown per feature. They do not run with the browser closed. Drive initially buffers one file up to 50 MiB; larger files and videos configured as links get an explicit linked-only result.
 

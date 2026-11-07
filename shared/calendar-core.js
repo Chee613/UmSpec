@@ -97,14 +97,15 @@
   }
   function normaliseMoodleEvent(raw, sourceUrl) {
     if (!raw || !/^\d+$/.test(String(raw.id || '')) || !Number.isFinite(raw.startSeconds) || !Number.isInteger(raw.startSeconds) || raw.startSeconds < 0 || !Number.isFinite(raw.durationSeconds) || raw.durationSeconds < 0 || !['deadline', 'meeting'].includes(raw.kind)) throw new Error('Invalid official event timestamps or kind');
-    const pending = raw.kind === 'meeting' && !raw.durationSeconds;
-    const duration = raw.durationSeconds || (raw.kind === 'deadline' ? 60 : 0);
+    // Spectrum's own start instant is authoritative; a zero-duration course event becomes a one-minute marker
+    // at that instant (as deadlines already do) instead of waiting in Review for an end time nobody published.
+    const untimed = !raw.durationSeconds;
     const record = {
       sourceKey: 'moodle:course:' + raw.courseId + ':event:' + raw.id, sourceType: 'moodle', sourceUrl,
-      courseId: String(raw.courseId), title: raw.kind === 'deadline' && !raw.durationSeconds ? 'Due at: ' + raw.title : raw.title,
-      description: raw.description || '', precision: pending ? 'unknown' : 'instant',
-      start: pending ? null : malaysiaInstant(raw.startSeconds), end: pending ? null : malaysiaInstant(raw.startSeconds + duration),
-      timeZone: TIME_ZONE, meetingUrl: raw.meetingUrl || null, status: raw.cancelled ? 'cancelled' : pending ? 'needs_review' : 'confirmed',
+      courseId: String(raw.courseId), title: raw.kind === 'deadline' && untimed ? 'Due at: ' + raw.title : raw.title,
+      description: (raw.description || '') + (raw.kind === 'meeting' && untimed ? (raw.description ? '\n' : '') + 'Spectrum lists a start time only.' : ''),
+      precision: 'instant', start: malaysiaInstant(raw.startSeconds), end: malaysiaInstant(raw.startSeconds + (raw.durationSeconds || 60)),
+      timeZone: TIME_ZONE, meetingUrl: raw.meetingUrl || null, status: raw.cancelled ? 'cancelled' : 'confirmed',
       sourceRevision: raw.revision, reminderMinutes: raw.reminderMinutes || [1440, 60]
     };
     const result = validateEvent(record);

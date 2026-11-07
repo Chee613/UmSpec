@@ -21,13 +21,16 @@
   function markdownLink(title, url) {
     return '[' + markdownText(title || 'Material') + '](<' + sanitizeLink(url) + '>)';
   }
+  const loginRequired = message => Object.assign(new Error(message), { code: 'LOGIN_REQUIRED' });
   async function resolveItemFiles(item, signal, videoPolicy = 'links') {
     const url = safeURL(item.url);
     if (videoPolicy !== 'include' && core().isVideoMaterial(item)) return [{ url: url.href, name: item.name, kind: 'link', isVideo: true }];
     if (item.isExternal || url.origin !== origin || item.type === 'url') return [{ url: url.href, name: item.name, kind: 'link' }];
     if (url.pathname.includes('/pluginfile.php/')) return [{ url: url.href, name: item.name, kind: 'binary' }];
-    const response = await fetch(url.href, { credentials: 'include', signal: signal || AbortSignal.timeout(25000) });
-    if (!response.ok || new URL(response.url).origin !== origin || /\/login[/.]/.test(new URL(response.url).pathname)) throw new Error('Sign in to Spectrum to read this material.');
+    const timeout = AbortSignal.timeout(25000);
+    const response = await fetch(url.href, { credentials: 'include', signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
+    if (new URL(response.url).origin !== origin || /\/login[/.]/.test(new URL(response.url).pathname)) throw loginRequired('Sign in to Spectrum to read this material.');
+    if (!response.ok) throw new Error('Spectrum material request failed (' + response.status + ').');
     const type = response.headers.get('Content-Type') || '';
     if (!type.includes('text/html')) {
       await response.body?.cancel();
@@ -35,7 +38,7 @@
       return [{ url: response.url, name: item.name, mimeType: type, isVideo, kind: isVideo && videoPolicy !== 'include' ? 'link' : 'binary' }];
     }
     const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
-    if (doc.querySelector('form#login, input[name="password"]')) throw new Error('Spectrum session expired.');
+    if (doc.querySelector('form#login, input[name="password"]')) throw loginRequired('Spectrum session expired.');
     const selector = item.type === 'assign'
       ? '#intro a[href*="pluginfile.php"], .intro a[href*="pluginfile.php"], .fileuploadsubmission a[href*="pluginfile.php"]'
       : item.type === 'folder' ? 'a[href*="pluginfile.php"]'

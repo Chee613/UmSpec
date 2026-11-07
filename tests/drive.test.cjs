@@ -48,6 +48,9 @@ function fakeDrive() {
   let id = 0;
   let loseCreate = false;
   let loseUpload = false;
+  let emptyPlaceholders = false;
+  let rejectIfMatch = false;
+  const ifMatchRejected = options => rejectIfMatch && new Headers(options.headers).has('If-Match');
   global.UmSpecGoogle = { async googleFetch(path, options = {}, feature) {
     assert.equal(feature, 'drive');
     const url = new URL(path, 'https://www.googleapis.com');
@@ -60,13 +63,15 @@ function fakeDrive() {
     if (url.pathname === '/drive/v3/files' && method === 'POST') {
       const data = JSON.parse(options.body);
       if (files.has(data.id)) return response({}, 409);
-      files.set(data.id, data);
+      // Live Drive gives a metadata-only blob the MD5 of zero bytes.
+      files.set(data.id, emptyPlaceholders && data.mimeType !== 'application/vnd.google-apps.folder' ? { ...data, md5Checksum: 'd41d8cd98f00b204e9800998ecf8427e', size: '0' } : data);
       writes.creates++;
       if (loseCreate) { loseCreate = false; throw new Error('lost create response'); }
       return response(data);
     }
     if (url.pathname.startsWith('/upload/drive/v3/files') && method !== 'PUT') {
       const existingId = url.pathname.split('/')[5];
+      if (ifMatchRejected(options)) return response({}, 412);
       const data = JSON.parse(options.body);
       const fileId = existingId || data.id;
       if (existingId) writes.updates++;
@@ -96,9 +101,10 @@ function fakeDrive() {
     }
     const fileId = url.pathname.split('/').pop();
     const file = files.get(fileId);
-    if (method === 'GET') return file ? response(file) : response({}, 404);
+    if (method === 'GET') return file ? response(file, 200, { ETag: 'W/"field-dependent"' }) : response({}, 404);
     if (method === 'PATCH') {
       if (!file) return response({}, 404);
+      if (ifMatchRejected(options)) return response({}, 412);
       const data = JSON.parse(options.body);
       files.set(fileId, { ...file, ...data, appProperties: { ...file.appProperties, ...data.appProperties } });
       return response(files.get(fileId));
@@ -114,7 +120,8 @@ function fakeDrive() {
     Object.defineProperty(res, 'url', { value: url });
     return res;
   };
-  return { files, writes, setBytes(value) { bytes = value; }, loseCreate() { loseCreate = true; }, loseUpload() { loseUpload = true; } };
+  return { files, writes, setBytes(value) { bytes = value; }, loseCreate() { loseCreate = true; }, loseUpload() { loseUpload = true; },
+    emptyPlaceholders() { emptyPlaceholders = true; }, rejectIfMatch() { rejectIfMatch = true; } };
 }
 const binding = { hash: 'binding', spectrumUserId: '42', googleSub: 'sub', settings: { archiveId: '2026-1', courseIds: ['123'], videoPolicy: 'links' } };
 const material = { sourceKey: 'source', courseId: '123', moduleId: '7', sourceUrl: 'https://spectrum.um.edu.my/pluginfile.php/12/mod_resource/content/1/notes.pdf', name: 'notes.pdf', category: 'Notes', archiveId: '2026-1', kind: 'binary', sourceFingerprint: null, contentSha256: null, sizeBytes: null };
@@ -151,6 +158,52 @@ test('identical sync does not create or upload, changed content retains ID and s
   assert.equal(third.results[0].action, 'updated');
   assert.equal(fake.files.get(file.id).name, 'Student renamed.pdf');
   assert.equal([...fake.files.values()].filter(file => file.appProperties?.sourceKey).length, 1);
+});
+
+test('a placeholder that live Drive reports as zero bytes is uploaded instead of flagged as a conflict', async () => {
+  const fake = fakeDrive(), drive = loadDrive();
+  fake.emptyPlaceholders();
+  const result = await complete(drive, freshJob('empty-placeholder'));
+  assert.equal(result.results[0].action, 'created');
+  const file = [...fake.files.values()].find(file => file.appProperties?.sourceKey === 'source');
+  assert.equal(file.md5Checksum, require('node:crypto').createHash('md5').update('source bytes').digest('hex'));
+  assert.equal(file.appProperties.uploadedMd5, file.md5Checksum);
+});
+
+test('an empty placeholder left by an interrupted job is filled by the next job', async () => {
+  const fake = fakeDrive(), drive = loadDrive();
+  fake.emptyPlaceholders();
+  let job = freshJob('interrupted');
+  for (let i = 0; i < 80 && job.upload?.phase !== 'verify'; i++) job = JSON.parse(JSON.stringify(await drive.runDriveStep(job)));
+  assert.equal(job.upload.phase, 'verify', 'the first job reserved and created its placeholder');
+  const result = await complete(drive, freshJob('replacement'));
+  assert.equal(result.results[0].action, 'updated');
+  assert.equal([...fake.files.values()].filter(file => file.appProperties?.sourceKey === 'source').length, 1);
+  const file = [...fake.files.values()].find(file => file.appProperties?.sourceKey === 'source');
+  assert.equal(file.appProperties.uploadedMd5, file.md5Checksum);
+  assert.equal(file.appProperties.writerJobId, 'replacement');
+});
+
+test('a placeholder with real bytes from another writer still needs review', async () => {
+  const fake = fakeDrive(), drive = loadDrive();
+  fake.emptyPlaceholders();
+  let job = freshJob('interrupted');
+  for (let i = 0; i < 80 && job.upload?.phase !== 'verify'; i++) job = JSON.parse(JSON.stringify(await drive.runDriveStep(job)));
+  const file = [...fake.files.values()].find(file => file.appProperties?.sourceKey === 'source');
+  file.md5Checksum = 'student wrote into the placeholder';
+  const result = await complete(drive, freshJob('replacement'));
+  assert.equal(result.results[0].action, 'conflict');
+});
+
+test('a rejected If-Match precondition is retried once without it after a fresh ownership check', async () => {
+  const fake = fakeDrive(), drive = loadDrive();
+  fake.rejectIfMatch();
+  const first = await complete(drive, freshJob());
+  assert.equal(first.results[0].action, 'created');
+  assert.equal(first.skipIfMatch, true);
+  fake.setBytes(new TextEncoder().encode('changed bytes'));
+  const second = await complete(drive, freshJob('second'));
+  assert.equal(second.results[0].action, 'updated');
 });
 
 test('include video policy uploads the selected video as a binary file', async () => {
@@ -396,4 +449,28 @@ test('course folders retain the existing exporter folder name and expose the man
   assert.equal(result.binding.driveRootId, result.folders.root);
   const reused = await complete(drive, freshJob('reused'));
   assert.equal(reused.binding.driveRootId, result.folders.root);
+});
+
+test('syncing one course keeps the links of the other courses in the shared index', async () => {
+  const fake = fakeDrive();
+  const drive = loadDrive();
+  const link = (courseId, name) => ({ sourceKey: 'link-' + name, courseId, moduleId: '7', sourceUrl: 'https://spectrum.um.edu.my/mod/url/view.php?id=' + courseId, name, category: 'Notes', archiveId: '2026-1', kind: 'link', sourceFingerprint: null, contentSha256: null, sizeBytes: null });
+  const job = (id, courseIds, materials, previous) => {
+    const settings = { ...binding.settings, courseIds };
+    return { id, bindingHash: 'binding', binding: { ...binding, settings, ...(previous ? { driveLinks: previous.binding.driveLinks } : {}) }, materials };
+  };
+  const everything = await complete(drive, job('all', ['123', '456'], [link('123', 'Lecture recording'), link('456', 'Turnitin box')]));
+  assert.deepEqual(everything.binding.driveLinks['2026-1'].map(item => item.name), ['Lecture recording', 'Turnitin box']);
+  const partial = await complete(drive, job('one', ['456'], [link('456', 'Turnitin box 2')], everything));
+  assert.deepEqual(partial.binding.driveLinks['2026-1'].map(item => item.name), ['Lecture recording', 'Turnitin box 2'],
+    'the unselected course keeps its links and the selected course is replaced');
+  const indexMaterial = partial.materials.find(item => item.name === 'Spectrum links.md');
+  assert.match(indexMaterial.text, /Lecture recording/);
+  assert.match(indexMaterial.text, /Turnitin box 2/);
+  assert.doesNotMatch(indexMaterial.text, /Turnitin box\]/);
+  assert.ok([...fake.files.values()].some(file => file.name === 'Spectrum links.md'));
+  const elsewhere = await complete(drive, { ...job('other-archive', ['456'], [{ ...link('456', 'New term'), archiveId: '2026-2' }], partial),
+    binding: { ...binding, settings: { ...binding.settings, archiveId: '2026-2', courseIds: ['456'] }, driveLinks: partial.binding.driveLinks } });
+  assert.deepEqual(elsewhere.binding.driveLinks['2026-2'].map(item => item.name), ['New term'], 'another semester folder has its own list');
+  assert.equal(elsewhere.binding.driveLinks['2026-1'].length, 2);
 });

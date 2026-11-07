@@ -17,7 +17,7 @@ test('normalisation hashes substantive content independently of fetch metadata',
   assert.equal(first.sourceRevision, second.sourceRevision);
   assert.notEqual(first.sourceRevision, (await announcements.normalisePost(post({ text: 'Submit by 16 December 2026.' }))).sourceRevision);
   assert.notEqual(first.sourceRevision, (await announcements.normalisePost(post({ links: ['https://meet.google.com/abc-defg-hij'] }))).sourceRevision);
-  const safe = await announcements.normalisePost(post({ text: 'Open /mod/assign/view.php?id=1&sesskey=live-secret', links: ['https://spectrum.um.edu.my/mod/assign/view.php?id=1&sesskey=live-secret'] }));
+  const safe = await announcements.normalisePost(post({ text: 'Open /mod/assign/view.php?id=1&sesskey=live-secret before 15 December 2026.', links: ['https://spectrum.um.edu.my/mod/assign/view.php?id=1&sesskey=live-secret'] }));
   assert.equal(safe.text.includes('live-secret'), false);
   assert.deepEqual(safe.links, ['https://spectrum.um.edu.my/mod/assign/view.php?id=1']);
   assert.equal(announcements.extractSuggestions(safe)[0].linkedActivityUrl, 'https://spectrum.um.edu.my/mod/assign/view.php?id=1');
@@ -59,10 +59,124 @@ test('all supported explicit date formats validate components without locale inf
     ['Submit by 1 Mac 2026.', '2026-03-01'], ['Submit by 2 May 2026.', '2026-05-02'],
     ['Submit by 3 Oktober 2026.', '2026-10-03']
   ]) assert.equal(announcements.extractSuggestions(post({ text }))[0].suggestedStart, date);
-  for (const text of ['Submit by 2026-02-29.', 'Submit by 31/04/2026.', 'Submit by 15 December.', 'Submit in Week 6.']) {
-    const result = announcements.extractSuggestions(post({ text }))[0];
+  // Without a publication date a year-less date has no anchor.
+  for (const [text, publishedAt] of [['Submit by 2026-02-29.'], ['Submit by 31/04/2026.'], ['Submit by 15 December.', null], ['Submit in Week 6.']]) {
+    const result = announcements.extractSuggestions(post({ text, ...(publishedAt === null ? { publishedAt } : {}) }))[0];
     assert.equal(result.precision, 'unknown');
     assert.equal(result.suggestedStart, null);
+  }
+});
+
+test('more written date and time formats are read without guessing', () => {
+  for (const [text, start, end] of [
+    ['Kelas pada 15hb Disember 2026, 2.30 petang hingga 4.30 petang.', '2026-12-15T14:30:00+08:00', '2026-12-15T16:30:00+08:00'],
+    ['Quiz on December 20, 2026 at 10 a.m. for 60 minutes.', '2026-12-20T10:00:00+08:00', '2026-12-20T11:00:00+08:00'],
+    ['Lecture 2 p.m. to 4 p.m. on 2026-12-20.', '2026-12-20T14:00:00+08:00', '2026-12-20T16:00:00+08:00'],
+    ['Class on 20.12.2026 from 2-4pm.', '2026-12-20T14:00:00+08:00', '2026-12-20T16:00:00+08:00'],
+    ['Meeting 20-12-2026 1430hrs to 1530hrs.', '2026-12-20T14:30:00+08:00', '2026-12-20T15:30:00+08:00'],
+    ['Kuliah pada 20/12/2026 jam 10 pagi selama 2 jam.', '2026-12-20T10:00:00+08:00', '2026-12-20T12:00:00+08:00'],
+    ['Taklimat 21 Dis 2026, 8 malam hingga 10 malam.', '2026-12-21T20:00:00+08:00', '2026-12-21T22:00:00+08:00']
+  ]) {
+    const result = announcements.extractSuggestions(post({ text }))[0];
+    assert.equal(result.suggestedStart, start, text);
+    assert.equal(result.suggestedEnd, end, text);
+  }
+});
+
+test('a year-less date takes the only year within a week before to six months after posting', () => {
+  for (const [text, publishedAt, date] of [
+    ['Submit by 15 December.', '2026-12-10T09:00:00+08:00', '2026-12-15'],
+    ['Quiz on 5 Jan.', '2026-12-10T09:00:00+08:00', '2027-01-05'],
+    ['Quiz on Jan 5.', '2026-12-10T09:00:00+08:00', '2027-01-05'],
+    ['Recap of 8 Dec.', '2026-12-10T09:00:00+08:00', '2026-12-08'],
+    ['Submit by 2 Nov.', '2026-12-10T09:00:00+08:00', null],
+    ['Final on 1 Oct.', '2026-12-10T09:00:00+08:00', null],
+    ['Submit by 29 Feb.', '2027-01-10T09:00:00+08:00', null]
+  ]) {
+    const result = announcements.extractSuggestions(post({ text, publishedAt }))[0];
+    assert.equal(result.suggestedStart, date, text);
+    if (date) assert.equal(result.reason, 'inferred_year');
+  }
+});
+
+test('ranges, contradicting weekdays and ambiguous wording stay unresolved', () => {
+  for (const text of [
+    'Talk 15-16 December 2026.', 'Talk December 15-16, 2026.', 'Workshop 15 dan 16 Disember 2026.',
+    'Class on Monday, 20 Nov 2026.', 'Class on 20 Nov 2026 (Monday).', 'Class next Friday at 2pm.', 'Kelas Jumaat depan.'
+  ]) assert.equal(announcements.extractSuggestions(post({ text }))[0].suggestedStart, null, text);
+  assert.equal(announcements.extractSuggestions(post({ text: 'Class on Friday, 20 Nov 2026.' }))[0].suggestedStart, '2026-11-20');
+  const shared = announcements.extractSuggestions(post({ text: 'Lecture 11-1pm on 2026-12-20.' }))[0];
+  assert.equal(shared.suggestedStart, '2026-12-20', 'an out-of-order shared marker never turns the end into the start');
+  assert.equal(announcements.extractSuggestions(post({ text: 'Groups of 3 may submit together.' })).length, 0);
+});
+
+test('today, tonight and lusa anchor to the posting day', () => {
+  for (const [text, start] of [['Meeting today at 2pm to 3pm.', '2026-12-10T14:00:00+08:00'],
+    ['Taklimat malam ini 8 malam hingga 9 malam.', '2026-12-10T20:00:00+08:00'], ['Hantar lusa.', '2026-12-12']]) {
+    assert.equal(announcements.extractSuggestions(post({ text }))[0].suggestedStart, start, text);
+  }
+});
+
+test('posts without any date signal are not queued and past dates are dropped when a clock is given', () => {
+  for (const text of ['Assignment 2 is released. Submit via the portal.', 'Join the class via Zoom.', 'Quiz answers are posted.']) {
+    assert.deepEqual(announcements.extractSuggestions(post({ text, links: ['https://meet.google.com/abc-defg-hij'] })), [], text);
+  }
+  const now = Date.parse('2026-12-16T00:00:00+08:00');
+  const mixed = post({ text: 'Submit by 2026-12-15.\nQuiz on 2026-12-16 at 10:00 to 11:00.\nExam on 2026-12-20.' });
+  assert.deepEqual(announcements.extractSuggestions(mixed, { now }).map(item => item.suggestedStart), ['2026-12-16T10:00:00+08:00', '2026-12-20']);
+  assert.equal(announcements.extractSuggestions(mixed).length, 3, 'without a clock nothing is dropped');
+  assert.equal(announcements.extractSuggestions(post({ text: 'Submit in Week 6.' }), { now }).length, 1, 'undated hints stay reviewable');
+});
+
+test('abbreviated month names retain explicit years and reject impossible dates', () => {
+  for (const [text, date] of [
+    ['Submit by 2 Nov 2026.', '2026-11-02'], ['Submit by 3 Sep 2026.', '2026-09-03'],
+    ['Submit by 4 Okt 2026.', '2026-10-04'], ['Submit by 5 Dis 2026.', '2026-12-05'],
+    ['Submit by 31 Apr 2026.', null], ['Submit by 2 Nov.', null]
+  ]) assert.equal(announcements.extractSuggestions(post({ text }))[0].suggestedStart, date);
+});
+
+test('an explicit title date is retained when the body has no date', () => {
+  const result = announcements.extractSuggestions(post({ title: 'Assignment due 2 Nov 2026', text: 'Please follow the attached instructions.' }));
+  assert.equal(result.length, 1);
+  assert.equal(result[0].suggestedStart, '2026-11-02');
+  assert.equal(result[0].precision, 'date');
+  assert.match(result[0].evidence, /2 Nov 2026/);
+  assert.equal(result[0].confirmed, undefined);
+  assert.equal(result[0].status, undefined);
+});
+
+test('a single explicit date can use an immediately adjacent labelled or time-only line', () => {
+  for (const fields of [
+    { text: 'Meeting on 2 November 2026\nTime: 2 pm to 3 pm' },
+    { text: 'Time: 14:00 to 15:00\nMeeting on 2 November 2026' },
+    { title: 'Meeting on 2 November 2026', text: '14:00 to 15:00\nPlease attend.' }
+  ]) {
+    const result = announcements.extractSuggestions(post(fields))[0];
+    assert.equal(result.suggestedStart, '2026-11-02T14:00:00+08:00');
+    assert.equal(result.suggestedEnd, '2026-11-02T15:00:00+08:00');
+  }
+});
+
+test('adjacent times are not borrowed through unrelated text, blank lines or competing times', () => {
+  for (const text of [
+    'Submit by 2 November 2026\nOffice hours at 14:00.',
+    'Submit by 2 November 2026\n\n14:00',
+    '14:00\nSubmit by 2 November 2026\n15:00',
+    'Submit by 2 November 2026\nTime: 14:00\nMeeting on 3 November 2026'
+  ]) assert.equal(announcements.extractSuggestions(post({ text }))[0].suggestedStart, '2026-11-02');
+});
+
+test('neutral undated notices are skipped while incomplete event details remain reviewable', () => {
+  for (const text of ['Please read the handbook.', 'The updated materials are available.']) {
+    assert.deepEqual(announcements.extractSuggestions(post({ text })), []);
+  }
+  for (const text of ['Submission deadline: Week 6.', 'Week 6', 'Meeting next week.', 'Submit by 2 Nov.', 'Date: 2 Nov.']) {
+    const result = announcements.extractSuggestions(post({ text }));
+    assert.equal(result.length, 1);
+    assert.equal(result[0].suggestedStart, null);
+    assert.equal(result[0].precision, 'unknown');
+    assert.equal(result[0].status, undefined);
   }
 });
 
@@ -111,11 +225,11 @@ test('relative suggestions anchor only to the source publication day in Malaysia
 
 test('meeting host checks reject executable links and deceptive suffixes', () => {
   const links = ['javascript:alert(1)', 'https://zoom.us.attacker.example/j/9', 'https://attackerzoom.us/j/9', 'http://meet.google.com/abc', 'https://zoom.us@attacker.example/j/9', 'https://teams.microsoft.com/l/meetup-join/123?context=abc'];
-  const result = announcements.extractSuggestions(post({ text: 'Join online.', links }))[0];
+  const result = announcements.extractSuggestions(post({ text: 'Join online next week.', links }))[0];
   assert.equal(result.meetingUrl, links[5]);
   assert.equal(result.precision, 'unknown');
   assert.equal(result.reason, 'missing_date');
-  assert.equal(announcements.extractSuggestions(post({ text: 'Join online.', links: links.slice(0, 5) }))[0].meetingUrl, null);
+  assert.equal(announcements.extractSuggestions(post({ text: 'Join online next week.', links: links.slice(0, 5) }))[0].meetingUrl, null);
 });
 
 test('explicit cancellations remain review proposals and evidence stays bounded', () => {

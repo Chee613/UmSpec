@@ -89,6 +89,24 @@ test('Drive inventory keeps selected folder children and assignment attachments 
   assert.equal(harness.requested.includes(ORIGIN + '/mod/resource/view.php?id=9'), false);
 });
 
+test('one unreadable item is counted and skipped while the rest of the Drive inventory continues', async () => {
+  const label = { classList: ['activity', 'modtype_label'], id: 'module-31',
+    querySelector: selector => selector === 'a' ? { href: ORIGIN + '/pluginfile.php/50/mod_label/intro/syllabus.pdf' } : null };
+  const noIdentity = { classList: ['activity', 'modtype_label'],
+    querySelector: selector => selector === 'a' ? { href: ORIGIN + '/pluginfile.php/51/mod_label/intro/extra.pdf' } : null };
+  const insecure = { classList: ['activity', 'modtype_url'], querySelector: selector => selector === 'a' ? { href: 'http://old-lab.example/notes' } : null };
+  const broken = activity('resource', '12', 'Moved Notes');
+  const folder = activity('folder', '7', 'Lecture Folder');
+  const notes = ORIGIN + '/pluginfile.php/44/mod_folder/content/0/notes.pdf';
+  const harness = exporterHarness({ document: courseDocument([label, noIdentity, insecure, broken, folder]), wrappers: {
+    [ORIGIN + '/mod/folder/view.php?id=7']: 'folder fixture', 'folder fixture': wrapperDocument([fileNode(notes, 'notes.pdf')])
+  } });
+  const descriptors = await harness.exporter.resolveCourseMaterials(course, null);
+  assert.deepEqual(Array.from(descriptors, item => item.sourceUrl), [ORIGIN + '/pluginfile.php/50/mod_label/intro/syllabus.pdf', notes]);
+  assert.equal(descriptors[0].moduleId, '31');
+  assert.equal(descriptors.skipped, 3);
+});
+
 test('course discovery rejects an expired Spectrum session instead of confirming an empty pass', async () => {
   const { exporter } = exporterHarness({ courseResponse: { body: '<html><form id="login"><input name="password"></form></html>',
     url: ORIGIN + '/login/index.php' } });
@@ -139,4 +157,16 @@ test('material fingerprints derive from verified resource revision rather than c
   assert.equal(ordinary.sourceFingerprint, null);
   assert.notEqual(revised.sourceFingerprint, 'untrusted');
   assert.match(revised.sourceFingerprint, /^[a-f0-9]{64}$/);
+});
+
+test('course scanning reports progress so a long first scan does not look stuck', async () => {
+  const first = activity('resource', '7', 'Notes');
+  const second = activity('resource', '8', 'Slides');
+  const harness = exporterHarness({ document: courseDocument([first, second]), wrappers: {
+    [ORIGIN + '/mod/resource/view.php?id=7']: 'first fixture', 'first fixture': wrapperDocument([fileNode(ORIGIN + '/pluginfile.php/1/mod_resource/content/1/a.pdf', 'a.pdf')]),
+    [ORIGIN + '/mod/resource/view.php?id=8']: 'second fixture', 'second fixture': wrapperDocument([fileNode(ORIGIN + '/pluginfile.php/2/mod_resource/content/1/b.pdf', 'b.pdf')])
+  } });
+  const seen = [];
+  await harness.exporter.resolveCourseMaterials(course, null, undefined, (done, total) => seen.push([done, total]));
+  assert.deepEqual(seen, [[1, 2], [2, 2]]);
 });

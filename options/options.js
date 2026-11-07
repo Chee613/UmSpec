@@ -50,6 +50,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const active = b === targetNav;
       b.classList.toggle('active', active);
       b.setAttribute('aria-selected', String(active));
+      b.tabIndex = active ? 0 : -1;
     });
 
     viewPanels.forEach(panel => {
@@ -62,6 +63,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   $$('.sidebar-nav .nav-item').forEach(button => {
     button.addEventListener('click', () => switchView(button.dataset.view));
+    button.addEventListener('keydown', event => {
+      const buttons = $$('.sidebar-nav .nav-item');
+      let next = buttons.indexOf(button);
+      if (['ArrowRight', 'ArrowDown'].includes(event.key)) next = (next + 1) % buttons.length;
+      else if (['ArrowLeft', 'ArrowUp'].includes(event.key)) next = (next + buttons.length - 1) % buttons.length;
+      else if (event.key === 'Home') next = 0;
+      else if (event.key === 'End') next = buttons.length - 1;
+      else return;
+      event.preventDefault();
+      switchView(buttons[next].dataset.view);
+      buttons[next].focus();
+    });
   });
 
   // Handle Initial Hash
@@ -91,6 +104,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // SPeCTRUM Tab & Status Detection
   // --------------------------------------------------------------------------
   async function detectContext() {
+    activeTabId = null;
+    isSpectrumActive = false;
     try {
       const tabs = await chrome.tabs.query({ url: '*://spectrum.um.edu.my/*' });
       if (tabs.length > 0) {
@@ -113,6 +128,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // --------------------------------------------------------------------------
   // Student UI Render Controller
   // --------------------------------------------------------------------------
+  function syncTime(value) {
+    return Number.isFinite(value) && value > 0
+      ? new Date(value).toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : null;
+  }
+
   function renderStatus() {
     const status = currentStatus;
     const settings = status?.settings || {};
@@ -120,17 +141,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const features = account?.features || [];
     const hasDrive = features.includes('drive');
     const hasCalendar = features.includes('calendar');
-    const hasBinding = Boolean(status?.bindingHash);
 
     // Sidebar Indicator Pills
     const dotSpectrum = $('dot-spectrum');
     const textSpectrum = $('text-spectrum');
-    if (hasBinding || isSpectrumActive) {
+    if (isSpectrumActive) {
       dotSpectrum.className = 'status-indicator-dot active';
-      textSpectrum.textContent = 'SPeCTRUM: Active';
+      textSpectrum.textContent = 'Spectrum tab open';
     } else {
       dotSpectrum.className = 'status-indicator-dot';
-      textSpectrum.textContent = 'SPeCTRUM: Standby';
+      textSpectrum.textContent = 'Spectrum tab not open';
     }
 
     const dotGoogle = $('dot-google');
@@ -143,22 +163,72 @@ document.addEventListener('DOMContentLoaded', async () => {
       textGoogle.textContent = 'Google: Not connected';
     }
 
-    // Overview Metric Cards
-    $('ov-spectrum-val').textContent = hasBinding ? 'Active' : (isSpectrumActive ? 'Detected' : 'Standby');
-    $('ov-spectrum-sub').textContent = hasBinding ? 'Student session authenticated' : 'Open SPeCTRUM tab to link';
+    // A connected service is not evidence of a completed sync.
+    $('ov-status-note').hidden = Boolean(status);
+    $('ov-spectrum-val').textContent = isSpectrumActive ? 'Spectrum tab open' : 'Open Spectrum to begin';
+    $('ov-spectrum-val').classList.toggle('is-connected', isSpectrumActive);
+    $('ov-spectrum-sub').textContent = isSpectrumActive
+      ? 'Choose courses, review their files and start an export in your Spectrum tab.'
+      : 'Open Spectrum to choose your courses and save the files you need.';
+    $('ov-courses-val').textContent = !status ? 'Unavailable' : settings.courseIds?.length
+      ? `${settings.courseIds.length} selected` : 'None selected yet';
+    $('ov-archive').textContent = settings.archiveId || 'Course files';
+    $('ov-export-val').textContent = !status ? 'Unavailable' : settings.mode === 'drive' ? 'Google Drive' : 'ZIP download';
+    $('ov-export-sub').textContent = settings.mode === 'drive'
+      ? hasDrive ? 'Your selected files go to a private UmSpec folder.' : 'Connect Drive in settings, or use a ZIP download.'
+      : 'ZIP downloads work without a Google account.';
+    $('btn-quick-spectrum').firstChild.textContent = isSpectrumActive ? 'Open course workspace ' : 'Open Spectrum ';
 
-    $('ov-drive-val').textContent = hasDrive ? 'Connected' : 'Offline';
-    $('ov-drive-sub').textContent = hasDrive ? (account?.email || 'Synced') : 'Click to connect Google Drive';
+    for (const [feature, connected] of [['drive', hasDrive], ['calendar', hasCalendar]]) {
+      $(`ov-${feature}-val`).textContent = !status ? 'Unavailable' : connected ? 'Connected' : 'Not connected';
+      $(`ov-${feature}-val`).classList.toggle('is-connected', connected);
+      $(`ov-${feature}-sub`).textContent = connected ? account.email || 'Google permissions granted.'
+        : feature === 'drive' ? 'Keep selected course files in your Google Drive.' : 'Add confirmed course dates to your calendar.';
+      const lastSync = syncTime(status?.syncTimes?.[feature]?.lastSuccessfulSyncAt);
+      $(`ov-${feature}-sync`).textContent = lastSync ? `Last successful sync · ${lastSync}` : 'No successful sync recorded.';
+      $(`btn-quick-${feature}`).firstChild.textContent = `${connected ? 'Manage' : 'Set up'} ${feature === 'drive' ? 'Drive' : 'Calendar'} `;
+      $(`btn-quick-${feature}`).disabled = false;
+    }
+    $('ov-video-policy').textContent = !status ? 'Unavailable' : settings.videoPolicy === 'include' ? 'Download files' : 'Save links only';
+    $('ov-auto-sync').textContent = !status ? 'Unavailable' : settings.autoSync ? 'Automatic' : 'Manual';
+    $('ov-calendar-enabled').textContent = !status ? 'Unavailable' : settings.calendarEnabled ? 'On' : 'Off';
+    const job = status?.job;
+    const summary = job?.summary || {};
+    $('ov-job-summary').textContent = !status ? 'Sync status is unavailable.' : !job
+      ? syncTime(status.syncTimes?.drive?.lastSuccessfulSyncAt) ? 'No sync summary available.' : 'No Drive sync recorded.'
+      : job.status === 'running' ? `Drive sync in progress · ${job.cursor || 0} of ${job.total || 0} files processed.`
+      : job.status === 'paused' ? 'Drive sync paused. Open the course workspace to review or resume it.'
+      : `Last Drive job · ${summary.created || 0} new, ${summary.updated || 0} updated, ${summary.skipped || 0} unchanged, ${summary.linked || 0} links saved, ${summary.failed || 0} failed, ${summary.conflicts || 0} need review.`;
 
-    $('ov-calendar-val').textContent = hasCalendar ? 'Active' : 'Offline';
-    $('ov-calendar-sub').textContent = hasCalendar ? 'Deadlines & exams synced' : 'Export dates to Google Calendar';
-
-    $('ov-export-val').textContent = settings.mode === 'drive' && hasDrive ? 'Google Drive' : 'ZIP Archive';
-    $('ov-export-sub').textContent = settings.mode === 'drive' && hasDrive ? 'Private UM Spec folder' : 'Zero-touch instant export';
+    const recent = $('recent-changes');
+    recent.replaceChildren();
+    const changes = status?.recentChanges || [];
+    if (!changes.length) {
+      const empty = document.createElement('li');
+      empty.className = 'activity-empty';
+      empty.textContent = status ? 'Your file and date updates will appear here after a sync.' : 'Refresh status to load your recent activity.';
+      recent.append(empty);
+    }
+    for (const change of changes.slice(0, 4)) {
+      const row = document.createElement('li');
+      row.className = 'activity-row';
+      const description = document.createElement('div');
+      const title = document.createElement('strong');
+      title.textContent = change.title || change.name || 'Course item';
+      const action = document.createElement('p');
+      const labels = { create: 'Added', created: 'Added', update: 'Updated', updated: 'Updated', linked: 'Link saved', failed: 'Failed', conflict: 'Needs review', review: 'Needs review', restore: 'Needs review', trashed: 'Needs review' };
+      action.textContent = labels[change.action || change.status] || 'Updated';
+      description.append(title, action);
+      const time = document.createElement('time');
+      time.textContent = syncTime(change.at) || '';
+      if (syncTime(change.at)) time.dateTime = new Date(change.at).toISOString();
+      row.append(description, time);
+      recent.append(row);
+    }
 
     // Google Drive View
     $('drive-email-display').textContent = account?.email || 'Not connected';
-    $('btn-auth-drive').textContent = hasDrive ? 'Drive Connected ✓' : 'Connect Google Drive';
+    $('btn-auth-drive').textContent = hasDrive ? 'Drive connected' : 'Connect Google Drive';
     $('btn-auth-drive').disabled = hasDrive;
     $('btn-disconnect-google').disabled = !account?.email;
 
@@ -169,7 +239,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Google Calendar View
     $('calendar-status-display').textContent = hasCalendar ? `Connected (${account?.email || ''})` : 'Not connected';
-    $('btn-auth-calendar').textContent = hasCalendar ? 'Calendar Connected ✓' : 'Connect Google Calendar';
+    $('btn-auth-calendar').textContent = hasCalendar ? 'Calendar connected' : 'Connect Google Calendar';
     $('btn-auth-calendar').disabled = hasCalendar;
 
     $('toggle-calendar-sync').checked = Boolean(settings.calendarEnabled);
@@ -179,11 +249,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const reminders = (settings.reminderMinutes || []).join(',');
     $('select-reminders').value = ['1440,60', '1440', '60', ''].includes(reminders) ? reminders : '1440,60';
 
-    // Quick Action Buttons on Overview
-    $('btn-quick-drive').textContent = hasDrive ? 'Drive Synced ✓' : 'Connect Google Drive';
-    $('btn-quick-drive').disabled = hasDrive;
-    $('btn-quick-calendar').textContent = hasCalendar ? 'Calendar Synced ✓' : 'Connect Google Calendar';
-    $('btn-quick-calendar').disabled = hasCalendar;
+    for (const id of ['input-archive-name', 'toggle-video-download', 'toggle-announcements', 'select-reminders', 'btn-save-drive-settings', 'btn-save-calendar-settings']) $(id).disabled = !status;
   }
 
   // --------------------------------------------------------------------------
@@ -201,7 +267,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const updated = await request({ type: 'CONNECT_GOOGLE', feature });
       currentStatus = updated;
       renderStatus();
-      showToast(`Google ${feature === 'drive' ? 'Drive' : 'Calendar'} connected successfully!`, 'success');
+      showToast(`Google ${feature === 'drive' ? 'Drive' : 'Calendar'} connected.`, 'success');
     } catch (err) {
       if (err.message && err.message.includes('access_denied')) {
         showToast('Google blocked access (Error 403). See the Guide in Google Drive tab to add test user.', 'error', 6000);
@@ -226,13 +292,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('btn-auth-drive')?.addEventListener('click', () => connectGoogle('drive'));
   $('btn-quick-drive')?.addEventListener('click', () => {
     switchView('drive');
-    if (!currentStatus?.account?.features?.includes('drive')) connectGoogle('drive');
   });
 
   $('btn-auth-calendar')?.addEventListener('click', () => connectGoogle('calendar'));
   $('btn-quick-calendar')?.addEventListener('click', () => {
     switchView('calendar');
-    if (!currentStatus?.account?.features?.includes('calendar')) connectGoogle('calendar');
   });
 
   $('btn-disconnect-google')?.addEventListener('click', disconnectGoogle);
@@ -302,7 +366,28 @@ document.addEventListener('DOMContentLoaded', async () => {
   // --------------------------------------------------------------------------
   const openSpectrumTab = () => chrome.tabs.create({ url: 'https://spectrum.um.edu.my/my/' });
   $('btn-open-spectrum')?.addEventListener('click', openSpectrumTab);
-  $('btn-quick-spectrum')?.addEventListener('click', openSpectrumTab);
+  $('btn-quick-spectrum')?.addEventListener('click', async () => {
+    const button = $('btn-quick-spectrum');
+    button.disabled = true;
+    try {
+      if (!activeTabId) await openSpectrumTab();
+      else {
+        await chrome.tabs.update(activeTabId, { active: true });
+        await chrome.scripting.executeScript({ target: { tabId: activeTabId }, func: () => {
+          const trigger = document.getElementById('umspec-trigger-btn');
+          if (!trigger) throw new Error('Refresh Spectrum to load UmSpec.');
+          trigger.click();
+        } });
+      }
+    } catch (error) { showToast(error.message || 'Could not open your Spectrum workspace.', 'error'); }
+    finally { button.disabled = false; }
+  });
+  $('btn-refresh-status')?.addEventListener('click', async () => {
+    const button = $('btn-refresh-status');
+    button.disabled = true;
+    try { await detectContext(); }
+    finally { button.disabled = false; }
+  });
 
   // Initialize
   await loadAcademicProfile();

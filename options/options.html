@@ -3,40 +3,42 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>UmSpec Student Settings &amp; Dashboard</title>
+  <title>UmSpec · Student workspace</title>
+  <link rel="icon" href="../icons/icon48.png">
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
   <div class="dashboard-layout">
     <!-- Left Sidebar -->
     <aside class="sidebar">
       <div class="sidebar-brand">
-        <svg class="brand-icon" viewBox="0 0 128 128" aria-hidden="true">
+        <span class="brand-mark"><svg class="brand-icon" viewBox="0 0 128 128" aria-hidden="true">
           <path fill="currentColor" fill-rule="evenodd" d="M24 12h77q4 0 7 3l14 14q2 2 2 6v11q0 3-3 3H42l7 8h47q4 0 7 3l14 14q3 3 3 8v29q0 4-4 4H28q-4 0-7-3L8 99q-4-4-4-8v-8q0-3 4-3h77l-9-9H30q-4 0-7-3L10 55q-2-2-2-6V32q0-4 3-7l10-10q2-3 3-3Zm75 8v17h17L99 20Zm-3 45v16h16L96 65Z"/>
-        </svg>
+        </svg></span>
         <div class="brand-text">
-          <h2>UmSpec</h2>
+          <h2>UM Spec</h2>
           <span class="brand-sub">Universiti Malaya</span>
         </div>
-        <span class="version-badge">v2.0.2</span>
+        <span class="version-badge">v2.0.4</span>
       </div>
 
       <nav class="sidebar-nav" role="tablist" aria-label="Student options navigation">
-        <button type="button" class="nav-item active" data-view="overview" role="tab" aria-selected="true">
+        <button id="nav-overview" type="button" class="nav-item active" data-view="overview" role="tab" aria-selected="true" aria-controls="view-overview">
           <svg class="nav-icon" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
           <span>Overview</span>
         </button>
-        <button type="button" class="nav-item" data-view="drive" role="tab" aria-selected="false">
-          <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+        <button id="nav-drive" type="button" class="nav-item" data-view="drive" role="tab" aria-selected="false" aria-controls="view-drive" tabindex="-1">
+          <img class="nav-icon provider-icon" src="../icons/google-drive.svg" alt="">
           <span>Google Drive</span>
         </button>
-        <button type="button" class="nav-item" data-view="calendar" role="tab" aria-selected="false">
-          <svg class="nav-icon" viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/></svg>
+        <button id="nav-calendar" type="button" class="nav-item" data-view="calendar" role="tab" aria-selected="false" aria-controls="view-calendar" tabindex="-1">
+          <img class="nav-icon provider-icon" src="../icons/google-calendar.svg" alt="">
           <span>Google Calendar</span>
         </button>
-        <button type="button" class="nav-item" data-view="profile" role="tab" aria-selected="false">
+        <button id="nav-profile" type="button" class="nav-item" data-view="profile" role="tab" aria-selected="false" aria-controls="view-profile" tabindex="-1">
           <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 3 1 9l11 6 9-4.91V17h2V9L12 3zm0 8.55L4.54 9 12 4.95 19.46 9 12 11.55zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z"/></svg>
-          <span>Academic Profile</span>
+          <span>Academic profile</span>
         </button>
       </nav>
 
@@ -56,62 +58,49 @@
     </aside>
 
     <!-- Main Content Area -->
-    <main class="main-content">
+    <main class="main-content" id="main-content" tabindex="-1">
       <!-- Toast Notification -->
       <div id="status-toast" class="toast" role="status" aria-live="polite" hidden></div>
 
       <!-- VIEW 1: OVERVIEW -->
-      <section id="view-overview" class="view-panel active">
-        <div class="panel-header">
-          <h1>Student Dashboard</h1>
-          <p class="panel-desc">Operational status of your SPeCTRUM sync, Google Drive backups, and Calendar schedule.</p>
+      <section id="view-overview" class="view-panel active" role="tabpanel" aria-labelledby="nav-overview">
+        <div class="panel-header overview-header">
+          <div><h1>Student workspace</h1><p class="panel-desc">Your course files, connected services and recent activity.</p></div>
+          <button class="btn btn-secondary refresh-button" id="btn-refresh-status" type="button">Refresh status</button>
         </div>
+        <p id="ov-status-note" class="status-note" hidden>We couldn't load your preferences. Refresh to try again.</p>
 
-        <div class="metrics-grid">
-          <div class="metric-card">
-            <span class="metric-label">SPeCTRUM PORTAL</span>
-            <div class="metric-value" id="ov-spectrum-val">Standby</div>
-            <span class="metric-sub" id="ov-spectrum-sub">Active session</span>
-          </div>
-          <div class="metric-card">
-            <span class="metric-label">GOOGLE DRIVE</span>
-            <div class="metric-value" id="ov-drive-val">Offline</div>
-            <span class="metric-sub" id="ov-drive-sub">Lecture notes &amp; labs</span>
-          </div>
-          <div class="metric-card">
-            <span class="metric-label">GOOGLE CALENDAR</span>
-            <div class="metric-value" id="ov-calendar-val">Offline</div>
-            <span class="metric-sub" id="ov-calendar-sub">Assignment &amp; exam dates</span>
-          </div>
-          <div class="metric-card">
-            <span class="metric-label">DEFAULT EXPORT</span>
-            <div class="metric-value" id="ov-export-val">ZIP Archive</div>
-            <span class="metric-sub" id="ov-export-sub">Instant zero-touch export</span>
-          </div>
-        </div>
+        <section class="workspace-card" aria-labelledby="workspace-title">
+          <div class="workspace-heading"><span class="workspace-symbol" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 5h7l2 2h9v13H3z"/><path d="M3 10h18"/></svg></span><h2 id="workspace-title"><span id="ov-archive">Course files</span></h2><span class="status-tag" id="ov-spectrum-val">Checking Spectrum</span></div>
+          <p class="workspace-description" id="ov-spectrum-sub">Choose your courses on Spectrum, then save the files you need.</p>
+          <div class="workspace-details"><div><span>Selected courses</span><strong id="ov-courses-val">Loading…</strong></div><div><span>Save files to</span><strong id="ov-export-val">Loading…</strong></div></div>
+          <div class="workspace-footer"><p id="ov-export-sub">ZIP downloads work without a Google account.</p><button type="button" class="btn btn-primary" id="btn-quick-spectrum">Open course workspace <span aria-hidden="true">↗</span></button></div>
+        </section>
 
-        <div class="card">
-          <div class="card-header">
-            <h3>Quick Actions</h3>
+        <section class="services-section" aria-labelledby="services-title">
+          <div class="section-heading"><h2 id="services-title">Connected services</h2><p>Optional. ZIP is always available.</p></div>
+          <div class="services-grid">
+            <article class="service-card"><div class="service-heading"><img src="../icons/google-drive.svg" alt="" class="service-icon"><h3>Google Drive</h3><span class="status-tag" id="ov-drive-val">Checking…</span></div><p id="ov-drive-sub" class="service-account">Save selected course files to your Drive.</p><p id="ov-drive-sync" class="service-detail">No successful sync recorded.</p><button type="button" class="service-link" id="btn-quick-drive">Drive settings <span aria-hidden="true">↗</span></button></article>
+            <article class="service-card"><div class="service-heading"><img src="../icons/google-calendar.svg" alt="" class="service-icon"><h3>Google Calendar</h3><span class="status-tag" id="ov-calendar-val">Checking…</span></div><p id="ov-calendar-sub" class="service-account">Keep confirmed course dates in your Calendar.</p><p id="ov-calendar-sync" class="service-detail">No successful sync recorded.</p><button type="button" class="service-link" id="btn-quick-calendar">Calendar settings <span aria-hidden="true">↗</span></button></article>
           </div>
-          <div class="card-body action-row">
-            <button type="button" class="btn btn-primary" id="btn-quick-drive">Connect Google Drive</button>
-            <button type="button" class="btn btn-secondary" id="btn-quick-calendar">Connect Google Calendar</button>
-            <button type="button" class="btn btn-secondary" id="btn-quick-spectrum">Open SPeCTRUM</button>
-          </div>
+        </section>
+
+        <div class="overview-bottom">
+          <section class="activity-section" aria-labelledby="activity-title"><div class="section-heading"><h2 id="activity-title">Recent activity</h2><span>Latest changes</span></div><ul id="recent-changes" class="activity-list"><li class="activity-empty">Your file and date updates will appear here after a sync.</li></ul></section>
+          <section class="preferences-summary" aria-labelledby="preferences-title"><h2 id="preferences-title">At a glance</h2><dl><div><dt>Lecture videos</dt><dd id="ov-video-policy">Loading…</dd></div><div><dt>Drive updates</dt><dd id="ov-auto-sync">Loading…</dd></div><div><dt>Calendar sync</dt><dd id="ov-calendar-enabled">Loading…</dd></div></dl><p id="ov-job-summary">No Drive sync recorded.</p></section>
         </div>
       </section>
 
       <!-- VIEW 2: GOOGLE DRIVE -->
-      <section id="view-drive" class="view-panel" hidden>
+      <section id="view-drive" class="view-panel" role="tabpanel" aria-labelledby="nav-drive" hidden>
         <div class="panel-header">
-          <h1>Google Drive Integration</h1>
+          <h1>Google Drive</h1>
           <p class="panel-desc">Sync lecture notes, slides, labs, and past year papers to your Google Drive.</p>
         </div>
 
         <div class="card">
           <div class="card-header">
-            <h3>Account Connection</h3>
+            <h3>Account connection</h3>
           </div>
           <div class="card-body">
             <div class="auth-status-row">
@@ -124,57 +113,58 @@
                 <button type="button" class="btn btn-danger" id="btn-disconnect-google" disabled>Disconnect Account</button>
               </div>
             </div>
+            <p class="connection-help">Google is optional. ZIP downloads stay available. <a href="../setup/google.html" target="_blank" rel="noopener noreferrer">Google setup guide</a></p>
           </div>
         </div>
 
         <div class="card">
           <div class="card-header">
-            <h3>Folder &amp; Download Preferences</h3>
+            <h3>Files &amp; download preferences</h3>
           </div>
           <div class="card-body form-grid">
             <div class="form-group">
-              <label for="input-archive-name">Semester Folder Name</label>
-              <input type="text" id="input-archive-name" class="input-text" maxlength="80" placeholder="2026/2027 Semester 1">
+              <label for="input-archive-name">Semester folder name</label>
+              <input type="text" id="input-archive-name" class="input-text" maxlength="80" placeholder="e.g. Semester 1">
             </div>
 
             <div class="toggle-row">
               <div class="toggle-info">
-                <label for="toggle-auto-sync"><strong>Automatic Drive Updates</strong></label>
+                <label for="toggle-auto-sync"><strong>Automatic Drive updates</strong></label>
                 <span class="field-hint">Automatically syncs new files when browsing SPeCTRUM.</span>
               </div>
-              <input type="checkbox" id="toggle-auto-sync" class="toggle-input">
+              <label class="toggle-control" for="toggle-auto-sync"><input type="checkbox" id="toggle-auto-sync" class="toggle-input"></label>
             </div>
 
             <div class="toggle-row">
               <div class="toggle-info">
-                <label for="toggle-video-download"><strong>Download Video Files</strong></label>
-                <span class="field-hint">Off saves lecture video links. On downloads full video MP4 files.</span>
+                <label for="toggle-video-download"><strong>Download video files</strong></label>
+                <span class="field-hint">Turn off to save links instead of downloading available video files.</span>
               </div>
-              <input type="checkbox" id="toggle-video-download" class="toggle-input">
+              <label class="toggle-control" for="toggle-video-download"><input type="checkbox" id="toggle-video-download" class="toggle-input"></label>
             </div>
 
             <div class="form-actions">
-              <button type="button" class="btn btn-primary" id="btn-save-drive-settings">Save Preferences</button>
+              <button type="button" class="btn btn-primary" id="btn-save-drive-settings">Save preferences</button>
             </div>
           </div>
         </div>
       </section>
 
       <!-- VIEW 3: GOOGLE CALENDAR -->
-      <section id="view-calendar" class="view-panel" hidden>
+      <section id="view-calendar" class="view-panel" role="tabpanel" aria-labelledby="nav-calendar" hidden>
         <div class="panel-header">
-          <h1>Google Calendar Integration</h1>
+          <h1>Google Calendar</h1>
           <p class="panel-desc">Export assignment deadlines, quiz milestones, and exam dates to your Google Calendar.</p>
         </div>
 
         <div class="card">
           <div class="card-header">
-            <h3>Calendar Connection</h3>
+            <h3>Account connection</h3>
           </div>
           <div class="card-body">
             <div class="auth-status-row">
               <div class="auth-info">
-                <span class="auth-label">Calendar Sync Status:</span>
+                <span class="auth-label">Google account</span>
                 <span class="auth-email" id="calendar-status-display">Not connected</span>
               </div>
               <div class="auth-buttons">
@@ -186,27 +176,27 @@
 
         <div class="card">
           <div class="card-header">
-            <h3>Calendar Preferences</h3>
+            <h3>Calendar preferences</h3>
           </div>
           <div class="card-body form-grid">
             <div class="toggle-row">
               <div class="toggle-info">
-                <label for="toggle-calendar-sync"><strong>Sync Assignment &amp; Exam Deadlines</strong></label>
+                <label for="toggle-calendar-sync"><strong>Sync assignment &amp; exam deadlines</strong></label>
                 <span class="field-hint">Extracts deadlines from proformas and course timeline.</span>
               </div>
-              <input type="checkbox" id="toggle-calendar-sync" class="toggle-input">
+              <label class="toggle-control" for="toggle-calendar-sync"><input type="checkbox" id="toggle-calendar-sync" class="toggle-input"></label>
             </div>
 
             <div class="toggle-row">
               <div class="toggle-info">
-                <label for="toggle-announcements"><strong>Scan Announcements for Rescheduled Dates</strong></label>
+                <label for="toggle-announcements"><strong>Check announcements for date changes</strong></label>
                 <span class="field-hint">Checks lecturer forum posts for class reschedules and emergency deadline shifts.</span>
               </div>
-              <input type="checkbox" id="toggle-announcements" class="toggle-input">
+              <label class="toggle-control" for="toggle-announcements"><input type="checkbox" id="toggle-announcements" class="toggle-input"></label>
             </div>
 
             <div class="form-group">
-              <label for="select-reminders">Default Deadline Notifications</label>
+              <label for="select-reminders">Default reminders</label>
               <select id="select-reminders" class="select-input">
                 <option value="1440,60">1 day and 1 hour before</option>
                 <option value="1440">1 day before</option>
@@ -216,36 +206,36 @@
             </div>
 
             <div class="form-actions">
-              <button type="button" class="btn btn-primary" id="btn-save-calendar-settings">Save Calendar Preferences</button>
+              <button type="button" class="btn btn-primary" id="btn-save-calendar-settings">Save calendar preferences</button>
             </div>
           </div>
         </div>
       </section>
 
       <!-- VIEW 4: ACADEMIC PROFILE -->
-      <section id="view-profile" class="view-panel" hidden>
+      <section id="view-profile" class="view-panel" role="tabpanel" aria-labelledby="nav-profile" hidden>
         <div class="panel-header">
-          <h1>Academic Profile</h1>
+          <h1>Academic profile</h1>
           <p class="panel-desc">Your enrolled degree programme and faculty.</p>
         </div>
 
         <div class="card">
           <div class="card-header">
-            <h3>Degree &amp; Faculty</h3>
+            <h3>Degree &amp; faculty</h3>
           </div>
           <div class="card-body form-grid">
             <div class="form-group">
-              <label for="input-profile-degree">Degree Programme</label>
+              <label for="input-profile-degree">Degree programme</label>
               <input type="text" id="input-profile-degree" class="input-text" placeholder="e.g. Bachelor of Computer Science (Software Engineering)">
             </div>
 
             <div class="form-group">
-              <label>Faculty</label>
+              <label for="display-profile-faculty">Faculty</label>
               <input type="text" id="display-profile-faculty" class="input-text" value="Universiti Malaya" disabled>
             </div>
 
             <div class="form-actions">
-              <button type="button" class="btn btn-primary" id="btn-save-profile">Save Profile</button>
+              <button type="button" class="btn btn-primary" id="btn-save-profile">Save profile</button>
             </div>
           </div>
         </div>

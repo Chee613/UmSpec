@@ -35,3 +35,13 @@ test('an excessively long provider retry delay returns an actionable error witho
   await google.verifyAccount('account', 'drive');
   await assert.rejects(google.googleFetch('/drive/v3/files', {}, 'drive'), { code: 'RETRY_LATER' });
 });
+
+test('Google reporting email as its userinfo scope URL still connects Drive', async t => {
+  environment(t);
+  global.chrome.identity.getAuthToken = async () => ({ token: 'scoped-token', grantedScopes: ['openid',
+    'https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/drive.file'] });
+  global.fetch = async () => Response.json({ sub: 'account', email: 'student@example.com' });
+  assert.equal((await google.connectGoogle('drive')).sub, 'account');
+  global.chrome.identity.getAuthToken = async () => ({ token: 'partial-token', grantedScopes: ['openid', 'email'] });
+  await assert.rejects(google.connectGoogle('drive'), { code: 'SCOPE_REQUIRED' });
+});

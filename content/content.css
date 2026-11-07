@@ -1,73 +1,123 @@
 /* ==========================================================================
-   UmSpec // Nothing OS 4.0 Pro Edition
-   Pure Monochrome Dark Mode • Dot-Matrix Aesthetics • Awwwards-Caliber Finish
+   UM Spec · Spectrum workspace
+   Fixed white appearance from the approved Spectrum preview.
    ========================================================================== */
 
-:root {
-  --umspec-void: #000000;
-  --umspec-canvas: #060606;
+#umspec-modal, #umspec-right-drawer, #umspec-left-drawer, #umspec-trigger-btn {
+  --umspec-void: #ffffff;
+  --umspec-canvas: #ffffff;
+  --umspec-surface: #f7f9fd;
+  --umspec-surface-elevated: #edf1f9;
+  --umspec-surface-item: #edf3ff;
+  --umspec-border: #d7dfef;
+  --umspec-border-subtle: #e1e6f0;
+  --umspec-border-hover: #8da5d9;
+  --umspec-text-high: #13287e;
+  --umspec-text-mid: #586891;
+  --umspec-text-low: #667493;
+  --umspec-red: #ca000d;
+  --umspec-primary: #13287e;
+  --umspec-primary-text: #ffffff;
+  --umspec-selection: #13287e;
+  --umspec-selection-text: #ffffff;
+  --umspec-gold: #ffb100;
+  --umspec-count: #9c6500;
+  --umspec-focus: #2463eb;
+  --umspec-success: #087346;
+  --umspec-success-surface: #e7f7ed;
+  --umspec-font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif;
+  --umspec-font-mono: ui-monospace, "SF Mono", "Space Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+
+/* Keep the Dino export panel in its original appearance. */
+#umspec-progress-card {
   --umspec-surface: #0e0e0e;
-  --umspec-surface-elevated: #141414;
-  --umspec-surface-item: #101010;
   --umspec-border: rgba(255, 255, 255, 0.12);
-  --umspec-border-subtle: rgba(255, 255, 255, 0.07);
-  --umspec-border-hover: rgba(255, 255, 255, 0.3);
   --umspec-text-high: #ffffff;
   --umspec-text-mid: #929292;
   --umspec-text-low: #545454;
   --umspec-red: #d71921;
+  --umspec-focus: #ffffff;
   --umspec-font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI", Roboto, sans-serif;
   --umspec-font-mono: ui-monospace, "SF Mono", "Space Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  color: #ffffff;
+  font-family: var(--umspec-font-sans);
+  color-scheme: dark;
 }
 
 /* --------------------------------------------------------------------------
-   Injected Floating Trigger Button (Nothing OS Hardware Pill)
+   Compact floating exporter button
    -------------------------------------------------------------------------- */
 #umspec-trigger-btn {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
+  bottom: 16px;
+  right: 16px;
   z-index: 999999;
   display: inline-flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 20px;
-  background: var(--umspec-void);
-  color: var(--umspec-text-high) !important;
-  font-family: var(--umspec-font-mono);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  border: 1px solid var(--umspec-border);
-  border-radius: 9999px;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  justify-content: center;
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  gap: 0;
+  padding: 0;
+  background: #121212;
+  color: #ffffff !important;
+  font-size: 0;
+  line-height: 1;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   cursor: pointer;
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.18s, background 0.18s, box-shadow 0.18s;
   user-select: none;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  /* Touch drags move the button instead of scrolling the page. */
+  touch-action: none;
+}
+
+#umspec-trigger-btn.umspec-dragging,
+#umspec-trigger-btn.umspec-dragging:hover {
+  cursor: grabbing;
+  transform: scale(1.06);
+  transition: none;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+}
+
+#umspec-modal #umspec-trigger-reset {
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 6px 12px;
+  border: 1px solid var(--umspec-border);
+  border-radius: 7px;
+  background: var(--umspec-canvas);
+  color: var(--umspec-text-high);
+  font: 600 12px/1.2 var(--umspec-font-sans, inherit);
+  cursor: pointer;
+}
+
+#umspec-modal #umspec-trigger-reset:hover {
+  border-color: var(--umspec-border-hover);
 }
 
 #umspec-trigger-btn:hover {
-  transform: translateY(-2px) scale(1.02);
-  background: #0d0d0d;
-  border-color: var(--umspec-border-hover);
-  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.95), 0 0 20px rgba(255, 255, 255, 0.1);
+  transform: translateY(-1px);
+  background: #202020;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.24);
 }
 
 #umspec-trigger-btn:active {
   transform: scale(0.98);
 }
 
-.umspec-trigger-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--umspec-red);
-  box-shadow: 0 0 8px var(--umspec-red);
-  animation: umspec-pulse 1.8s infinite ease-in-out;
-  flex-shrink: 0;
+#umspec-trigger-btn .umspec-trigger-dot,
+#umspec-trigger-btn .umspec-trigger-label,
+#umspec-trigger-btn .umspec-badge {
+  display: none;
 }
 
 #umspec-trigger-btn .umspec-icon {
@@ -76,6 +126,7 @@
   justify-content: center;
   width: 20px;
   height: 20px;
+  flex-shrink: 0;
 }
 
 #umspec-trigger-btn .umspec-icon svg {
@@ -83,21 +134,6 @@
   width: 100%;
   height: 100%;
   fill: #ffffff;
-}
-
-.umspec-trigger-label {
-  color: var(--umspec-text-high);
-}
-
-#umspec-trigger-btn .umspec-badge {
-  background: #181818;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: var(--umspec-text-mid);
-  padding: 3px 8px;
-  border-radius: 9999px;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
 }
 
 /* --------------------------------------------------------------------------
@@ -144,9 +180,9 @@
 #umspec-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.88);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(14, 29, 62, 0.28);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   z-index: 1000000;
   display: flex;
   align-items: center;
@@ -174,11 +210,9 @@
   flex-direction: column;
   box-sizing: border-box;
   background-color: var(--umspec-canvas);
-  background-image: radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px);
-  background-size: 8px 8px;
   border: 1px solid var(--umspec-border);
   border-radius: 20px;
-  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  box-shadow: 0 12px 40px rgba(14, 29, 62, 0.16);
   color: var(--umspec-text-high);
   font-family: var(--umspec-font-sans);
   overflow: hidden;
@@ -212,20 +246,20 @@
 }
 
 .umspec-header-icon-box {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #121212;
-  border: 1px solid var(--umspec-border);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 10px;
   flex-shrink: 0;
 }
 
 .umspec-header-icon-box .umspec-icon {
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -242,7 +276,7 @@
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.14em;
-  color: var(--umspec-text-low);
+  color: var(--umspec-text-mid);
   text-transform: uppercase;
   margin-bottom: 2px;
 }
@@ -268,28 +302,32 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: #141414;
-  border: 1px solid var(--umspec-border);
+  background: var(--umspec-success-surface);
+  border: 1px solid transparent;
   padding: 4px 10px;
   border-radius: 9999px;
   font-family: var(--umspec-font-mono);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.1em;
+  color: var(--umspec-success);
+}
+
+.umspec-live-pill[data-connected=false] {
   color: var(--umspec-text-mid);
+  background: var(--umspec-surface);
+  border-color: var(--umspec-border);
 }
 
 .umspec-red-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--umspec-red);
-  box-shadow: 0 0 8px var(--umspec-red);
-  animation: umspec-pulse 1.8s infinite ease-in-out;
+  background: currentColor;
 }
 
 .umspec-close-btn {
-  background: #121212;
+  background: var(--umspec-surface);
   border: 1px solid var(--umspec-border);
   color: var(--umspec-text-mid);
   width: 32px;
@@ -304,9 +342,9 @@
 }
 
 .umspec-close-btn:hover {
-  background: #ffffff;
-  color: #000000;
-  border-color: #ffffff;
+  background: var(--umspec-surface-elevated);
+  color: var(--umspec-text-high);
+  border-color: var(--umspec-border-hover);
   transform: scale(1.06);
 }
 
@@ -330,12 +368,12 @@
 }
 
 .umspec-modal-body::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.16);
+  background: var(--umspec-border);
   border-radius: 9999px;
 }
 
 .umspec-modal-body::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.32);
+  background: var(--umspec-border-hover);
 }
 
 /* Student Academic Profile Bento Card */
@@ -372,7 +410,7 @@
 }
 
 .umspec-profile-badge .umspec-svg {
-  color: #ffffff;
+  color: var(--umspec-text-high);
 }
 
 .umspec-profile-year {
@@ -380,8 +418,8 @@
   font-size: 10.5px;
   font-weight: 800;
   letter-spacing: 0.08em;
-  background: #ffffff;
-  color: #000000;
+  background: var(--umspec-primary);
+  color: var(--umspec-primary-text);
   padding: 2px 8px;
   border-radius: 9999px;
 }
@@ -397,7 +435,7 @@
   outline: none;
   border: none;
   background: transparent;
-  caret-color: #ffffff;
+  caret-color: var(--umspec-text-high);
   user-select: text;
   -webkit-user-select: text;
 }
@@ -451,13 +489,13 @@
 }
 
 .umspec-section-label.umspec-clickable-header:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--umspec-surface);
   color: var(--umspec-text-high);
 }
 
 .umspec-toggle-btn {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: var(--umspec-surface);
+  border: 1px solid var(--umspec-border);
   color: var(--umspec-text-high);
   font-family: var(--umspec-font-mono);
   font-size: 10px;
@@ -473,8 +511,8 @@
 }
 
 .umspec-toggle-btn:hover {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.28);
+  background: var(--umspec-surface-elevated);
+  border-color: var(--umspec-border-hover);
 }
 
 .umspec-toggle-chevron {
@@ -508,12 +546,12 @@
   padding: 3px 6px;
   border-radius: 4px;
   transition: all 0.2s;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+  border-bottom: 1px solid var(--umspec-border-hover);
 }
 
 .umspec-link-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-bottom-color: #ffffff;
+  background: var(--umspec-surface);
+  border-bottom-color: var(--umspec-text-high);
 }
 
 .umspec-sep {
@@ -567,7 +605,7 @@
 }
 
 .umspec-courses-list::-webkit-scrollbar-thumb {
-  background: #222222;
+  background: var(--umspec-border);
   border-radius: 10px;
 }
 
@@ -578,7 +616,7 @@
   padding: 10px 14px;
   gap: 12px;
   background: var(--umspec-surface-item);
-  border: 1px solid var(--umspec-border-subtle);
+  border: 1px solid var(--umspec-border);
   border-radius: 12px;
   cursor: pointer;
   user-select: none;
@@ -586,19 +624,18 @@
 }
 
 .umspec-course-row:hover {
-  background: #161616;
+  background: var(--umspec-surface-item);
   border-color: var(--umspec-border-hover);
-  transform: translateX(2px);
 }
 
 .umspec-course-row.umspec-row-unselected {
-  opacity: 0.32;
-  background: #0a0a0a;
-  border-color: rgba(255, 255, 255, 0.04);
+  opacity: 1;
+  background: var(--umspec-canvas);
+  border-color: var(--umspec-border);
 }
 
 .umspec-course-row.umspec-row-unselected:hover {
-  opacity: 0.7;
+  background: var(--umspec-surface);
 }
 
 .umspec-course-info {
@@ -610,6 +647,7 @@
 }
 
 .umspec-course-text-wrap {
+  flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -618,6 +656,7 @@
    Custom Nothing OS 4 Pro Checkbox (Zero Moodle CSS Interference)
    -------------------------------------------------------------------------- */
 .umspec-checkbox-label {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -625,27 +664,29 @@
   flex-shrink: 0;
   user-select: none;
   margin: 0;
-  padding: 0;
+  padding: 10px;
   line-height: 0;
 }
 
 /* Hide native checkbox from DOM layout while maintaining keyboard accessibility */
-.umspec-course-checkbox {
+:is(#umspec-modal,#umspec-right-drawer,#umspec-left-drawer) :is(.umspec-course-checkbox,.umspec-item-checkbox) {
   position: absolute !important;
   opacity: 0 !important;
-  width: 0 !important;
-  height: 0 !important;
+  width: 1px !important;
+  height: 1px !important;
+  clip-path: inset(50%) !important;
   pointer-events: none !important;
   margin: 0 !important;
   padding: 0 !important;
 }
 
 .umspec-custom-checkbox {
+  position: relative;
   width: 20px;
   height: 20px;
   border-radius: 6px;
   background: var(--umspec-void);
-  border: 1.5px solid rgba(255, 255, 255, 0.28);
+  border: 1.5px solid var(--umspec-border-hover);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -654,9 +695,12 @@
   flex-shrink: 0;
 }
 
+.umspec-checkbox-label::before, .umspec-checkbox-label::after,
+.umspec-custom-checkbox::before, .umspec-custom-checkbox::after { content: none; }
+
 .umspec-checkbox-label:hover .umspec-custom-checkbox {
-  border-color: #ffffff;
-  background: #141414;
+  border-color: var(--umspec-selection);
+  background: var(--umspec-surface-elevated);
   transform: scale(1.05);
 }
 
@@ -669,19 +713,21 @@
   transform: scale(0.5);
   transition: all 0.16s cubic-bezier(0.16, 1, 0.3, 1);
   flex-shrink: 0;
+  pointer-events: none;
 }
 
-/* When checked: Stark white square with pitch black solid SVG checkmark */
-.umspec-course-checkbox:checked + .umspec-custom-checkbox {
-  background: #ffffff !important;
-  border-color: #ffffff !important;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.25);
+/* Both course and material selections use the same Spectrum checkbox. */
+.umspec-course-checkbox:checked + .umspec-custom-checkbox,
+.umspec-item-checkbox:checked + .umspec-custom-checkbox {
+  background: var(--umspec-selection) !important;
+  border-color: var(--umspec-selection) !important;
 }
 
-.umspec-course-checkbox:checked + .umspec-custom-checkbox .umspec-check-glyph {
+.umspec-course-checkbox:checked + .umspec-custom-checkbox .umspec-check-glyph,
+.umspec-item-checkbox:checked + .umspec-custom-checkbox .umspec-check-glyph {
   opacity: 1;
   transform: scale(1);
-  fill: #000000 !important;
+  fill: var(--umspec-selection-text) !important;
 }
 
 .umspec-course-title {
@@ -689,24 +735,29 @@
   font-weight: 700;
   line-height: 1.35;
   color: var(--umspec-text-high);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 320px;
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 10px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .umspec-course-code {
-  font-family: var(--umspec-font-mono);
-  font-size: 11px;
+  font-family: var(--umspec-font-sans);
+  font-size: inherit;
   font-weight: 700;
-  letter-spacing: 0.06em;
-  color: #cfcfcf;
-  background: #1a1a1a;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  padding: 2px 7px;
-  border-radius: 5px;
-  display: inline-block;
-  margin-top: 3px;
+  letter-spacing: normal;
+  color: var(--umspec-text-high);
+}
+
+.umspec-course-name {
+  min-width: 0;
+  font-weight: 400;
+}
+
+.umspec-course-name:only-child {
+  grid-column: 1 / -1;
 }
 
 .umspec-course-status {
@@ -892,6 +943,7 @@
 
 /* Hardware Cancel Button */
 .umspec-btn-cancel {
+  --umspec-red: #d71921;
   background: #121212;
   color: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -930,35 +982,33 @@
 
 /* The Nothing OS Stark Inverted Hero Pill */
 .umspec-btn-primary {
-  background: #ffffff;
-  color: #000000;
-  border: 1px solid #ffffff;
+  background: var(--umspec-primary);
+  color: var(--umspec-primary-text);
+  border: 1px solid var(--umspec-primary);
   padding: 12px 26px;
   font-family: var(--umspec-font-mono);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  border-radius: 9999px;
+  border-radius: 9px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 10px;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 4px 20px rgba(255, 255, 255, 0.18);
+  box-shadow: none;
   flex-shrink: 0;
 }
 
-/* Inside the stark white hero button, the Glyph icon MUST be pitch black! */
 .umspec-btn-primary .umspec-svg {
-  fill: #000000 !important;
-  color: #000000 !important;
+  fill: currentColor !important;
+  color: inherit !important;
 }
 
 .umspec-btn-primary:hover:not(:disabled) {
-  background: #ebebeb;
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 8px 30px rgba(255, 255, 255, 0.32);
+  filter: brightness(1.1);
+  transform: translateY(-1px);
 }
 
 .umspec-btn-primary:active:not(:disabled) {
@@ -966,9 +1016,9 @@
 }
 
 .umspec-btn-primary:disabled {
-  background: #1c1c1c;
+  background: var(--umspec-surface-elevated);
   color: var(--umspec-text-low);
-  border-color: #2a2a2a;
+  border-color: var(--umspec-border);
   cursor: not-allowed;
   box-shadow: none;
 }
@@ -1018,9 +1068,9 @@
 }
 
 .umspec-pref-chip {
-  background: #141414;
+  background: var(--umspec-surface);
   color: var(--umspec-text-mid);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--umspec-border);
   padding: 5px 12px;
   border-radius: 9999px;
   font-family: var(--umspec-font-mono);
@@ -1046,24 +1096,23 @@
 }
 
 .umspec-pref-chip:hover {
-  background: #202020;
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.25);
+  background: var(--umspec-surface-elevated);
+  color: var(--umspec-text-high);
+  border-color: var(--umspec-border-hover);
 }
 
 .umspec-pref-chip.active {
-  background: #ffffff;
-  color: #000000;
-  border-color: #ffffff;
-  box-shadow: 0 2px 10px rgba(255, 255, 255, 0.2);
+  background: var(--umspec-primary);
+  color: var(--umspec-primary-text);
+  border-color: var(--umspec-primary);
 }
 
 .umspec-pref-chip.active .umspec-svg {
-  fill: #000000;
+  fill: currentColor;
 }
 
 .umspec-pref-chip.active .umspec-estimate-tag {
-  color: #000000;
+  color: inherit;
   opacity: 0.75;
 }
 
@@ -1077,7 +1126,7 @@
   border-radius: 16px;
   padding: 16px 20px;
   margin-top: 12px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(215, 25, 33, 0.2);
+  box-shadow: 0 8px 24px rgba(14, 29, 62, 0.12);
   animation: umspec-fade-in 0.24s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -1127,7 +1176,7 @@
   font-size: 13px;
   font-weight: 600;
   line-height: 1.4;
-  color: #ffffff;
+  color: var(--umspec-text-high);
   margin-bottom: 6px;
 }
 
@@ -1146,8 +1195,8 @@
 }
 
 .umspec-advisory-metric {
-  background: #080808;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--umspec-surface);
+  border: 1px solid var(--umspec-border);
   border-radius: 10px;
   padding: 8px 10px;
   display: flex;
@@ -1169,7 +1218,7 @@
   font-size: 13px;
   font-weight: 800;
   letter-spacing: 0.04em;
-  color: #ffffff;
+  color: var(--umspec-text-high);
 }
 
 .umspec-advisory-actions {
@@ -1179,9 +1228,9 @@
 }
 
 .umspec-btn-advisory-skip {
-  background: #ffffff;
-  color: #000000;
-  border: 1px solid #ffffff;
+  background: var(--umspec-primary);
+  color: var(--umspec-primary-text);
+  border: 1px solid var(--umspec-primary);
   padding: 10px 16px;
   border-radius: 9999px;
   font-family: var(--umspec-font-mono);
@@ -1195,25 +1244,24 @@
   justify-content: center;
   gap: 8px;
   transition: all 0.18s ease;
-  box-shadow: 0 4px 14px rgba(255, 255, 255, 0.2);
+  box-shadow: none;
 }
 
 .umspec-btn-advisory-skip .umspec-svg {
   width: 14px;
   height: 14px;
-  fill: #000000 !important;
+  fill: currentColor !important;
 }
 
 .umspec-btn-advisory-skip:hover {
-  background: #e6e6e6;
+  filter: brightness(1.1);
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(255, 255, 255, 0.35);
 }
 
 .umspec-btn-advisory-download {
-  background: #141414;
-  color: #ffffff;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--umspec-surface);
+  color: var(--umspec-text-high);
+  border: 1px solid var(--umspec-border);
   padding: 9px 16px;
   border-radius: 9999px;
   font-family: var(--umspec-font-mono);
@@ -1232,12 +1280,12 @@
 .umspec-btn-advisory-download .umspec-svg {
   width: 13px;
   height: 13px;
-  fill: #ffffff;
+  fill: currentColor;
 }
 
 .umspec-btn-advisory-download:hover {
-  background: #222222;
-  border-color: rgba(255, 255, 255, 0.4);
+  background: var(--umspec-surface-elevated);
+  border-color: var(--umspec-border-hover);
 }
 
 /* --------------------------------------------------------------------------
@@ -1281,11 +1329,9 @@
   flex-direction: column;
   box-sizing: border-box;
   background-color: var(--umspec-canvas);
-  background-image: radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px);
-  background-size: 8px 8px;
   border: 1px solid var(--umspec-border);
   border-radius: 20px;
-  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  box-shadow: 0 12px 40px rgba(14, 29, 62, 0.16);
   color: var(--umspec-text-high);
   font-family: var(--umspec-font-sans);
   overflow: hidden;
@@ -1318,15 +1364,15 @@
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.1em;
-  color: #ffffff;
-  background: #181818;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--umspec-text-high);
+  background: var(--umspec-surface-elevated);
+  border: 1px solid var(--umspec-border);
   padding: 3px 8px;
   border-radius: 6px;
 }
 
 .umspec-drawer-close-btn {
-  background: #141414;
+  background: var(--umspec-surface);
   border: 1px solid var(--umspec-border);
   color: var(--umspec-text-mid);
   width: 28px;
@@ -1340,8 +1386,8 @@
 }
 
 .umspec-drawer-close-btn:hover {
-  background: #ffffff;
-  color: #000000;
+  background: var(--umspec-surface-elevated);
+  color: var(--umspec-text-high);
   transform: scale(1.06);
 }
 
@@ -1349,9 +1395,9 @@
   padding: 12px 20px 8px 20px;
   font-size: 13px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--umspec-text-high);
   line-height: 1.35;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--umspec-border-subtle);
 }
 
 .umspec-drawer-filters {
@@ -1359,13 +1405,13 @@
   align-items: center;
   gap: 6px;
   padding: 10px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--umspec-border-subtle);
   overflow-x: auto;
 }
 
 .umspec-filter-chip {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--umspec-surface);
+  border: 1px solid var(--umspec-border);
   color: var(--umspec-text-mid);
   font-family: var(--umspec-font-mono);
   font-size: 9.5px;
@@ -1379,14 +1425,14 @@
 }
 
 .umspec-filter-chip:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
+  background: var(--umspec-surface-elevated);
+  color: var(--umspec-text-high);
 }
 
 .umspec-filter-chip.active {
-  background: #ffffff;
-  color: #000000;
-  border-color: #ffffff;
+  background: var(--umspec-primary);
+  color: var(--umspec-primary-text);
+  border-color: var(--umspec-primary);
 }
 
 .umspec-drawer-actions-bar {
@@ -1394,8 +1440,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 20px;
-  background: #0d0d0d;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--umspec-surface);
+  border-bottom: 1px solid var(--umspec-border-subtle);
   font-family: var(--umspec-font-mono);
   font-size: 9.5px;
   letter-spacing: 0.06em;
@@ -1430,9 +1476,9 @@
 }
 
 .umspec-btn-drawer-done {
-  background: #ffffff;
-  color: #000000;
-  border: 1px solid #ffffff;
+  background: var(--umspec-primary);
+  color: var(--umspec-primary-text);
+  border: 1px solid var(--umspec-primary);
   font-family: var(--umspec-font-mono);
   font-size: 10.5px;
   font-weight: 800;
@@ -1444,7 +1490,7 @@
 }
 
 .umspec-btn-drawer-done:hover {
-  background: #e2e8f0;
+  filter: brightness(1.1);
   transform: scale(1.03);
 }
 
@@ -1469,21 +1515,21 @@
   justify-content: space-between;
   gap: 10px;
   padding: 8px 12px;
-  background: #111111;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--umspec-surface-item);
+  border: 1px solid var(--umspec-border);
   border-radius: 10px;
   transition: all 0.15s ease;
   cursor: pointer;
 }
 
 .umspec-item-row:hover {
-  background: #171717;
-  border-color: rgba(255, 255, 255, 0.18);
+  background: var(--umspec-surface-elevated);
+  border-color: var(--umspec-border-hover);
 }
 
 .umspec-item-row.umspec-item-unselected {
-  opacity: 0.42;
-  background: #090909;
+  opacity: 1;
+  background: var(--umspec-canvas);
 }
 
 .umspec-item-left {
@@ -1543,9 +1589,9 @@
 }
 
 .umspec-badge-regular {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--umspec-surface);
   color: var(--umspec-text-mid);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--umspec-border);
 }
 
 /* --------------------------------------------------------------------------
@@ -1559,9 +1605,9 @@
 }
 
 .umspec-course-files-btn {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  color: var(--umspec-text-high);
+  background: var(--umspec-surface-elevated);
+  border: 1px solid transparent;
+  color: var(--umspec-text-mid);
   font-family: var(--umspec-font-mono);
   font-size: 10px;
   font-weight: 700;
@@ -1578,16 +1624,15 @@
 }
 
 .umspec-course-files-btn:hover {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.35);
-  color: #ffffff;
-  transform: scale(1.02);
+  background: var(--umspec-surface-elevated);
+  border-color: var(--umspec-border-hover);
+  color: var(--umspec-text-high);
 }
 
 .umspec-course-row.active-inspector .umspec-course-files-btn {
-  background: #ffffff;
-  color: #000000;
-  border-color: #ffffff;
+  background: var(--umspec-primary);
+  color: var(--umspec-primary-text);
+  border-color: var(--umspec-primary);
 }
 
 .umspec-files-arrow {
@@ -1681,7 +1726,7 @@
   font-size: 11.5px;
   font-weight: 800;
   letter-spacing: 0.04em;
-  color: #ffffff;
+  color: var(--umspec-text-high);
   text-transform: uppercase;
 }
 
@@ -1700,34 +1745,49 @@
 }
 
 /* Sleek Nothing Toggle Switch */
-.umspec-switch {
+#umspec-modal .umspec-switch {
   position: relative;
   display: inline-block;
-  width: 36px;
-  height: 20px;
+  width: 46px;
+  height: 44px;
+  flex: 0 0 46px;
+  margin: 0;
 }
 
-.umspec-switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
+#umspec-modal .umspec-switch > input[type=checkbox] {
+  position: absolute !important;
+  inset: 0 !important;
+  opacity: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  cursor: pointer;
 }
 
-.umspec-slider {
+#umspec-modal .umspec-switch > input::before,
+#umspec-modal .umspec-switch > input::after { content: none !important; display: none !important; }
+
+#umspec-modal .umspec-slider {
   position: absolute;
   cursor: pointer;
-  inset: 0;
-  background-color: #222222;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  inset: 9px 0;
+  background-color: #b1bbd0;
+  border: 1px solid #b1bbd0;
   transition: .25s;
-  border-radius: 20px;
+  border-radius: 999px;
+  pointer-events: none;
 }
 
-.umspec-slider:before {
+#umspec-modal .umspec-slider:before {
   position: absolute;
   content: "";
-  height: 14px;
-  width: 14px;
+  height: 20px;
+  width: 20px;
   left: 2px;
   bottom: 2px;
   background-color: #ffffff;
@@ -1735,14 +1795,17 @@
   border-radius: 50%;
 }
 
-.umspec-switch input:checked + .umspec-slider {
-  background-color: #818cf8;
-  border-color: #818cf8;
+#umspec-modal .umspec-switch input:checked + .umspec-slider {
+  background-color: var(--umspec-primary);
+  border-color: var(--umspec-primary);
 }
 
-.umspec-switch input:checked + .umspec-slider:before {
-  transform: translateX(16px);
+#umspec-modal .umspec-switch input:checked + .umspec-slider:before {
+  transform: translateX(20px);
 }
+
+#umspec-modal .umspec-switch input:focus-visible + .umspec-slider { outline: 2px solid var(--umspec-focus); outline-offset: 3px; }
+#umspec-modal .umspec-switch input:disabled + .umspec-slider { opacity: .45; cursor: default; }
 
 
 /* --------------------------------------------------------------------------
@@ -1750,8 +1813,16 @@
    -------------------------------------------------------------------------- */
 #umspec-modal button:focus-visible,
 #umspec-modal input:focus-visible,
+#umspec-modal select:focus-visible,
+#umspec-right-drawer :is(button,input):focus-visible,
 #umspec-trigger-btn:focus-visible {
-  outline: 2px solid #ffffff;
+  outline: 2px solid var(--umspec-focus);
+  outline-offset: 3px;
+}
+
+.umspec-course-checkbox:focus-visible + .umspec-custom-checkbox,
+.umspec-item-checkbox:focus-visible + .umspec-custom-checkbox {
+  outline: 2px solid var(--umspec-focus);
   outline-offset: 3px;
 }
 
@@ -1848,52 +1919,78 @@
 }
 
 
-/* Compact, paged workspace: controls stay inside the viewport. */
+/* Spectrum workspace: the same white sheet, navy controls and red navigation. */
 html:has(#umspec-modal-overlay.umspec-active) { overflow: hidden; }
 #umspec-modal *, #umspec-right-drawer * { box-sizing: border-box; }
 #umspec-modal-overlay { overflow: hidden; padding: 12px; }
-#umspec-modal { width: min(680px, 100%); max-width: 680px; height: min(680px, calc(100dvh - 24px)); max-height: calc(100dvh - 24px); background-image: none; border-radius: 16px; }
+#umspec-modal { width: min(800px, 100%); max-width: 800px; height: min(800px, calc(100dvh - 32px)); max-height: calc(100dvh - 32px); background-image: none; border-radius: 18px; }
 #umspec-modal [hidden], #umspec-right-drawer [hidden] { display: none !important; }
 #umspec-modal :is(h2,h3,h4,button,label,.umspec-section-label,.umspec-header-sub,.umspec-live-pill) { text-transform: none; letter-spacing: normal; }
-.umspec-modal-header { padding: 12px 18px; }
-.umspec-header-sub { font: 11px/1.3 var(--umspec-font-sans); }
-.umspec-header-title h2 { font-size: 20px; }
-.umspec-header-icon-box { width: 34px; height: 34px; }
-.umspec-live-pill { font: 11px/1.3 var(--umspec-font-sans); }
-.umspec-tabs { display: flex; gap: 4px; padding: 8px 18px; border-bottom: 1px solid var(--umspec-border); flex-shrink: 0; }
-.umspec-tabs button { display: flex; justify-content: center; align-items: center; gap: 7px; flex: 1; border: 0; border-radius: 7px; padding: 8px; color: #aaa; background: transparent; font: 600 13px/1.2 var(--umspec-font-sans); cursor: pointer; }
-.umspec-tabs button[aria-selected=true] { background: #fff; color: #080808; }
-.umspec-tabs .umspec-svg { width: 16px; height: 16px; }
-.umspec-modal-body { padding: 14px 18px; overflow: hidden; }
+.umspec-modal-header { padding: 18px 24px; }
+.umspec-header-sub { font: 500 13px/1.4 var(--umspec-font-sans); }
+.umspec-header-title h2 { font-size: 26px; font-weight: 800; }
+.umspec-close-btn { width: 40px; height: 40px; }
+.umspec-live-pill { font: 500 13px/1.3 var(--umspec-font-sans); padding: 8px 12px; }
+.umspec-tabs { display: flex; gap: 14px; padding: 0 24px; border-bottom: 1px solid var(--umspec-border); flex-shrink: 0; }
+.umspec-tabs button { display: flex; justify-content: center; align-items: center; gap: 9px; flex: 1; min-height: 54px; border: 0; border-bottom: 3px solid transparent; border-radius: 0; padding: 12px 8px; color: var(--umspec-text-mid); background: transparent; font: 650 16px/1.2 var(--umspec-font-sans); cursor: pointer; transition: color .15s, background .15s; }
+.umspec-tabs button:hover { background: var(--umspec-surface); color: var(--umspec-text-high); }
+.umspec-tabs button[aria-selected=true] { border-bottom-color: var(--umspec-red); color: var(--umspec-text-high); }
+.umspec-tabs .umspec-svg { width: 20px; height: 20px; }
+.umspec-modal-body { padding: 20px 24px; overflow: hidden; }
 [data-umspec-view] { height: 100%; min-height: 0; }
-#umspec-view-courses { position: relative; }
-#umspec-sync-home-host { font: 12px/1.4 var(--umspec-font-sans); margin-bottom: 12px; }
-#umspec-sync-home-host p { margin: 6px 0 0; color: #aaa; font-size: 12px; }
-.umspec-selection-section { background: transparent; border: 0; padding: 0; margin: 0; }
-.umspec-section-label { margin: 0; padding: 0 0 9px; gap: 8px; font: 600 12px/1.3 var(--umspec-font-sans); }
+#umspec-view-courses { position: relative; display: flex; flex-direction: column; }
+#umspec-view-settings, #umspec-view-dates { overflow-y: auto; overscroll-behavior: contain; }
+#umspec-view-settings, #umspec-settings-host { display: flex; flex-direction: column; }
+#umspec-settings-host { flex: 1; min-height: 0; }
+#umspec-view-settings { scrollbar-width: thin; scrollbar-color: var(--umspec-border) transparent; }
+#umspec-sync-home-host { font: 14px/1.4 var(--umspec-font-sans); margin-bottom: 14px; }
+#umspec-sync-home-host p { margin: 6px 0 0; color: var(--umspec-text-mid); font-size: 12px; }
+#umspec-sync-home-host p:empty { display: none; }
+.umspec-selection-section { background: transparent; border: 0; padding: 0; margin: 0; flex: 1; min-height: 0; }
+.umspec-course-search { display: flex; align-items: center; position: relative; gap: 10px; margin: 0 0 18px; flex-shrink: 0; }
+.umspec-search-icon { position: absolute; left: 14px; width: 20px; height: 20px; fill: none; stroke: var(--umspec-text-mid); stroke-width: 1.8; pointer-events: none; }
+.umspec-search-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.umspec-course-search input { width: 100%; min-width: 0; min-height: 44px; border: 1px solid var(--umspec-border); border-radius: 8px; padding: 10px 14px 10px 44px; background: var(--umspec-surface); color: var(--umspec-text-high); font: 14px/1.4 var(--umspec-font-sans); }
+.umspec-course-search input::placeholder { color: var(--umspec-text-mid); opacity: 1; }
+.umspec-section-label { margin: 0; padding: 0 0 10px; gap: 8px; font: 500 15px/1.3 var(--umspec-font-sans); color: var(--umspec-text-high); flex-shrink: 0; }
+.umspec-section-label strong { font-weight: 700; }
+.umspec-selection-fraction { font-weight: 400; }
 .umspec-selection-tools { gap: 8px; }
-.umspec-link-btn { font: 12px var(--umspec-font-sans); }
-.umspec-courses-list { overflow: visible; max-height: none; display: flex; flex-direction: column; gap: 6px; }
-.umspec-course-group { margin: 0; }
-.umspec-course-row { min-height: 48px; padding: 9px 12px; border-radius: 8px; }
-.umspec-course-title { font: 500 13px/1.4 var(--umspec-font-sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.umspec-link-btn { font: 600 13px var(--umspec-font-sans); padding: 6px 4px; }
+.umspec-courses-list { overflow-y: auto; max-height: none; min-height: 0; display: flex; flex-direction: column; flex: 1; gap: 6px; padding-right: 2px; }
+.umspec-course-group { margin: 0; flex-shrink: 0; }
+.umspec-course-row { min-height: 54px; padding: 9px 14px; border-radius: 9px; border-color: #d3e1ff; }
+.umspec-course-title { font: 500 15px/1.4 var(--umspec-font-sans); grid-template-columns: 112px minmax(0, 1fr); gap: 12px; }
+.umspec-course-title:not(:has(.umspec-course-code)) { grid-template-columns: minmax(0, 1fr); }
+.umspec-course-code { font-weight: 700; overflow-wrap: anywhere; }
 .umspec-course-info, .umspec-course-text-wrap { min-width: 0; }
-.umspec-course-files-btn { font: 11px var(--umspec-font-sans); }
+.umspec-course-files-btn { justify-content: space-between; min-width: 104px; min-height: 36px; padding: 2px 0 2px 4px; gap: 10px; background: transparent; font: 13px var(--umspec-font-sans); }
+.umspec-course-files-btn > span:first-child { min-width: 76px; text-align: center; padding: 5px 10px; border-radius: 999px; background: #e1ebff; color: #455779; }
+.umspec-row-unselected .umspec-course-files-btn > span:first-child { background: #f0f2f7; }
+.umspec-course-files-btn:hover { background: transparent; border-color: transparent; }
+.umspec-course-files-btn:hover > span:first-child { background: #d3e2ff; color: var(--umspec-text-high); }
+.umspec-course-files-btn .umspec-files-arrow { color: var(--umspec-text-high); }
+.umspec-custom-checkbox { width: 22px; height: 22px; }
 .umspec-course-actions { flex-shrink: 0; }
 .umspec-selection-section.umspec-collapsed .umspec-courses-list { display: none; }
-.umspec-pager { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; font: 12px var(--umspec-font-sans); }
-.umspec-pager button { padding: 6px 12px; min-height: 30px; border: 1px solid #444; border-radius: 6px; background: #171717; color: #eee; font: inherit; cursor: pointer; }
-.umspec-pager button:disabled { opacity: .4; cursor: default; }
-.umspec-notice { margin: 0; padding: 0 18px 8px; color: #ddd; font: 12px/1.4 var(--umspec-font-sans); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; flex-shrink: 0; }
+.umspec-pager { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 14px; font: 600 14px var(--umspec-font-sans); flex-shrink: 0; }
+.umspec-pager button { padding: 8px 20px; min-height: 38px; border: 1px solid var(--umspec-border); border-radius: 7px; background: var(--umspec-canvas); color: var(--umspec-text-high); font: inherit; cursor: pointer; }
+.umspec-pager button:hover:not(:disabled) { background: var(--umspec-surface-item); border-color: var(--umspec-border-hover); }
+.umspec-pager button:disabled { color: var(--umspec-text-low); background: var(--umspec-surface); opacity: .65; cursor: default; }
+.umspec-notice { margin: 0; padding: 0 18px 8px; color: var(--umspec-text-mid); font: 12px/1.4 var(--umspec-font-sans); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; flex-shrink: 0; }
 .umspec-notice:empty { display: none; }
-.umspec-modal-footer { padding: 10px 18px; flex-wrap: nowrap; gap: 10px; min-height: 58px; }
-.umspec-footer-info { max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px var(--umspec-font-sans); }
+.umspec-modal-footer { padding: 14px 24px; flex-wrap: nowrap; gap: 12px; min-height: 74px; }
+.umspec-footer-info { min-width: 0; max-width: 65%; color: var(--umspec-text-high); font: 15px/1.4 var(--umspec-font-sans); }
+.umspec-selection-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.umspec-summary-count { font-weight: 650; }
+.umspec-summary-files { display: inline-flex; align-items: center; gap: 6px; color: var(--umspec-count); border-left: 1px solid var(--umspec-border); padding-left: 16px; font-weight: 650; }
 .umspec-footer-actions { flex-direction: row; width: auto; margin-left: auto; }
-.umspec-btn-primary { padding: 10px 20px; font: 600 13px var(--umspec-font-sans); min-height: 38px; }
+.umspec-btn-primary { padding: 12px 24px; font: 650 15px var(--umspec-font-sans); min-height: 46px; border-radius: 10px; box-shadow: 0 3px 8px rgba(19,40,126,.12); }
 .umspec-btn-cancel { font: 12px var(--umspec-font-sans); }
 .umspec-progress-card { margin-top: 4px; padding: 8px 12px; }
-#umspec-view-courses:has(#umspec-progress-card[style*="block"]) :is(#umspec-sync-home-host, #umspec-selection-section) { display: none; }
-#umspec-view-courses:has(#umspec-progress-card[style*="block"]) #umspec-progress-card { margin-top: 0; }
+/* Set from JS: a :has([style...]) rule here froze Spectrum's dashboard for about 8 seconds on every page load. */
+#umspec-view-courses.umspec-progress-visible :is(#umspec-sync-home-host, #umspec-selection-section) { display: none; }
+#umspec-view-courses.umspec-progress-visible #umspec-progress-card { margin-top: 0; }
 #umspec-modal .umspec-runner-box { padding: 10px; gap: 8px; margin-bottom: 10px; }
 #umspec-modal .umspec-runner-header { gap: 8px; flex-wrap: wrap; }
 #umspec-modal .umspec-runner-badge { font: 600 11px var(--umspec-font-sans); letter-spacing: normal; text-transform: none; }
@@ -1912,35 +2009,41 @@ html:has(#umspec-modal-overlay.umspec-active) { overflow: hidden; }
 .umspec-ai-card { margin: 8px 0 0; padding: 10px 12px; }
 .umspec-ai-card-title { font-size: 12px; letter-spacing: normal; }
 .umspec-ai-card-sub { font-size: 11px; }
-.umspec-video-advisory-card { position: absolute; inset: 0; z-index: 5; margin: 0; padding: 12px; background: #111; }
+.umspec-video-advisory-card { position: absolute; inset: 0; z-index: 5; margin: 0; padding: 12px; background: var(--umspec-canvas); }
 .umspec-advisory-bento { display: none; }
 .umspec-advisory-header { flex-wrap: wrap; }
 .umspec-advisory-actions { flex-direction: column; }
 .umspec-advisory-actions button { font: 12px/1.3 var(--umspec-font-sans); }
-#umspec-right-drawer { position: absolute; width: min(680px, calc(100% - 24px)); max-width: 680px; height: min(680px, calc(100dvh - 24px)); max-height: calc(100dvh - 24px); margin: 0; border-radius: 16px; background: #080808; z-index: 2; }
+#umspec-right-drawer { position: absolute; width: min(800px, calc(100% - 24px)); max-width: 800px; height: min(800px, calc(100dvh - 32px)); max-height: calc(100dvh - 32px); margin: 0; border-radius: 16px; background: var(--umspec-canvas); z-index: 2; }
 #umspec-modal-overlay:has(#umspec-right-drawer.umspec-active) #umspec-modal { visibility: hidden; }
 .umspec-drawer-header { padding: 12px 16px; }
-.umspec-drawer-title { padding: 10px 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.umspec-drawer-filters { padding: 8px 16px; overflow: visible; flex-wrap: wrap; }
-.umspec-drawer-actions-bar { padding: 8px 16px; }
-.umspec-drawer-scroll { padding: 10px 16px; overflow: hidden; flex: 1; min-height: 0; }
-.umspec-item-row { min-height: 44px; padding: 8px; }
-.umspec-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.umspec-item-badge { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.umspec-drawer-footer { padding: 10px 16px; }
+.umspec-drawer-title { padding: 14px 20px; font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.umspec-drawer-filters { padding: 10px 20px; overflow: visible; flex-wrap: wrap; }
+.umspec-filter-chip { font: 600 12px var(--umspec-font-sans); padding: 7px 12px; letter-spacing: normal; text-transform: none; }
+.umspec-drawer-actions-bar { padding: 10px 20px; font: 12px var(--umspec-font-sans); letter-spacing: normal; }
+#umspec-right-drawer .umspec-drawer-link { background: none; border: 0; padding: 4px; cursor: pointer; color: var(--umspec-text-high); font: 600 12px var(--umspec-font-sans); }
+#umspec-right-footer-summary { color: var(--umspec-text-high); font: 600 14px var(--umspec-font-sans); }
+.umspec-drawer-summary-label { color: var(--umspec-text-mid); font: 12px var(--umspec-font-sans); }
+.umspec-drawer-scroll { padding: 14px 20px; overflow: auto; flex: 1; min-height: 0; max-height: none; }
+.umspec-item-row { min-height: 48px; padding: 10px 12px; }
+.umspec-item-name { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.umspec-item-badge { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px var(--umspec-font-sans); letter-spacing: normal; }
+.umspec-drawer-footer { padding: 14px 20px; }
+#umspec-right-drawer > .umspec-pager { margin: 0; padding: 8px 20px 14px; }
+.umspec-btn-drawer-done { min-height: 42px; border-radius: 8px; padding: 9px 22px; font: 650 14px var(--umspec-font-sans); letter-spacing: normal; text-transform: none; }
 @media (max-width: 560px) {
   #umspec-modal-overlay { padding: 8px; }
   #umspec-modal, #umspec-right-drawer { height: min(680px, calc(100dvh - 16px)); max-height: calc(100dvh - 16px); border-radius: 12px; }
   #umspec-right-drawer { width: calc(100% - 16px); }
   .umspec-modal-header { padding: 10px 12px; }
   .umspec-modal-body { padding: 12px; }
-  .umspec-tabs { padding: 6px 12px; }
+  .umspec-tabs { padding: 0 12px; gap: 4px; }
   .umspec-header-title { gap: 8px; }
   .umspec-live-pill { display: none; }
   .umspec-section-label { flex-wrap: wrap; }
   .umspec-course-row { padding: 8px; gap: 6px; }
   .umspec-course-files-btn { padding: 5px 7px; }
-  .umspec-course-title { font-size: 12px; }
+  .umspec-course-title { font-size: 12px; grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .umspec-course-actions .umspec-files-arrow { display: none; }
   .umspec-modal-footer { padding: 10px 12px; }
   .umspec-footer-info { display: none; }
@@ -1949,4 +2052,18 @@ html:has(#umspec-modal-overlay.umspec-active) { overflow: hidden; }
   .umspec-btn-cancel { width: auto; }
   .umspec-drawer-actions-bar { flex-wrap: wrap; gap: 6px; }
   .umspec-item-badge { display: none; }
+}
+@media (max-height: 760px) and (min-width: 561px) {
+  .umspec-modal-header { padding: 12px 24px; }
+  .umspec-header-title h2 { font-size: 24px; }
+  .umspec-tabs button { min-height: 46px; padding: 10px 8px; }
+  .umspec-modal-body { padding: 16px 24px; }
+  .umspec-course-search { margin-bottom: 12px; }
+  .umspec-course-search input { min-height: 40px; padding-top: 8px; padding-bottom: 8px; }
+  .umspec-section-label { padding-bottom: 8px; }
+  .umspec-link-btn { padding: 4px 2px; }
+  .umspec-course-row { min-height: 48px; padding: 5px 12px; }
+  .umspec-pager { padding-top: 8px; }
+  .umspec-pager button { min-height: 34px; padding: 6px 16px; }
+  .umspec-modal-footer { padding-top: 10px; padding-bottom: 10px; min-height: 66px; }
 }

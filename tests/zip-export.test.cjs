@@ -18,8 +18,10 @@ async function zipHarness(activities, sources, deselected = [], options = {}) {
   let uiAvailable = !options.discoverBeforeModal;
   const requested = [];
   const binaryReads = [];
+  const prompts = [];
+  const preferences = new Map(Object.entries({ umspec_saved_degree: 'Computing', umspec_gemini_enabled: 'false', umspec_video_pref: 'skip', ...options.preferences }));
   let blob;
-  const node = () => ({ style: {}, classList: { add() {}, remove() {}, contains: () => false },
+  const node = () => ({ style: {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
     querySelector: () => null, querySelectorAll: () => [], addEventListener() {}, innerText: '' });
   const courseLink = anchor(ORIGIN + '/course/view.php?id=123', 'WIX1001 Computing');
   const courseDoc = { querySelector: () => null, querySelectorAll: () => [{
@@ -34,7 +36,8 @@ async function zipHarness(activities, sources, deselected = [], options = {}) {
     JSZip, Blob, ArrayBuffer, Uint8Array, DOMException, UmSpecSync: require('../shared/sync-core.js'),
     setTimeout(callback, delay) { const timer = setTimeout(callback, delay); timer.unref(); return timer; }, clearTimeout,
     location: { origin: ORIGIN, pathname: '/my/' },
-    localStorage: { getItem: key => key === 'umspec_saved_degree' ? 'Computing' : null, setItem() {} },
+    localStorage: { getItem: key => preferences.get(key) ?? null, setItem: (key, value) => preferences.set(key, value) },
+    confirm(message) { prompts.push(message); return options.aiConsent === true; },
     alert(message) { throw new Error(message); },
     document: {
       readyState: 'loading', addEventListener() {}, activeElement: null,
@@ -93,17 +96,63 @@ async function zipHarness(activities, sources, deselected = [], options = {}) {
   const selected = context.UmSpecExporter.selectedUrls(123);
   assert.ok(selected, 'the real background scanner should populate selected URLs');
   deselected.forEach(url => selected.delete(url));
+  if (options.beforeExport) await options.beforeExport({ exporter: context.UmSpecExporter, ui, context });
   if (options.videoPolicy) context.UmSpecExporter.applySettings({ mode: 'zip', videoPolicy: options.videoPolicy });
   await context.UmSpecExporter.exportZip();
   assert.ok(blob, 'the actual ZIP pipeline should produce a downloadable archive');
-  return { archive: await JSZip.loadAsync(await blob.arrayBuffer()), requested, ui, binaryReads };
+  return { archive: await JSZip.loadAsync(await blob.arrayBuffer()), requested, ui, binaryReads, prompts, preferences };
 }
+
+test('fresh AI and video preferences default on, with disclosure before any proforma service request', async () => {
+  const { requested, prompts } = await zipHarness([], {}, [], { preferences: { umspec_gemini_enabled: null, umspec_video_pref: null },
+    beforeExport({ exporter }) { assert.equal(exporter.videoPolicy(), 'include'); } });
+  assert.equal(prompts.length, 1, 'default-enabled AI must ask for the initial provider disclosure');
+  assert.match(prompts[0], /selected proforma documents.*Google Gemini/);
+  assert.ok(requested.every(url => new URL(url).origin === ORIGIN), 'declining disclosure must avoid all AI service requests');
+});
+
+test('saved AI and video opt-outs survive a new extension session', async () => {
+  const { prompts } = await zipHarness([], {}, [], { beforeExport({ exporter }) { assert.equal(exporter.videoPolicy(), 'links'); } });
+  assert.equal(prompts.length, 0);
+});
 
 test('opening the modal renders courses and profile after automatic discovery already ran', async () => {
   const { ui } = await zipHarness([], {}, [], { discoverBeforeModal: true });
   assert.equal(String(ui.get('umspec-course-count')?.innerText ?? ''), '1');
   assert.equal(ui.get('umspec-profile-major')?.innerText, 'Computing');
   assert.match(ui.get('umspec-courses-container')?.innerHTML || '', /data-id="123"/);
+});
+
+test('ZIP export starts date analysis without waiting for it to finish', async () => {
+  let finishAnalysis, timeout, calls = 0, analysisFinished = false;
+  const analysis = new Promise(resolve => { finishAnalysis = resolve; }).then(() => { analysisFinished = true; });
+  try {
+    const { archive } = await Promise.race([
+      zipHarness([], {}, [], { beforeExport({ context }) {
+        context.UmSpecStudentSync = { analyseDates() { calls++; return analysis; } };
+      } }),
+      new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('ZIP export waited for unfinished date analysis.')), 2000); })
+    ]);
+    assert.equal(calls, 1, 'starting the real ZIP pipeline must also start date analysis');
+    assert.equal(analysisFinished, false, 'ZIP must finish while date analysis is still pending');
+    assert.ok(archive.file('SEMESTER_AUDIT_REPORT.md'), 'the ZIP archive must be fully generated and readable');
+  } finally { clearTimeout(timeout); finishAnalysis(); }
+});
+
+test('course search filters the list without discarding selection or the local ZIP export', async () => {
+  await zipHarness([], {}, [], { beforeExport({ exporter, ui }) {
+    const search = ui.get('umspec-course-search'), list = ui.get('umspec-courses-container');
+    assert.equal(typeof search?.oninput, 'function', 'course search must respond to input');
+    search.value = '  wix1001  '; search.oninput();
+    assert.match(list.innerHTML, /data-id="123"/);
+    search.value = 'no matching course'; search.oninput();
+    assert.doesNotMatch(list.innerHTML, /data-id="123"/);
+    assert.match(list.innerHTML, /No courses match/);
+    assert.deepEqual(Array.from(exporter.selectedCourses(), course => course.id), [123]);
+    assert.match(ui.get('umspec-footer-stats').innerHTML, /1 course selected/);
+    search.value = ''; search.oninput();
+    assert.match(list.innerHTML, /data-id="123"/);
+  } });
 });
 
 test('ZIP runtime retains same-name folder children and assignment paths without overwriting bytes', async () => {
@@ -138,7 +187,7 @@ test('ZIP linked-only videos do not write raw Spectrum session credentials into 
   assert.doesNotMatch(links, /sesskey|private-session|logintoken|private-login|MoodleSession|private-cookie/);
 });
 
-test('ZIP links folder videos and opaque video bodies by default; Settings opt-in includes their bytes', async () => {
+test('ZIP links folder videos and opaque video bodies when video downloads are off; enabling includes their bytes', async () => {
   const video = ORIGIN + '/pluginfile.php/44/mod_folder/content/0/lesson.m4v';
   const opaque = ORIGIN + '/pluginfile.php/44/mod_folder/content/0/download';
   const activities = [activity('folder', 7, 'Week 1 files')];

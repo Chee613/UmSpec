@@ -31,6 +31,7 @@
     if (automatic && job?.scopeChanged) return false;
     const featureEnabled = feature === 'drive' ? settings.mode === 'drive' : feature === 'calendar' ? settings.calendarEnabled : settings.announcementScanning;
     if (automatic && job && !job.done && featureEnabled) return job.status === 'running';
+    if (automatic && feature === 'drive' && !status.syncTimes?.drive?.lastSuccessfulSyncAt) return false;
     const enabled = feature === 'drive' ? settings.mode === 'drive' && (!automatic || settings.autoSync) :
       feature === 'calendar' ? settings.calendarEnabled : settings.announcementScanning;
     const attempted = status.syncTimes?.[feature]?.lastAttemptAt;
@@ -92,11 +93,12 @@
     const timeout = AbortSignal.timeout(20000);
     return signal ? AbortSignal.any([signal, timeout]) : timeout;
   }
-  async function discoverOfficialEvents(courseIds, signal, now = new Date()) {
+  async function discoverOfficialEvents(courseIds, signal, now = new Date(), progress = () => {}) {
     const records = new Map(), failures = [];
     const sesskey = exporter()?.getSesskey();
     if (!sesskey) return { records: [], complete: false, failures: [{ message: 'Sign in to Spectrum before scanning dates.' }] };
     for (const { year, month } of calendarMonths(now)) {
+      signal?.throwIfAborted();
       try {
         const response = await fetch(ORIGIN + '/lib/ajax/service.php?sesskey=' + encodeURIComponent(sesskey) + '&info=core_calendar_get_calendar_monthly_view', {
           method: 'POST', credentials: 'include', redirect: 'error', signal: requestSignal(signal),
@@ -108,7 +110,9 @@
         if (!response.ok) throw fail('CALENDAR_UNAVAILABLE', 'Official calendar read was denied (' + response.status + ').');
         const items = await adaptCalendarResponse(await response.json(), courseIds);
         for (const record of items) records.set(record.sourceKey, record);
+        progress({ year, month });
       } catch (error) {
+        signal?.throwIfAborted();
         failures.push({ year, month, message: error.code === 'CALENDAR_UNAVAILABLE' ? error.message : 'Could not read this Spectrum calendar month.' });
         // ponytail: one denied schema is enough; retry the six-month scan on the next eligible visit.
         break;
@@ -189,10 +193,11 @@
     const doc = await fetchPage(candidate.sourceUrl, signal);
     return announcements().normalisePost(postFromDocument(doc, candidate.sourceUrl, candidate.courseId, candidate.forumId, candidate.postId));
   }
-  async function discoverAnnouncements(courseIds, signal, cursor = null) {
+  async function discoverAnnouncements(courseIds, signal, cursor = null, progress = () => {}) {
     const posts = [], failures = [];
     let resume = cursor;
     for (const courseId of courseIds.map(String)) {
+      signal?.throwIfAborted();
       if (resume?.courseId && resume.courseId !== courseId) continue;
       let forums = [], current = { courseId, forumUrl: null, listingUrl: null, threadOffset: 0 };
       try {
@@ -226,6 +231,7 @@
               if (count >= 100 || posts.length >= 100) return { posts, complete: false, cursor: current, failures };
               const thread = await fetchPage(threads[index], signal);
               posts.push(await announcements().normalisePost(postFromDocument(thread, threads[index], courseId, forumId)));
+              progress({ courseId, posts: posts.length });
               count++;
             }
             const next = listing.querySelector('a[rel="next"],.paging a.next,.pagination .next:not(.disabled) a');
@@ -236,14 +242,133 @@
         }
         if (resume?.forumUrl && !forums.includes(resume.forumUrl)) throw fail('ANNOUNCEMENTS_UNAVAILABLE', 'Saved announcement forum is no longer visible.');
         resume = null;
+        progress({ courseId, posts: posts.length, courseComplete: true });
       } catch (error) {
+        signal?.throwIfAborted();
         failures.push({ courseId, message: error.code ? error.message : 'Could not read this course announcement layout.' });
         return { posts, complete: false, cursor: current, failures };
       }
     }
     return { posts, complete: true, cursor: null, failures };
   }
-  let status = null, running = null, controller = null, notice = '';
+  let status = null, contextReady = false, localZip = false, running = null, runningAutomatic = false, controller = null, notice = '';
+  let dateRunning = null, dateController = null, dateRunner = null, datesVisible = false, dateCalendarActive = false;
+  let contextInvalidated = false, mutationObserver = null;
+  const refreshMessage = 'UM Spec was updated. Refresh this Spectrum tab to continue.';
+  const dateAnalysis = { active: false, stage: '', detail: '', progress: 0, error: '' };
+  function runtimeFailure(error) {
+    if (!/extension context invalidated/i.test(error?.message || '')) return error;
+    contextInvalidated = true; contextReady = false;
+    controller?.abort(); dateController?.abort(); dateRunner?.stop('IDLE');
+    dateAnalysis.active = false; dateAnalysis.error = refreshMessage;
+    mutationObserver?.disconnect?.();
+    messageText(refreshMessage); renderPanel();
+    return fail('EXTENSION_CONTEXT_INVALIDATED', refreshMessage);
+  }
+  function runtimeIcon(path) {
+    if (contextInvalidated) return '';
+    try { return root.chrome?.runtime?.getURL?.(path) || ''; }
+    catch (error) {
+      const failure = runtimeFailure(error);
+      if (failure === error) throw error;
+      return '';
+    }
+  }
+  function dateRecords(value, now = new Date()) {
+    const records = new Map((value.events || []).map(record => [record.sourceKey, record]));
+    for (const record of value.dateScan?.records || []) records.set(record.sourceKey, record);
+    return core().upcomingRecords([...records.values()], now, 186);
+  }
+  function renderDateAnalysis() {
+    if (typeof document === 'undefined') return;
+    const panel = document.querySelector?.('[data-date-analysis]');
+    if (!panel) return;
+    panel.hidden = !dateAnalysis.active;
+    panel.querySelector('[data-date-stage]').textContent = dateAnalysis.stage;
+    panel.querySelector('[data-date-detail]').textContent = dateAnalysis.detail;
+    panel.querySelector('[data-date-meter]').style.width = dateAnalysis.progress + '%';
+    panel.querySelector('[role="progressbar"]').setAttribute('aria-valuenow', String(dateAnalysis.progress));
+    if (dateAnalysis.active && datesVisible && !root.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      if (!dateRunner) dateRunner = exporter()?.createDateAnalysisRunner?.(panel.querySelector('canvas'), panel.querySelector('[data-date-score]'));
+      if (dateRunner && !['RUNNING', 'STARTING'].includes(dateRunner.state)) {
+        dateRunner.state = 'STARTING';
+        dateRunner.start().catch(() => { dateRunner?.stop('IDLE'); });
+      }
+    } else dateRunner?.stop('IDLE');
+  }
+  function onTabChange(tab) {
+    datesVisible = tab === 'dates'; renderDateAnalysis();
+    if (datesVisible) analyseDates().catch(() => {});
+  }
+  function stopDateAnalysis() {
+    dateController?.abort();
+    if (dateCalendarActive) return command({ type: 'PAUSE_SYNC', feature: 'calendar', bindingHash: status.bindingHash }).catch(error => { dateAnalysis.error = error.message; });
+  }
+  function analyseDates(options = {}) {
+    if (dateRunning) return dateRunning;
+    dateController = new AbortController();
+    const signal = dateController.signal;
+    const update = (stage, detail, progress) => { Object.assign(dateAnalysis, { active: true, stage, detail, progress, error: '' }); renderPanel(); };
+    dateRunning = (async () => {
+      await contextStatus(); signal.throwIfAborted();
+      const courseIds = exporter().selectedCourses().map(course => String(course.id));
+      if (!courseIds.length) throw fail('SELECT_COURSES', 'Choose courses in the Courses tab to analyse their dates.');
+      const bindingHash = status.bindingHash, prior = status.dateScan;
+      const sameScope = prior && [...prior.courseIds].sort().join(',') === [...courseIds].sort().join(',');
+      const cached = !options.force && sameScope && prior.complete && Date.now() - prior.completedAt < 15 * 60000;
+      if (cached && !shouldRunFeature('calendar', status, true)) return status;
+      if (!cached) {
+        update('Reading official dates…', 'Checking six months of Spectrum deadlines and course events.', 0);
+        let months = 0, courses = 0;
+        const official = await discoverOfficialEvents(courseIds, signal, new Date(), () => {
+          update('Reading official dates…', ++months + ' of 6 calendar months checked.', Math.round(months / 6 * 40));
+        });
+        signal.throwIfAborted();
+        update('Reading course announcements…', 'Scanning selected courses locally. Your files can keep exporting.', 40);
+        const scan = await discoverAnnouncements(courseIds, signal, sameScope ? prior.announcementCursor : null, item => {
+          if (item.courseComplete) courses++;
+          update('Reading course announcements…', courses + ' of ' + courseIds.length + ' courses checked · ' + item.posts + ' posts read.', 40 + Math.round(courses / courseIds.length * 50));
+        });
+        signal.throwIfAborted();
+        await contextStatus(); signal.throwIfAborted();
+        if (status.bindingHash !== bindingHash) throw fail('ACCOUNT_CHANGED', 'Spectrum account changed. Run date analysis again.');
+        update('Saving dates for review…', official.records.length + ' official dates · ' + scan.posts.length + ' announcement posts checked.', 95);
+        await command({ type: 'SAVE_DATE_SCAN', bindingHash, courseIds, records: official.records, posts: scan.posts,
+          complete: official.complete && scan.complete, announcementCursor: scan.cursor,
+          failures: [...official.failures, ...scan.failures] });
+      }
+      signal.throwIfAborted();
+      if (status.bindingHash !== bindingHash) throw fail('ACCOUNT_CHANGED', 'Spectrum account changed. Dates were not sent to Calendar.');
+      if (linked('calendar') && status.settings.calendarEnabled) {
+        // ponytail: reuse the serial Calendar writer after file sync; local discovery never waits for an export.
+        if (running) {
+          update('Dates ready · files still syncing…', 'Official dates will sync to Calendar after the file writer finishes.', 96);
+          await new Promise((resolve, reject) => {
+            const stopped = () => reject(signal.reason);
+            signal.addEventListener('abort', stopped, { once: true });
+            running.catch(() => {}).then(resolve).finally(() => signal.removeEventListener('abort', stopped));
+            if (signal.aborted) stopped();
+          });
+        }
+        signal.throwIfAborted();
+        if (status.bindingHash !== bindingHash) throw fail('ACCOUNT_CHANGED', 'Spectrum account changed. Dates were not sent to Calendar.');
+        if (!linked('calendar') || !status.settings.calendarEnabled) return status;
+        update('Syncing official dates…', 'Announcement suggestions stay in Review.', 98);
+        dateCalendarActive = true;
+        await runCalendar(false, signal, true);
+        signal.throwIfAborted();
+      }
+      return status;
+    })().catch(error => {
+      dateAnalysis.error = contextInvalidated ? refreshMessage : signal.aborted ? 'Date analysis stopped. Previous dates are retained.' : error.message;
+      return status;
+    }).finally(() => {
+      dateAnalysis.active = false; dateCalendarActive = false; dateRunning = null; dateController = null;
+      renderDateAnalysis(); renderPanel();
+    });
+    renderPanel();
+    return dateRunning;
+  }
   function messageText(message) {
     notice = message;
     if (typeof document !== 'undefined') {
@@ -252,31 +377,78 @@
     }
   }
   async function command(message) {
-    const response = await chrome.runtime.sendMessage(message);
+    if (contextInvalidated) throw fail('EXTENSION_CONTEXT_INVALIDATED', refreshMessage);
+    let response;
+    try { response = await root.chrome.runtime.sendMessage(message); }
+    catch (error) { throw runtimeFailure(error); }
+    if (contextInvalidated) throw fail('EXTENSION_CONTEXT_INVALIDATED', refreshMessage);
     if (!response?.ok) throw fail(response?.error?.code || 'WORKER_UNAVAILABLE', response?.error?.message || 'Reopen the extension to restore sync.');
     status = response.data;
     renderPanel();
     return status;
   }
-  async function contextStatus() {
-    const bridge = exporter();
-    const context = bridge?.verifyContext ? await bridge.verifyContext() : bridge?.getContext();
-    if (!context || context.origin !== ORIGIN || !positiveId(context.userId)) throw fail('LOGIN_REQUIRED', 'Open your signed-in Spectrum page to set up sync.');
-    return command({ type: 'SET_CONTEXT', userId: context.userId });
+  async function contextStatus(options = {}) {
+    try {
+      if (contextInvalidated) throw fail('EXTENSION_CONTEXT_INVALIDATED', refreshMessage);
+      const bridge = exporter();
+      // On page load the document was just rendered for this session; every real sync still verifies with a fresh request.
+      const context = options.fromDocument && bridge?.getContext ? bridge.getContext() : bridge?.verifyContext ? await bridge.verifyContext() : bridge?.getContext();
+      if (!context || context.origin !== ORIGIN || !positiveId(context.userId)) throw fail('LOGIN_REQUIRED', 'Open your signed-in Spectrum page to set up sync.');
+      const result = await command({ type: 'SET_CONTEXT', userId: context.userId });
+      if (contextInvalidated) throw fail('EXTENSION_CONTEXT_INVALIDATED', refreshMessage);
+      contextReady = true;
+      renderPanel();
+      return result;
+    } catch (error) {
+      contextReady = false;
+      renderPanel();
+      throw error;
+    }
   }
   function linked(feature) { return status?.configured && status.account?.features?.includes(feature); }
+  function dueInBackground(feature) {
+    return shouldRunFeature(feature, status, true) && (feature !== 'calendar' || Boolean(linked('calendar')));
+  }
+  // Background checks wait for Spectrum to finish loading so they never compete with the page the student opened.
+  function afterPageLoad(delay = 3000) {
+    return new Promise(resolve => {
+      const wait = () => setTimeout(resolve, delay);
+      if (document.readyState === 'complete') wait();
+      else root.addEventListener('load', wait, { once: true });
+    });
+  }
+  function renderProviderStatus(panel) {
+    const feature = panel.dataset?.settingsProvider === 'calendar' ? 'calendar' : 'drive';
+    const name = feature === 'calendar' ? 'Google Calendar' : 'Google Drive';
+    const available = Boolean(status && contextReady && !contextInvalidated);
+    const output = panel.querySelector?.('[data-settings-provider-status]');
+    if (!output) return;
+    output.textContent = available ? name + (linked(feature) ? ' connected' : ' not connected') : 'Verify Spectrum to check ' + (feature === 'calendar' ? 'Calendar' : 'Drive');
+    panel.querySelector('[data-settings-connection]').dataset.connected = String(available && Boolean(linked(feature)));
+    for (const icon of panel.querySelectorAll('[data-settings-provider]')) icon.hidden = icon.dataset.settingsProvider !== feature;
+  }
+  function attentionText(job) {
+    const items = job?.attention || [];
+    return items.length ? ' Affected: ' + items.map(item => item.name + (item.detail ? ' (' + item.detail + ')' : '')).join(', ') + '.' : '';
+  }
   async function runDrive(automatic, signal) {
     if (!linked('drive')) throw fail('CONNECT_REQUIRED', status?.configured ? 'Connect Google Drive from the extension popup.' : 'Google setup is required. ZIP and local announcement review remain available.');
     if (!status.settings.archiveId) throw fail('ARCHIVE_REQUIRED', 'Enter and save a semester archive name before syncing to Drive.');
-    let job = status.job;
+    let job = status.job, skipped = 0;
     if (job && !job.done && !job.scopeChanged) {
       await command({ type: 'BEGIN_DRIVE_SYNC', bindingHash: status.bindingHash, materials: [], retry: !automatic });
     } else {
       messageText('Checking selected courses for fresh material…');
       const courses = await exporter().discoverCourses();
       const selected = new Set(status.settings.courseIds), materials = [];
-      for (const course of courses.filter(course => selected.has(String(course.id)))) {
-        materials.push(...await exporter().resolveCourseMaterials(course, automatic ? null : exporter().selectedUrls(course.id), signal));
+      const wanted = courses.filter(course => selected.has(String(course.id)));
+      for (const [index, course] of wanted.entries()) {
+        const label = 'Checking course ' + (index + 1) + ' of ' + wanted.length + (course.fullName ? ' (' + course.fullName + ')' : '');
+        messageText(label + '… Keep this tab open.');
+        const found = await exporter().resolveCourseMaterials(course, automatic ? null : exporter().selectedUrls(course.id), signal,
+          (done, total) => messageText(label + ': item ' + done + ' of ' + total + '. Keep this tab open.'));
+        skipped += found.skipped || 0;
+        materials.push(...found);
         selected.delete(String(course.id));
       }
       if (selected.size) throw fail('PARTIAL_SCAN', 'Some selected courses are unavailable. Reopen the course list before syncing.');
@@ -292,16 +464,22 @@
     const summary = status.job?.summary;
     if (status.job?.done && (summary?.failed || summary?.conflicts)) {
       throw fail('PARTIAL_SYNC', 'Drive sync: ' + (summary.failed || 0) + ' failed, ' + (summary.conflicts || 0) +
-        ' conflict(s). Retry failed items or open Drive to review edits and restore removed files.');
+        ' conflict(s). Retry failed items or open Drive to review edits and restore removed files.' + attentionText(status.job));
     }
+    if (skipped) throw fail('PARTIAL_SCAN', 'Drive sync finished, but ' + skipped + ' course item(s) could not be read and were left out. Sync again later to retry them.');
   }
-  async function runCalendar(automatic, signal) {
+  async function runCalendar(automatic, signal, useDateScan = false) {
     if (!linked('calendar')) throw fail('CONNECT_REQUIRED', 'Connect Google Calendar from the extension popup.');
-    if (status.calendarJob && !status.calendarJob.done && !status.calendarJob.scopeChanged) {
+    useDateScan ||= Boolean(status.calendarJob?.useDateScan && !status.calendarJob.done);
+    signal.throwIfAborted();
+    if (useDateScan) {
+      await command({ type: 'BEGIN_CALENDAR_SYNC', bindingHash: status.bindingHash, useDateScan: true, freshInventory: true });
+    } else if (status.calendarJob && !status.calendarJob.done && !status.calendarJob.scopeChanged) {
       await command({ type: 'BEGIN_CALENDAR_SYNC', records: [], complete: status.calendarJob.complete === true });
     } else {
       messageText('Reading the next six months of official Spectrum dates…');
       const scan = await discoverOfficialEvents(status.settings.courseIds, signal);
+      signal.throwIfAborted();
       await command({ type: 'BEGIN_CALENDAR_SYNC', records: scan.records, complete: scan.complete, freshInventory: Boolean(status.calendarJob?.scopeChanged) });
       if (scan.failures.length) messageText(scan.failures[0].message + ' Previous calendar entries are retained.');
       status._calendarScanWarning = scan.failures[0]?.message;
@@ -319,6 +497,7 @@
   async function runAnnouncements(signal) {
     messageText('Reading selected-course announcements locally…');
     const scan = await discoverAnnouncements(status.settings.courseIds, signal, status.announcementCursor);
+    signal.throwIfAborted();
     await command({ type: 'QUEUE_ANNOUNCEMENTS', posts: scan.posts, complete: scan.complete, cursor: scan.cursor });
     if (scan.failures.length) throw fail('PARTIAL_SCAN', scan.failures[0].message + ' Previous reviews were retained.');
     if (!scan.complete) throw fail('PARTIAL_SCAN', 'Announcement pass saved. More posts will be checked on the next visit or Sync now.');
@@ -337,29 +516,43 @@
     const errors = [];
     const signal = controller.signal;
     for (const [feature, run] of [['drive', () => runDrive(automatic, signal)], ['calendar', () => runCalendar(automatic, signal)], ['announcements', () => runAnnouncements(signal)]]) {
-      if (signal.aborted || !shouldRunFeature(feature, status, automatic)) continue;
-      try { await run(); }
+      const due = automatic ? dueInBackground(feature) : shouldRunFeature(feature, status, false);
+      if (signal.aborted || (dateRunning && feature !== 'drive') || !due) continue;
+      try {
+        // Start the cooldown first: a scan cut short by leaving the page must not restart on every visit.
+        if (automatic) await command({ type: 'MARK_SYNC_ATTEMPT', feature });
+        await run();
+      }
       catch (error) {
         if (error.name === 'AbortError' || signal.aborted) break;
         errors.push(error.message);
       }
     }
-    messageText(signal.aborted ? 'Sync paused. Reopen Spectrum or choose Sync now to continue.' : errors.length ? errors.join(' ') : 'Selected features are up to date.');
+    messageText(contextInvalidated ? refreshMessage : signal.aborted ? 'Sync paused. Reopen Spectrum or choose Sync now to continue.' : errors.length ? errors.join(' ') : automatic ? '' : 'Selected features are up to date.');
     return status;
   }
   function syncNow(options = {}) {
+    const automatic = options.automatic === true;
+    if (running && !automatic && runningAutomatic) {
+      // Background checks skip a first Drive sync, so joining one would silently drop what the student asked for.
+      controller?.abort();
+      return running.catch(() => {}).then(() => syncNow(options));
+    }
     if (running) return running;
     controller = new AbortController();
-    running = performSync(options.automatic === true).catch(error => { messageText(error.message); throw error; }).finally(() => {
+    runningAutomatic = automatic;
+    running = performSync(automatic).catch(error => { messageText(error.message); throw error; }).finally(() => {
       running = null; controller = null; renderPanel();
     });
     renderPanel();
     return running;
   }
   async function exportOrSync() {
+    if (exporter()?.destination?.() === 'zip') return false;
     await command({ type: 'GET_STATUS' });
     if (status.settings.mode !== 'drive') return false;
     await contextStatus();
+    analyseDates().catch(() => {});
     await syncNow();
     return true;
   }
@@ -397,6 +590,7 @@
         tab.setAttribute('aria-selected', String(tab === button)); tab.tabIndex = tab === button ? 0 : -1;
       }
       parent.querySelectorAll('[data-' + group + '-view]').forEach(view => { view.hidden = view.getAttribute('data-' + group + '-view') !== value; });
+      if (group === 'settings') { parent.dataset.settingsProvider = value === 'calendar' ? 'calendar' : 'drive'; renderProviderStatus(parent); }
     };
     for (const button of buttons) {
       button.addEventListener('click', () => select(button));
@@ -422,19 +616,27 @@
   }
   function renderReviews(modal) {
     const candidates = status.candidates || [], events = status.events || [];
+    const officialReviews = (status.dateScan?.records || []).filter(item => item.status === 'needs_review');
     reviewPage = Math.min(reviewPage, Math.max(0, candidates.length - 1));
-    const signature = JSON.stringify([reviewPage, candidates.map(c => [c.candidateId, c.sourceRevision, c.state]), events.map(e => [e.sourceKey, e.sourceRevision]), linked('calendar'), status.settings.calendarEnabled]);
+    const signature = JSON.stringify([reviewPage, candidates.map(c => [c.candidateId, c.sourceRevision, c.state]), events.map(e => [e.sourceKey, e.sourceRevision]), officialReviews.map(e => [e.sourceKey, e.sourceRevision]), linked('calendar'), status.settings.calendarEnabled]);
     const target = modal.querySelector('[data-sync-reviews]');
     if (target._signature === signature) return;
     target._signature = signature;
     target.replaceChildren();
-    modal.querySelector('[data-review-count]').textContent = candidates.length ? ' (' + candidates.length + ')' : '';
-    if (!candidates.length) { target.append(node('p', 'No dates to review. Turn on announcement checks in Settings.')); return; }
+    const count = candidates.length + officialReviews.length;
+    modal.querySelector('[data-review-count]').textContent = count ? ' (' + count + ')' : '';
+    for (const event of officialReviews) {
+      const row = node('article', null, 'umspec-date-row');
+      row.append(node('strong', event.title), node('p', 'Spectrum did not provide a complete time or duration. Check the source before adding this date.'), externalLink('Check official event', event.sourceUrl));
+      target.append(row);
+    }
+    if (!candidates.length) { if (!officialReviews.length) target.append(node('p', 'No dates to review. Analyse your selected courses to check announcements.')); return; }
     const candidate = candidates[reviewPage];
     const row = node('article', null, 'umspec-sync-review');
     const heading = node('h4', candidate.title); heading.title = candidate.title; row.append(heading);
     const evidence = node('p', candidate.evidence, 'umspec-evidence'); evidence.title = candidate.evidence; row.append(evidence);
     row.append(externalLink('Read announcement', candidate.sourceUrl));
+    if (candidate.reason === 'inferred_year') row.append(node('p', 'The post gave no year, so it was taken from the posting date. Check it before saving.', 'umspec-helper'));
     if (candidate.meetingUrl) row.append(externalLink('Meeting link', candidate.meetingUrl));
     if (candidate.cancellationSuggested) row.append(node('p', 'Possible cancellation. Check the existing event in Google Calendar.'));
     const tablist = node('div', null, 'umspec-subtabs'); tablist.setAttribute('role', 'tablist'); tablist.setAttribute('aria-label', 'Review fields');
@@ -458,11 +660,12 @@
     }
     const actions = node('div', null, 'umspec-sync-actions');
     const accept = node('button', 'Save to Calendar');
-    const allowed = () => linked('calendar') && status.settings.calendarEnabled && !candidate.cancellationSuggested && (!duplicate || separate?.checked);
+    const allowed = () => contextReady && !contextInvalidated && linked('calendar') && status.settings.calendarEnabled && !candidate.cancellationSuggested && (!duplicate || separate?.checked);
     accept.type = 'button'; accept.disabled = !allowed();
-    if (!linked('calendar') || !status.settings.calendarEnabled) row.append(node('p', 'Connect and enable Calendar in the UM Spec toolbar popup.', 'umspec-helper'));
+    if (!linked('calendar') || !status.settings.calendarEnabled) row.append(node('p', 'Connect Calendar from the UM Spec toolbar popup, then enable it in Settings → Calendar.', 'umspec-helper'));
     separate?.addEventListener('change', () => { accept.disabled = !allowed(); });
     accept.addEventListener('click', async () => {
+      if (!allowed()) return;
       accept.disabled = true;
       try {
         messageText('Checking the announcement before saving…');
@@ -483,13 +686,40 @@
     pager(target, candidates.length, reviewPage, 1, page => { reviewPage = page; renderPanel(); });
   }
   function renderPanel() {
-    if (!status) return;
-    exporter()?.applySettings?.(status.settings);
+    const available = Boolean(status && contextReady && !contextInvalidated);
+    if (available) exporter()?.applySettings?.(localZip ? { ...status.settings, mode: 'zip' } : status.settings);
     if (typeof document === 'undefined') return;
     const panel = document.getElementById('umspec-sync-panel'), modal = document.getElementById('umspec-modal');
     if (!panel || !modal) return;
-    panel.querySelectorAll('input, select, [data-sync-save]').forEach(input => { input.disabled = Boolean(panel._saving); });
-    const destination = modal.querySelector('[name="mode"]'); destination.disabled = destination.dataset.saving === 'true';
+    const destination = modal.querySelector('[name="mode"]');
+    const saving = Boolean(panel._saving) || destination.dataset.saving === 'true';
+    panel.querySelectorAll('input, select, [data-sync-save]').forEach(input => { input.disabled = !available || saving; });
+    destination.disabled = saving;
+    for (const option of destination.options) if (option.value === 'drive') option.disabled = !available || !linked('drive');
+    destination.value = available ? localZip ? 'zip' : status.settings.mode : exporter()?.destination?.() || 'zip';
+    for (const choice of modal.querySelectorAll('[data-mode-choice]')) {
+      choice.disabled = destination.disabled || (choice.dataset.modeChoice === 'drive' && destination.options[1].disabled);
+      choice.setAttribute('aria-pressed', String(choice.dataset.modeChoice === destination.value));
+    }
+    const spectrumStatus = document.getElementById('umspec-spectrum-status');
+    if (spectrumStatus) {
+      spectrumStatus.textContent = available ? 'Spectrum connected' : 'Verify Spectrum';
+      spectrumStatus.closest('.umspec-live-pill').dataset.connected = String(available);
+    }
+    modal.querySelector('[data-sync-now]').disabled = !available || saving || Boolean(dateRunning);
+    renderProviderStatus(panel);
+    if (!available) {
+      const pause = modal.querySelector('[data-sync-pause]'); if (pause) pause.disabled = true;
+      const summary = modal.querySelector('[data-dates-summary]');
+      if (summary) summary.textContent = dateAnalysis.error || 'Verify your signed-in Spectrum session to analyse course dates.';
+      for (const selector of ['[data-sync-upcoming]', '[data-sync-reviews]', '[data-sync-changes]', '[data-calendar-feedback]']) {
+        const target = modal.querySelector(selector);
+        target?.replaceChildren?.();
+        if (target) delete target._signature;
+      }
+      renderDateAnalysis();
+      return;
+    }
     const settings = status.settings;
     const reminders = panel.querySelector('[name="reminders"]'), reminderValue = (settings.reminderMinutes || []).join(',');
     if (![...reminders.options].some(option => option.value === reminderValue)) {
@@ -500,7 +730,6 @@
       const input = modal.querySelector(selector);
       if (input && document.activeElement !== input) input[checkbox ? 'checked' : 'value'] = value;
     };
-    setValue('[name="mode"]', settings.mode);
     if (!panel._dirty) {
       setValue('#umspec-sync-archive', settings.archiveId || '');
       setValue('[name="videoDownloads"]', settings.videoPolicy === 'include', true);
@@ -509,29 +738,51 @@
       setValue('[name="announcementScanning"]', settings.announcementScanning, true);
       setValue('[name="reminders"]', reminderValue);
     }
-    panel.querySelector('[name="autoSync"]').disabled = Boolean(panel._saving) || !linked('drive') || !status.syncTimes?.drive?.lastSuccessfulSyncAt;
+    panel.querySelector('[name="autoSync"]').disabled = saving || !linked('drive') || !status.syncTimes?.drive?.lastSuccessfulSyncAt;
     panel.querySelector('[data-auto-hint]').hidden = !panel.querySelector('[name="autoSync"]').disabled;
-    panel.querySelector('[name="calendarEnabled"]').disabled = Boolean(panel._saving) || !linked('calendar');
+    panel.querySelector('[name="calendarEnabled"]').disabled = saving || !linked('calendar');
     panel.querySelector('[data-sync-account]').textContent = status.account ? status.account.email : 'Connect Google from the UM Spec icon in Chrome’s toolbar.';
     const summary = status.job?.summary;
     modal.querySelector('[data-sync-progress]').textContent = summary ?
-      summary.created + ' added · ' + summary.updated + ' updated · ' + summary.skipped + ' unchanged · ' + summary.linked + ' links · ' + (summary.conflicts + summary.failed) + ' need attention' :
-      'Files are saved. Videos stay as links unless enabled in Settings.';
+      summary.created + ' added · ' + summary.updated + ' updated · ' + summary.skipped + ' unchanged · ' + summary.linked + ' links · ' + (summary.conflicts + summary.failed) + ' need attention' + attentionText(status.job) :
+      '';
     const providerLinks = modal.querySelector('[data-sync-provider-links]'); providerLinks.replaceChildren();
     if (status.driveRootId) providerLinks.append(externalLink('Open Drive folder', 'https://drive.google.com/drive/folders/' + encodeURIComponent(status.driveRootId)));
-    if (status.calendarId) providerLinks.append(externalLink('Open Google Calendar', 'https://calendar.google.com/calendar/u/0/r'));
+    if (status.calendarId) providerLinks.append(externalLink('Open Google Calendar', 'https://calendar.google.com/calendar/'));
     providerLinks.hidden = !providerLinks.childElementCount;
-    modal.querySelector('[data-sync-now]').disabled = Boolean(running);
     modal.querySelector('[data-sync-pause]').disabled = !running && status.job?.status !== 'running';
     if (notice) modal.querySelector('#umspec-sync-status').textContent = notice;
     const upcoming = modal.querySelector('[data-sync-upcoming]'); upcoming.replaceChildren();
-    const events = core().upcomingRecords(status.events || []), size = 3;
+    const scan = status.dateScan;
+    const calendarFeedback = modal.querySelector('[data-calendar-feedback]');
+    if (calendarFeedback) {
+      const count = (status.events || []).filter(event => event.status === 'confirmed').length;
+      const pending = (status.candidates || []).length;
+      calendarFeedback.replaceChildren();
+      calendarFeedback.append(node('span', !linked('calendar') ? 'Google Calendar is not connected. Connect it from the UM Spec toolbar popup.' :
+        !settings.calendarEnabled ? 'Calendar is connected, but date sync is off. Turn on Settings → Calendar → Sync official dates.' :
+        status.calendarJob?.error ? 'Calendar sync paused: ' + status.calendarJob.error.message :
+        status.calendarVisibilityNotice ? (count ? count + ' dates saved. ' : '') + status.calendarVisibilityNotice :
+        count ? count + ' dates saved to the “UM Spec” calendar for ' + status.account.email + '.' + (pending ? ' ' + pending + ' announcement suggestions still need review.' : '') :
+        pending ? pending + ' announcement suggestions need review before they can appear in Google Calendar.' :
+        'Calendar is connected. Analyse dates to find official deadlines for your selected courses.'));
+      if (status.calendarId) calendarFeedback.append(externalLink('Open Google Calendar', 'https://calendar.google.com/calendar/'));
+    }
+    const scanSummary = modal.querySelector('[data-dates-summary]');
+    if (scanSummary) scanSummary.textContent = dateAnalysis.error || (dateAnalysis.active ? 'Analysis continues while you export. Dates appear here when this pass finishes.' :
+      scan ? (scan.complete ? 'Checked ' : 'Partial scan of ') + scan.courseIds.length + ' courses · ' + new Date(scan.completedAt).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur', dateStyle: 'medium', timeStyle: 'short' }) +
+        (scan.failures?.length ? '. ' + scan.failures[0].message : !scan.complete ? '. Run Analyse dates again to continue.' : '. Upcoming six months · Malaysia time.') :
+        'Analyse selected courses for official deadlines and announcement dates.');
+    renderDateAnalysis();
+    const events = dateRecords(status), size = 3;
     upcomingPage = Math.min(upcomingPage, Math.max(0, Math.ceil(events.length / size) - 1));
-    if (!events.length) upcoming.append(node('p', 'No confirmed dates in the next 7 days. Sync Calendar or review an announcement.'));
+    if (!events.length) upcoming.append(node('p', dateAnalysis.active ? 'Checking your courses…' : !scan ? 'Choose Analyse dates to check your selected courses.' : scan.complete ?
+      'No upcoming official deadlines found. Check Review for announcement suggestions.' : 'The scan is incomplete. Previously found dates are retained; try Analyse dates again.'));
     for (const event of events.slice(upcomingPage * size, (upcomingPage + 1) * size)) {
       const row = node('article', null, 'umspec-date-row'); row.append(node('strong', event.title));
       row.append(node('p', event.start.slice(0, 10) + (event.precision === 'instant' ? ' · ' + new Date(event.start).toLocaleTimeString('en-MY', { timeZone: 'Asia/Kuala_Lumpur', hour: '2-digit', minute: '2-digit' }) : ' · All day')));
       row.append(externalLink('Open Spectrum', event.sourceUrl));
+      row.append(node('span', (status.events || []).some(item => item.sourceKey === event.sourceKey && item.sourceRevision === event.sourceRevision) ? 'Synced to Calendar' : 'Official Spectrum date', 'umspec-date-source'));
       if (event.meetingUrl) row.append(externalLink('Join meeting', event.meetingUrl));
       upcoming.append(row);
     }
@@ -546,6 +797,7 @@
     pager(recent, changes.length, changesPage, 4, page => { changesPage = page; renderPanel(); });
   }
   function mountPanel() {
+    if (contextInvalidated) return;
     if (document.getElementById('umspec-sync-panel')) return;
     const host = document.getElementById('umspec-settings-host'); if (!host) return;
     const panel = node('section', null, 'umspec-sync-panel'); panel.id = 'umspec-sync-panel';
@@ -555,31 +807,35 @@
       <button type="button" role="tab" data-settings-tab="calendar" aria-controls="umspec-settings-calendar">Calendar</button>
       <button type="button" role="tab" data-settings-tab="about" aria-controls="umspec-settings-about">More</button></nav>
       <section id="umspec-settings-files" data-settings-view="files" role="tabpanel">
-        <h3>File preferences</h3><div class="umspec-sync-fields"><label>Semester folder<input id="umspec-sync-archive" type="text" maxlength="80" placeholder="2026–27 Semester 1"></label></div>
-        <label class="umspec-setting-row"><span><strong>Download videos</strong><small>Off saves links. On downloads available video files.</small></span><input type="checkbox" name="videoDownloads"></label>
-        <label class="umspec-setting-row"><span><strong>Automatic Drive updates</strong><small>Check when you open Spectrum.</small></span><input type="checkbox" name="autoSync"></label>
+        <h3>File preferences</h3><div class="umspec-sync-fields"><label>Semester folder<input id="umspec-sync-archive" type="text" maxlength="80" placeholder="e.g. Semester 1"></label></div>
+        <label class="umspec-setting-row"><span><strong>Download videos</strong><small>Turn off to save video links for faster exports.</small></span><span class="umspec-switch"><input type="checkbox" name="videoDownloads"><span class="umspec-slider" aria-hidden="true"></span></span></label>
+        <label class="umspec-setting-row"><span><strong>Automatic Drive updates</strong><small>Check when you open Spectrum.</small></span><span class="umspec-switch"><input type="checkbox" name="autoSync"><span class="umspec-slider" aria-hidden="true"></span></span></label>
         <p data-auto-hint class="umspec-helper">Connect Drive and complete one sync to enable automatic updates.</p>
         <p class="umspec-helper">Hosted recordings stay as links. Drive files over 50 MiB are linked.</p>
       </section>
       <section id="umspec-settings-calendar" data-settings-view="calendar" role="tabpanel" hidden>
-        <h3>Calendar preferences</h3>
-        <label class="umspec-setting-row"><span><strong>Sync official dates</strong><small>Use your dedicated UM Spec calendar.</small></span><input type="checkbox" name="calendarEnabled"></label>
-        <label class="umspec-setting-row"><span><strong>Check announcement dates</strong><small>Review suggestions in Dates before adding.</small></span><input type="checkbox" name="announcementScanning"></label>
+        <h3 class="umspec-provider-heading"><img src="${runtimeIcon('icons/google-calendar.svg')}" alt="" width="28" height="28">Calendar preferences</h3>
+        <label class="umspec-setting-row"><span><strong>Sync official dates</strong><small>Use your dedicated UM Spec calendar.</small></span><span class="umspec-switch"><input type="checkbox" name="calendarEnabled"><span class="umspec-slider" aria-hidden="true"></span></span></label>
+        <label class="umspec-setting-row"><span><strong>Check announcement dates</strong><small>Review suggestions in Dates before adding.</small></span><span class="umspec-switch"><input type="checkbox" name="announcementScanning"><span class="umspec-slider" aria-hidden="true"></span></span></label>
         <div class="umspec-sync-fields"><label>Remind me<select name="reminders"><option value="1440,60">1 day and 1 hour before</option><option value="1440">1 day before</option><option value="60">1 hour before</option><option value="">No reminders</option></select></label></div>
-        <p class="umspec-helper">Connect Google Calendar from the UM Spec toolbar popup. Announcement checks run locally.</p>
+        <p class="umspec-helper">Use Dates → Analyse dates to check selected courses. Announcement suggestions need review before saving to Calendar.</p>
       </section>
       <section id="umspec-settings-about" data-settings-view="about" role="tabpanel" hidden><h3>Account & extras</h3><p data-sync-account></p></section>
-      <div class="umspec-sync-actions"><button type="button" data-sync-save>Save settings</button><span data-settings-saved role="status"></span></div>`;
+      <div class="umspec-sync-actions"><div class="umspec-settings-connection" data-settings-connection><img data-settings-provider="drive" src="${runtimeIcon('icons/google-drive.svg')}" alt="" width="26" height="26"><img data-settings-provider="calendar" src="${runtimeIcon('icons/google-calendar.svg')}" alt="" width="26" height="26" hidden><span data-settings-provider-status>Checking Google Drive…</span></div><span data-settings-saved role="status"></span><button type="button" data-sync-save>Save changes</button></div>`;
     host.append(panel);
     const extras = document.getElementById('umspec-extra-settings');
     if (extras) panel.querySelector('[data-settings-view="about"]').append(extras);
     wireTabs(panel, 'settings');
     const home = document.getElementById('umspec-sync-home-host');
-    home.innerHTML = `<div class="umspec-save-row"><label>Save to <select name="mode"><option value="zip">ZIP file</option><option value="drive">Google Drive</option></select></label><button type="button" data-sync-pause disabled>Pause sync</button></div><p data-sync-progress></p><div data-sync-provider-links class="umspec-provider-links"></div>`;
+    home.innerHTML = `<div class="umspec-save-row"><div class="umspec-destination-field"><span id="umspec-destination-label">Save to</span><div class="umspec-destination-options" role="group" aria-labelledby="umspec-destination-label"><button type="button" data-mode-choice="zip" aria-pressed="true">ZIP file</button><button type="button" data-mode-choice="drive" aria-pressed="false" disabled><img class="umspec-provider-icon" src="${runtimeIcon('icons/google-drive.svg')}" alt="" width="20" height="20">Google Drive</button></div><select name="mode" hidden aria-hidden="true" tabindex="-1"><option value="zip">ZIP file</option><option value="drive">Google Drive</option></select></div><button type="button" data-sync-pause disabled>Pause sync</button></div><p data-sync-progress></p><div data-sync-provider-links class="umspec-provider-links"></div>`;
+    panel.querySelector('[data-settings-view="about"]').append(home.querySelector('[data-sync-provider-links]'));
     const dates = document.getElementById('umspec-dates-host');
     dates.className = 'umspec-sync-panel';
-    dates.innerHTML = `<div class="umspec-dates-heading"><h3>Your dates</h3><button type="button" data-sync-now>Check for updates</button></div>
-      <nav class="umspec-subtabs" role="tablist" aria-label="Dates"><button type="button" role="tab" data-dates-tab="upcoming" aria-controls="umspec-dates-upcoming">Next 7 days</button><button type="button" role="tab" data-dates-tab="review" aria-controls="umspec-dates-review">Review<span data-review-count></span></button><button type="button" role="tab" data-dates-tab="recent" aria-controls="umspec-dates-recent">Recent</button></nav>
+    dates.innerHTML = `<div class="umspec-dates-heading"><h3>Your dates</h3><button type="button" data-sync-now>Analyse dates</button></div>
+      <p class="umspec-dates-summary" data-dates-summary></p>
+      <p class="umspec-calendar-feedback" data-calendar-feedback></p>
+      <section class="umspec-date-analysis" data-date-analysis hidden aria-label="Date analysis"><div class="umspec-analysis-titlebar"><strong>DATE SCANNER.EXE</strong><span>UM SPEC</span></div><div class="umspec-analysis-body"><div class="umspec-analysis-copy"><strong data-date-stage role="status">Reading official dates…</strong><button type="button" data-date-stop>Stop</button></div><p data-date-detail></p><canvas id="umspec-date-runner-canvas" width="640" height="90" aria-label="Dino running past cactus while dates are checked"></canvas><span data-date-score hidden></span><div class="umspec-analysis-meter" role="progressbar" aria-label="Date analysis progress" aria-valuemin="0" aria-valuemax="100"><span data-date-meter></span></div><p class="umspec-analysis-caption">Runs locally while your files export. Announcement dates stay in Review.</p></div></section>
+      <nav class="umspec-subtabs" role="tablist" aria-label="Dates"><button type="button" role="tab" data-dates-tab="upcoming" aria-controls="umspec-dates-upcoming">Upcoming</button><button type="button" role="tab" data-dates-tab="review" aria-controls="umspec-dates-review">Review<span data-review-count></span></button><button type="button" role="tab" data-dates-tab="recent" aria-controls="umspec-dates-recent">Recent</button></nav>
       <section id="umspec-dates-upcoming" data-dates-view="upcoming" role="tabpanel" data-sync-upcoming></section><section id="umspec-dates-review" data-dates-view="review" role="tabpanel" data-sync-reviews hidden></section><section id="umspec-dates-recent" data-dates-view="recent" role="tabpanel" data-sync-changes hidden></section>`;
     wireTabs(dates, 'dates');
     panel.querySelectorAll('input, select, [data-sync-save]').forEach(input => { input.disabled = true; });
@@ -587,7 +843,7 @@
     panel.addEventListener('input', () => { panel._dirty = true; panel.querySelector('[data-settings-saved]').textContent = 'Unsaved changes'; });
     const savePreferences = async () => {
       const text = panel.querySelector('[name="reminders"]').value;
-      const settings = { archiveId: panel.querySelector('#umspec-sync-archive').value,
+      const settings = { mode: home.querySelector('[name="mode"]').value, archiveId: panel.querySelector('#umspec-sync-archive').value,
         videoPolicy: panel.querySelector('[name="videoDownloads"]').checked ? 'include' : 'links',
         autoSync: panel.querySelector('[name="autoSync"]').checked,
         calendarEnabled: panel.querySelector('[name="calendarEnabled"]').checked,
@@ -596,6 +852,7 @@
       panel._saving = true; renderPanel();
       try {
         await contextStatus(); await command({ type: 'SAVE_SETTINGS', settings });
+        localZip = false;
         panel._dirty = false; renderPanel(); panel.querySelector('[data-settings-saved]').textContent = 'Saved'; messageText('Settings saved.');
       } catch (error) {
         if (error.code === 'UPLOAD_IN_PROGRESS') { panel._dirty = false; await refreshPanel(); }
@@ -605,11 +862,29 @@
     panel.querySelector('[data-sync-save]').addEventListener('click', () => savePreferences().catch(error => messageText(error.message)));
     home.querySelector('[name="mode"]').addEventListener('change', async event => {
       const input = event.target, mode = input.value; input.dataset.saving = 'true'; input.disabled = true;
-      try { await contextStatus(); await command({ type: 'SAVE_SETTINGS', settings: { mode } }); }
-      catch (error) { messageText(error.message); renderPanel(); }
-      finally { delete input.dataset.saving; input.disabled = false; }
+      renderPanel();
+      const useLocalZip = () => {
+        localZip = true;
+        exporter().applySettings({ mode: 'zip', videoPolicy: exporter().videoPolicy() });
+        input.value = 'zip';
+      };
+      try {
+        if (mode === 'zip' && !contextReady) { useLocalZip(); messageText('ZIP selected. Verify Spectrum to save account preferences.'); }
+        else { await contextStatus(); await command({ type: 'SAVE_SETTINGS', settings: { mode } }); localZip = false; }
+      } catch (error) {
+        if (mode === 'zip') useLocalZip();
+        else input.value = localZip ? 'zip' : status?.settings?.mode || 'zip';
+        messageText((mode === 'zip' ? 'ZIP selected. ' : '') + error.message);
+      }
+      finally { delete input.dataset.saving; renderPanel(); }
     });
-    dates.querySelector('[data-sync-now]').addEventListener('click', () => syncNow().catch(error => messageText(error.message)));
+    for (const choice of home.querySelectorAll('[data-mode-choice]')) choice.addEventListener('click', () => {
+      const input = home.querySelector('[name="mode"]');
+      input.value = choice.dataset.modeChoice;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    dates.querySelector('[data-sync-now]').addEventListener('click', () => analyseDates({ force: true }));
+    dates.querySelector('[data-date-stop]').addEventListener('click', stopDateAnalysis);
     home.querySelector('[data-sync-pause]').addEventListener('click', () => {
       controller?.abort(); command({ type: 'PAUSE_SYNC' }).then(() => messageText('Sync paused.')).catch(error => messageText(error.message));
     });
@@ -617,32 +892,43 @@
   }
   const api = { safeSpectrumUrl, calendarMonths, shouldRunFeature, adaptCalendarResponse, makeReviewFields,
     announcementForum, safeForumPage, discoverOfficialEvents, discoverAnnouncements, refreshPost, exportOrSync, syncNow, refreshPanel,
-    savedCourseIds: () => status?.settings?.courseIds?.length ? [...status.settings.courseIds] : null };
+    analyseDates, stopDateAnalysis, dateRecords, onTabChange,
+    savedCourseIds: () => contextReady && status?.settings?.courseIds?.length ? [...status.settings.courseIds] : null };
   root.UmSpecStudentSync = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof document !== 'undefined' && root.chrome?.runtime) {
-    chrome.runtime.onMessage.addListener((message, sender, reply) => {
-      if (sender.id !== chrome.runtime.id) return;
-      if (message.type === 'UMSPEC_CONTEXT') {
-        const bridge = exporter();
-        Promise.resolve(bridge?.verifyContext ? bridge.verifyContext() : bridge?.getContext()).then(value => reply(value || null), () => reply(null));
-        return true;
-      }
-      if (message.type === 'UMSPEC_SYNC_NOW') { syncNow().catch(() => {}); reply({ ok: true }); }
-      if (message.type === 'UMSPEC_REFRESH_STATUS') {
-        contextStatus().then(() => reply({ ok: true }), error => {
-          messageText(error.message);
-          reply({ ok: false, error: { code: error.code || 'LOGIN_REQUIRED', message: error.message } });
-        });
-        return true;
-      }
-    });
-    new MutationObserver(mountPanel).observe(document.documentElement, { childList: true, subtree: true });
+    mutationObserver = new MutationObserver(mountPanel);
+    try {
+      const extensionId = root.chrome.runtime.id;
+      root.chrome.runtime.onMessage.addListener((message, sender, reply) => {
+        if (contextInvalidated || sender.id !== extensionId) return;
+        if (message.type === 'UMSPEC_CONTEXT') {
+          const bridge = exporter();
+          Promise.resolve().then(() => bridge?.verifyContext ? bridge.verifyContext() : bridge?.getContext()).then(value => reply(value || null), () => reply(null));
+          return true;
+        }
+        if (message.type === 'UMSPEC_SYNC_NOW') { syncNow().catch(() => {}); reply({ ok: true }); }
+        if (message.type === 'UMSPEC_REFRESH_STATUS') {
+          contextStatus().then(() => reply({ ok: true }), error => {
+            messageText(error.message);
+            reply({ ok: false, error: { code: error.code || 'LOGIN_REQUIRED', message: error.message } });
+          });
+          return true;
+        }
+      });
+    } catch (error) {
+      const failure = runtimeFailure(error);
+      if (failure === error) throw error;
+    }
+    if (!contextInvalidated) mutationObserver.observe(document.documentElement, { childList: true, subtree: true });
     mountPanel();
-    contextStatus().then(() => {
-      if (status.settings.courseIds?.length) exporter().setSelectedCourses(status.settings.courseIds);
+    contextStatus({ fromDocument: true }).then(async () => {
+      if (!status.settings.courseIds?.length) return;
+      exporter().setSelectedCourses(status.settings.courseIds);
+      if (!['drive', 'calendar', 'announcements'].some(feature => dueInBackground(feature))) return;
+      await afterPageLoad();
       return syncNow({ automatic: true });
     }).catch(error => messageText(error.message));
-    root.addEventListener('pagehide', () => controller?.abort(), { once: true });
+    root.addEventListener('pagehide', () => { controller?.abort(); stopDateAnalysis(); dateRunner?.stop('IDLE'); }, { once: true });
   }
 })(globalThis);

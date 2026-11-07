@@ -9,17 +9,45 @@
   async function request(path, options = {}) {
     if (!root.UmSpecGoogle?.googleFetch) throw failure('Google Calendar connection unavailable', 'CALENDAR_UNAVAILABLE');
     const response = await root.UmSpecGoogle.googleFetch(path, options, 'calendar');
-    if (!response.ok) throw failure('Google Calendar request failed (' + response.status + ')', 'CALENDAR_HTTP', response.status);
+    if (!response.ok) {
+      const reason = await googleReason(response);
+      throw Object.assign(failure('Google Calendar request failed (' + [response.status, reason].filter(Boolean).join(' ') + ')', 'CALENDAR_HTTP', response.status), { reason });
+    }
     return response.status === 204 ? null : response.json();
+  }
+  // Google's reason token (for example insufficientPermissions) separates causes that share a status.
+  async function googleReason(response) {
+    try {
+      const reason = (await response.json())?.error?.errors?.[0]?.reason;
+      return typeof reason === 'string' && /^\w{1,64}$/.test(reason) ? reason : null;
+    } catch { return null; }
   }
   const jsonOptions = (method, payload, headers = {}) => ({ method, headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(payload) });
   const calendarPath = id => BASE + '/calendars/' + encodeURIComponent(id);
   const marker = binding => 'umspec:v1:' + binding.hash;
-  function adopt(binding, calendar) {
+  async function adopt(binding, calendar) {
     if (!calendar?.id || calendar.description !== marker(binding)) throw failure('Calendar ownership marker does not match', 'CALENDAR_OWNERSHIP');
     binding.calendarId = calendar.id;
     delete binding.calendarCreateIntent;
+    await showCalendar(binding, calendar.id);
     return { id: calendar.id, etag: calendar.etag };
+  }
+  // Showing the calendar is a convenience the user can also do in Google Calendar, so a refusal must not stop dates
+  // from syncing. Account and token failures still stop the job, because every later request would fail the same way.
+  const ACCOUNT_FAILURES = new Set(['ACCOUNT_CHANGED', 'RECONNECT_REQUIRED', 'SCOPE_REQUIRED', 'CONFIG_REQUIRED', 'CALENDAR_UNAVAILABLE']);
+  async function showCalendar(binding, id) {
+    // syncEvent adopts once per event, so a recorded refusal waits for the next sync job instead of repeating per event.
+    if (binding.calendarVisibilityId === id || binding.calendarVisibilityIssue?.calendarId === id) return;
+    try {
+      await request(BASE + '/users/me/calendarList/' + encodeURIComponent(id), jsonOptions('PATCH', { selected: true, hidden: false }));
+      binding.calendarVisibilityId = id;
+      delete binding.calendarVisibilityIssue;
+    } catch (error) {
+      if (ACCOUNT_FAILURES.has(error.code) || error.status === 401) throw error;
+      const detail = error.status ? 'HTTP ' + [error.status, error.reason].filter(Boolean).join(' ') : 'no response from Google';
+      binding.calendarVisibilityIssue = { calendarId: id, status: error.status ?? null, reason: error.reason ?? null,
+        message: 'UM Spec could not turn on its calendar (' + detail + '). If you cannot see your dates, turn on UM Spec under My calendars in Google Calendar.' };
+    }
   }
   async function ensureCalendar(binding, interactive = false, persistBinding = async () => {}) {
     checkBinding(binding);
@@ -33,7 +61,7 @@
     const matches = [], tokens = new Set();
     let pageToken;
     do {
-      const page = await request(BASE + '/users/me/calendarList?maxResults=250' + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''), { interactive });
+      const page = await request(BASE + '/users/me/calendarList?maxResults=250&showHidden=true' + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''), { interactive });
       if (!Array.isArray(page.items)) throw failure('Calendar listing is incomplete', 'CALENDAR_INCOMPLETE');
       for (const item of page.items) if (item.description === marker(binding) && !item.deleted) matches.push(item);
       pageToken = page.nextPageToken;

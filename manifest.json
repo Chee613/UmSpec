@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "UmSpec - SPeCTRUM Course Exporter",
-  "version": "2.0.2",
+  "version": "2.0.4",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuY43YgCu6Y1QbCH57Kdx/M+TmRL4zr9cCmwdXcgh2dwHmH2l1XD44r2b+/t1NIIOxYMIHySWWVlmKJtVAakSsdO01w7rEs8eHSvOs3nJps9PxINDWFRcn1nzWWItgcs0708JptliiDD5zi7TDQMsvlcPgxCeZ1CFcCvgyK8PuZG4Z7W0wAxOOZRpKbA6tnkEsNBDTm7QI/cLpAHvGmppaM8YgD7puaEjQgZGwk+JmiBSvTsTcyDqSW9E8NcujVa0ltjSqVOB9cUHrpDXPu62SVkVsoH0mY3UM7alZpRwdDZlHKmTaZhsIMQbBDRXw+X2EL1wjM8UYOGYnjUYrhtjKQIDAQAB",
   "description": "Export UM SPeCTRUM courses to ZIP, sync selected materials to Google Drive, and review dates for Google Calendar.",
   "background": {
@@ -44,6 +44,12 @@
         "content/student-sync.css"
       ],
       "run_at": "document_end"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["icons/google-drive.svg", "icons/google-calendar.svg"],
+      "matches": ["https://spectrum.um.edu.my/*"]
     }
   ],
   "host_permissions": [

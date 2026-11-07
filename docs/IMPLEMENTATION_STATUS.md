@@ -2,9 +2,13 @@
 
 Implementation date: 24 October 2026. Branch: codex/student-sync.
 
-UI update: 25 October 2026, version 2.0.1. Compact tabs separate daily actions from settings. Courses, materials, dates and reviews use pagination to fit the viewport. Videos default to links; Settings → Files offers optional video downloads for ZIP and Drive.
+UI update: 30 October 2026, version 2.0.4. Compact tabs separate daily actions from settings. Courses, materials, dates and reviews use pagination to fit the viewport. New preferences enable video downloads, automatic Drive updates, official date sync, announcement checks and proforma AI. Saved choices remain intact; Google connection and the AI disclosure remain required.
 
 Follow-up version 2.0.2 restores the interactive Dino export panel, with cancellation/restart and completion states. It also fixes a popup startup race that could leave settings disabled before Spectrum context finished loading. Open courses works while verification is pending.
+
+Version 2.0.3 identifies the guarded runtime build. Real Chrome reload testing compares the current scripts with an unguarded icon-loading control; existing Spectrum tabs need a one-time refresh to replace older injected scripts. The reload audit and evidence are in `output/debug-context-reload/` and are excluded from the release ZIP.
+
+Version 2.0.4 fixes switches against Spectrum's RemUI checkbox overrides and gives the semester field a single focus frame. Calendar preferences show their own connection status. The Calendar writer makes the owned UM Spec calendar visible once, including after an empty scan, recovers hidden calendars, and retains its ID if activation fails so retry cannot create a duplicate. Dates explains saved counts, disabled sync, review requirements and write errors.
 
 ## Implemented
 
@@ -24,7 +28,7 @@ The existing exporter/backend changes present before implementation were retaine
 
 Run **node --test tests/*.test.cjs**. The suite exercises actual pure rules, worker/account boundaries, simulated Google HTTP operations and the actual bundled JSZip exporter.
 
-Final local run: **130 tests passed, zero failures**. JavaScript syntax and release archive/source consistency checks also passed.
+Final local run: **188 tests passed, zero failures**. The Calendar tests include first-use visibility, hidden-calendar recovery, empty-scan activation and retry after activation failure. The real-Chrome RemUI audit renders the settings controls against Spectrum's checkbox and focus rules in both stylesheet orders at 1280px and 400px widths. Live Google account writes remain unverified.
 
 Local Chrome checks additionally render the real modal/popup and process simulated Spectrum DOM pages. They check local announcement discovery/review, selected-course persistence, unavailable Google configuration, and browser script errors. These are simulated pages, not a live Spectrum session.
 
@@ -50,7 +54,7 @@ Still unverified against live services:
 
 - One writer per browser profile; simultaneous first sync from several devices requires review if duplicate mappings are detected.
 - One binary file buffered at a time, up to 50 MiB. Larger files receive source links and a linked-only result.
-- Automatic checks require an open, signed-in Spectrum page and explicit feature opt-in.
+- Automatic checks require an open, signed-in Spectrum page and enabled features. New automatic Drive passes require a successful initial manual sync.
 - Ambiguous dates, unknown meeting duration, personal destination edits and source cancellations require review.
 - The extension does not create meetings, send invitations, infer recurring schedules or delete backups on source disappearance.
 

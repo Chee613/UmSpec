@@ -17,6 +17,7 @@ def build_zip():
         'icons',
         'lib',
         'popup',
+        'options',
         'content',
         'shared',
         'background',

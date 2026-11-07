@@ -5,6 +5,11 @@
   const LIMIT = 50 * 1024 * 1024;
   const CHUNK = 1024 * 1024;
   const FIELDS = 'id,name,mimeType,parents,appProperties,md5Checksum,sha256Checksum,trashed';
+  // Drive reports this MD5 for the zero-byte body of a metadata-only placeholder.
+  const EMPTY_MD5 = 'd41d8cd98f00b204e9800998ecf8427e';
+  const unwritten = file => !file.md5Checksum || file.md5Checksum === EMPTY_MD5;
+  // A pending placeholder left by this or an interrupted earlier job, still without uploaded bytes.
+  const placeholder = file => Boolean(file.appProperties?.pendingSha256) && !file.uploadedMd5 && unwritten(file);
   // ponytail: one buffered file per worker; streaming to durable disk can replace this if the 50 MiB limit changes.
   let buffered = null;
   const quote = value => String(value).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
@@ -18,7 +23,8 @@
   function normalize(file) {
     const props = file.appProperties || {};
     return { ...file, sourceKey: props.sourceKey, sourceFingerprint: props.sourceFingerprint || null,
-      contentSha256: props.contentSha256 || null, uploadedMd5: props.uploadedMd5 || null, writerJobId: props.writerJobId || null };
+      contentSha256: props.contentSha256 || null, uploadedMd5: props.uploadedMd5 || null, writerJobId: props.writerJobId || null,
+      pendingSha256: props.pendingSha256 || null };
   }
   async function list(q) {
     const files = [];
@@ -153,6 +159,8 @@
     job.summary = core.summariseResults(job.results);
     return job;
   }
+  // Drive v3 does not document conditional writes; after one 412 the job relies on the GET re-check made in the same step.
+  const ifMatch = (job, current) => current.etag && !job.skipIfMatch ? { 'If-Match': current.etag } : {};
   function properties(job, material, hash) {
     return { bindingHash: job.bindingHash, archiveId: job.binding.settings.archiveId, sourceKey: material.sourceKey,
       sourceFingerprint: material.sourceFingerprint || '', contentSha256: hash, writerJobId: job.id };
@@ -200,10 +208,16 @@
     }
     if (!job.remoteFiles) { job.remoteFiles = await findManagedFiles(job.bindingHash, job.binding.settings.archiveId); return job; }
     if (job.cursor >= job.materials.length) {
-      if (job.links.length && !job.indexAdded) {
+      // Every course in an archive shares one index file, so a sync of some courses must keep the links of the others.
+      const archiveId = job.binding.settings.archiveId;
+      const selected = job.binding.settings.courseIds.map(String);
+      const links = [...(job.binding.driveLinks?.[archiveId] || []).filter(link => !selected.includes(String(link.courseId))), ...job.links]
+        .sort((a, b) => String(a.courseId).localeCompare(String(b.courseId)) || String(a.name).localeCompare(String(b.name)));
+      if (links.length && !job.indexAdded) {
+        job.binding.driveLinks = { ...job.binding.driveLinks, [archiveId]: links };
         const escape = value => String(value).replace(/[\\\[\]*_`]/g, '\\$&').replace(/[\r\n]+/g, ' ');
         const text = '# Spectrum links\n\nThese materials are links, not binary backups. Sign in to Spectrum to open course files.\n\n' +
-          job.links.map(link => '- ' + escape(link.courseId) + ': [' + escape(link.name) + '](<' + safeLink(link.sourceUrl) + '>)').join('\n') + '\n';
+          links.map(link => '- ' + escape(link.courseId) + ': [' + escape(link.name) + '](<' + safeLink(link.sourceUrl) + '>)').join('\n') + '\n';
         job.materials.push({ sourceKey: await core.hashParts([job.bindingHash, job.binding.settings.archiveId, 'link-index']),
           courseId: courses[0]?.id || String(job.binding.settings.courseIds[0]), category: 'Materials', archiveId: job.binding.settings.archiveId,
           name: 'Spectrum links.md', kind: 'generated', text, sourceFingerprint: null });
@@ -256,8 +270,10 @@
       assertOwned(current, job, material.sourceKey);
       if (current.trashed || current.md5Checksum !== upload.completedMd5 || (current.sha256Checksum && current.sha256Checksum !== upload.hash)) return finish(job, material, 'conflict');
       const props = { ...properties(job, material, upload.hash), uploadedMd5: upload.completedMd5 };
-      const file = normalize(await json(await api('/drive/v3/files/' + encodeURIComponent(upload.fileId) + '?fields=' + encodeURIComponent(FIELDS),
-        jsonOptions('PATCH', { appProperties: props }, current.etag ? { 'If-Match': current.etag } : {}))));
+      const response = await api('/drive/v3/files/' + encodeURIComponent(upload.fileId) + '?fields=' + encodeURIComponent(FIELDS),
+        jsonOptions('PATCH', { appProperties: props }, ifMatch(job, current)));
+      if (response.status === 412 && !job.skipIfMatch) { job.skipIfMatch = true; return job; }
+      const file = normalize(await json(response));
       job.remoteFiles = job.remoteFiles.filter(file => file.sourceKey !== material.sourceKey).concat(file);
       return finish(job, material, upload.action);
     }
@@ -289,10 +305,11 @@
       const current = await getFile(upload.fileId);
       if (!current) return finish(job, material, 'conflict', 'Managed file was removed');
       assertOwned(current, job, material.sourceKey);
-      const ownPending = current.writerJobId === job.id && current.appProperties?.pendingSha256 === upload.hash;
+      const samePending = current.appProperties?.pendingSha256 === upload.hash;
       if (current.trashed) return finish(job, material, 'trashed');
-      if (ownPending && current.sha256Checksum === upload.hash && current.md5Checksum) { upload.completedMd5 = current.md5Checksum; upload.phase = 'finalize'; return job; }
-      if ((!current.uploadedMd5 || current.md5Checksum !== current.uploadedMd5) && !(ownPending && !current.md5Checksum)) return finish(job, material, 'conflict');
+      // Bytes already match this upload (for example a lost completion response): only the metadata commit remains.
+      if (samePending && current.sha256Checksum === upload.hash && current.md5Checksum) { upload.completedMd5 = current.md5Checksum; upload.phase = 'finalize'; return job; }
+      if ((!current.uploadedMd5 || current.md5Checksum !== current.uploadedMd5) && !placeholder(current)) return finish(job, material, 'conflict');
       upload.etag = current.etag;
       upload.phase = 'start';
       return job;
@@ -302,11 +319,11 @@
       if (!current) return finish(job, material, 'conflict', 'Managed file was removed');
       assertOwned(current, job, material.sourceKey);
       if (current.trashed) return finish(job, material, 'trashed');
-      const emptyIntent = current.writerJobId === job.id && current.appProperties?.pendingSha256 === upload.hash && !current.md5Checksum;
-      if (!emptyIntent && (!current.uploadedMd5 || current.md5Checksum !== current.uploadedMd5)) return finish(job, material, 'conflict');
-      const headers = { 'X-Upload-Content-Type': upload.mimeType, 'X-Upload-Content-Length': String(upload.size), ...(current.etag ? { 'If-Match': current.etag } : {}) };
+      if (!placeholder(current) && (!current.uploadedMd5 || current.md5Checksum !== current.uploadedMd5)) return finish(job, material, 'conflict');
+      const headers = { 'X-Upload-Content-Type': upload.mimeType, 'X-Upload-Content-Length': String(upload.size), ...ifMatch(job, current) };
       const response = await api('/upload/drive/v3/files/' + encodeURIComponent(upload.fileId) + '?uploadType=resumable&fields=' + encodeURIComponent(FIELDS),
         jsonOptions('PATCH', { appProperties: pendingProperties(job, material, upload.hash) }, headers));
+      if (response.status === 412 && !job.skipIfMatch) { job.skipIfMatch = true; return job; }
       if (!response.ok) await json(response);
       const location = response.headers.get('Location');
       uploadPath(location);
