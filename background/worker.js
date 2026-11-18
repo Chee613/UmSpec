@@ -1,7 +1,7 @@
 /* Google credentials and durable state stay in this trusted extension context. */
 if (typeof importScripts === 'function') {
   importScripts('../shared/sync-core.js', '../shared/calendar-core.js', '../shared/announcement-core.js',
-    'google.js', 'drive.js', 'calendar.js');
+    'google.js', 'drive.js', 'calendar.js', '../shared/planner-core.js', 'planner.js');
 }
 (function (root) {
   'use strict';
@@ -273,6 +273,15 @@ if (typeof importScripts === 'function') {
       return { ok: true };
     }
     const state = await readState();
+    if (message.type === 'GET_DEGREE') {
+      const saved = await chrome.storage.local.get('umspec_saved_degree');
+      return { degree: typeof saved.umspec_saved_degree === 'string' ? saved.umspec_saved_degree : null };
+    }
+    if (message.type === 'SET_DEGREE') {
+      const degree = String(message.degree || '').replace(/[\x00-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+      await chrome.storage.local.set({ umspec_saved_degree: degree });
+      return { degree };
+    }
     if (message.type === 'GET_STATUS' || message.type === 'GET_REVIEW_QUEUE') return publicStatus(state, sender, message);
     if (message.type === 'SET_CONTEXT') {
       if (kind !== 'content' || !/^[1-9]\d*$/.test(String(message.userId))) throw error('FORBIDDEN', 'An authenticated Spectrum user is required.');
@@ -569,6 +578,12 @@ if (typeof importScripts === 'function') {
     throw error('INVALID_MESSAGE', 'Unsupported command.');
   }
   function handleMessage(message, sender) {
+    // Planner commands keep their own storage key, so they never wait behind a long Drive or Calendar step.
+    if (typeof message?.type === 'string' && message.type.startsWith('PLANNER_')) {
+      const planner = dep('UmSpecPlannerWorker', './planner.js');
+      return Promise.resolve().then(() => planner.handle(message, sender)).then(data => ({ ok: true, data }),
+        e => ({ ok: false, error: { code: e.code || 'REQUEST_FAILED', message: String(e.message).slice(0, 240) } }));
+    }
     const task = serial.then(async () => {
       try { return { ok: true, data: await dispatch(message, sender) }; }
       catch (e) { return { ok: false, error: { code: e.code || 'REQUEST_FAILED', message: String(e.message).slice(0, 240) } }; }
@@ -580,6 +595,7 @@ if (typeof importScripts === 'function') {
   if (typeof module !== 'undefined') module.exports = root.UmSpecWorker;
   if (typeof importScripts === 'function' && root.chrome?.runtime?.onMessage) {
     const ready = chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
+    root.UmSpecPlannerWorker?.install();
     chrome.runtime.onMessage.addListener((message, sender, reply) => {
       ready.then(() => handleMessage(message, sender)).then(reply);
       return true;
