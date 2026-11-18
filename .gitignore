@@ -13,13 +13,23 @@ ehthumbs.db
 *.zip
 *.log
 *.docx
+*.mp4
 output/documents/
+output/debug-*/
+output/ui-*/
+
+# Python caches
+__pycache__/
+*.py[cod]
 
 # Environment & Dependencies
 .env
 .env.local
 node_modules/
 
-# Local implementation/review scratch and original-working-tree baseline
+# Local implementation/review scratch and agent metadata
 .implementation/
+.claude/
+.gemini/
+.superpowers/
 docs/superpowers/
