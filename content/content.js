@@ -597,8 +597,19 @@
 
   // Multi-Source Integrated Academic Profile Detection Pipeline
   async function detectAcademicProfile(courses, userName) {
-    // 1. Saved user preference takes absolute priority
-    const savedDegree = localStorage.getItem('umspec_saved_degree');
+    // 1. Saved user preference takes absolute priority (synced with Options via trusted extension storage)
+    let savedDegree = null;
+    if (globalThis.chrome?.runtime?.sendMessage) {
+      try {
+        const res = await chrome.runtime.sendMessage({ type: 'GET_DEGREE' });
+        if (res?.ok && res.data && res.data.degree !== null && typeof res.data.degree === 'string') {
+          savedDegree = res.data.degree.trim();
+          if (savedDegree) localStorage.setItem('umspec_saved_degree', savedDegree);
+          else localStorage.removeItem('umspec_saved_degree');
+        }
+      } catch {}
+    }
+    if (savedDegree === null) savedDegree = localStorage.getItem('umspec_saved_degree') || '';
     if (savedDegree) {
       let faculty = 'Universiti Malaya';
       for (const key of Object.keys(UM_CURRICULUM_CATALOG)) {
@@ -1902,6 +1913,7 @@
             studentProfile.bachelor = val;
           }
           localStorage.setItem('umspec_saved_degree', val);
+          try { globalThis.chrome?.runtime?.sendMessage?.({ type: 'SET_DEGREE', degree: val })?.catch?.(() => {}); } catch {}
         }
       };
       majorEl.addEventListener('blur', saveDegree);

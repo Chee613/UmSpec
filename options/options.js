@@ -270,7 +270,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       showToast(`Google ${feature === 'drive' ? 'Drive' : 'Calendar'} connected.`, 'success');
     } catch (err) {
       if (err.message && err.message.includes('access_denied')) {
-        showToast('Google blocked access (Error 403). See the Guide in Google Drive tab to add test user.', 'error', 6000);
+        showToast('Google blocked access (Error 403). Open the Google setup guide in the Drive tab to add your email as a test user.', 'error', 6000);
       } else {
         showToast(err.message || `Failed to connect Google ${feature}.`, 'error');
       }
