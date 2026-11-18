@@ -30,6 +30,12 @@ Date extraction runs locally and saves bounded excerpts/date suggestions for rev
 
 The separate proforma AI preference defaults on and can be turned off in Settings. Before its first analysis, you must accept the disclosure that selected proforma documents and prompts are sent to the configured UM Spec proxy and Google Gemini. Declining skips AI analysis for that export. The bundled default proxy may cache analysis output for up to 90 days. These requests exclude Spectrum cookies and Google access tokens. Automatic Drive/Calendar checks do not call this AI feature.
 
+## Planner
+
+The planner reads your own Spectrum courses, calendar, submission status, attendance report, course announcements list and course file list, using your signed-in session. It runs while a Spectrum tab is open (at most every 30 minutes) or when you choose Refresh. The result stays in trusted extension storage on this device and is not sent to Google, the AI proxy or anyone else. Signing in as a different Spectrum account replaces the stored planner and clears its OCC choices. Settings → Clear planner data removes it.
+
+File previews and course packs are downloaded from Spectrum directly into the planner page. Reminders are local browser notifications and need the optional Notifications permission, which is requested only when you turn reminders on. UM Spec never submits attendance or assignments for you; check-in buttons open the Spectrum page so you act yourself.
+
 ## Local storage
 
 Trusted extension storage holds Spectrum user IDs, verified Google account ID/email, selected courses, preferences, managed resource IDs, revisions/checksums, resumable job metadata, pending review excerpts and recent changes. Google tokens remain in the Chrome identity cache and worker memory. The extension does not persist your Spectrum cookie or Google password.
@@ -44,7 +50,7 @@ Revoke access through Google Account settings. Removing the extension clears loc
 
 ## Permissions and providers
 
-Spectrum host access reads course content. Storage saves progress/preferences. Identity connects Google. Google API host access is optional and requested during connection. Existing active-tab/scripting access opens the exporter.
+Spectrum host access reads course content. Storage saves progress/preferences. Identity connects Google. Google API host access is optional and requested during connection. Existing active-tab/scripting access opens the exporter. Alarms schedule planner reminders and the badge count; Side panel shows the planner beside a page; Notifications is optional and only used for reminders.
 
 No analytics or advertising is added. Google and the configured AI provider/proxy process requests under their respective service and operational policies. UM Spec does not sell student data. Executable extension code is bundled; no remotely hosted JavaScript is loaded.
 

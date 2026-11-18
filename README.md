@@ -76,6 +76,24 @@ If `Extension context invalidated` appears during a reload, close **all** Spectr
 ---
 
 
+## Planner
+
+Open it from the toolbar popup (**Open planner** or the side-panel button), with **Alt+Shift+P**, or from the OCC bar on a course page. It refreshes from Spectrum while a Spectrum tab is open, at most every 30 minutes, or when you choose **Refresh**.
+
+| View | What it shows |
+| --- | --- |
+| Calendar | Month grid with assignment, quiz, attendance, notice and event tags (dots or counts) and the selected day's agenda |
+| List | Timeline by date with a Today marker, newest/oldest order and a per-course sidebar |
+| Timetable | Weekly class grid built from attendance sessions, a live "now" line, and CSV, calendar (.ics), PNG and print/PDF export |
+| Materials | Every course's files by section with type filters, search, in-page PDF/image/video preview, "In Drive" badges and ZIP course packs |
+| Settings | OCC per course (detected automatically from your groups or attended classes), reminders, English/Bahasa Melayu/中文 and light/dark theme |
+
+Deadlines show **Overdue**, **To do** or **Submitted** from Spectrum's own outstanding-action list. Attendance shows **Check-in open**, **Present** or **Absent**; the check-in button opens Spectrum so you mark it yourself. UM Spec never submits attendance automatically.
+
+The OCC bar on course pages hides activities labelled for other OCCs (use **Show items from every OCC** to dim them instead). Reminders are optional browser notifications before deadlines and classes, and the toolbar badge counts deadlines due within 48 hours or overdue.
+
+The parsers follow standard Moodle attendance, calendar and forum layouts and are covered by synthetic tests; check them against a signed-in Spectrum account after any Spectrum upgrade.
+
 ## Drive, Calendar and course updates
 
 | Feature | Behaviour |
