@@ -1096,3 +1096,22 @@ test('status names the Drive items that need attention', async t => {
   for (let step = 0; step < 40 && !status.data.job.done; step++) status = await send({ type: 'DRIVE_STEP', jobId: start.data.job.id });
   assert.deepEqual(status.data.job.attention, [{ name: 'Shared notes', action: 'failed', detail: 'UNSAFE_LINK' }]);
 });
+
+test('saved academic degree syncs between options and Spectrum content script via worker', async t => {
+  environment(t);
+  const initial = await send({ type: 'GET_DEGREE' }, content);
+  assert.equal(initial.ok, true);
+  assert.equal(initial.data.degree, null);
+  const saved = await send({ type: 'SET_DEGREE', degree: '  Bachelor of Computer Science (Software Engineering)\n' }, popup);
+  assert.equal(saved.ok, true);
+  assert.equal(saved.data.degree, 'Bachelor of Computer Science (Software Engineering)');
+  const readBack = await send({ type: 'GET_DEGREE' }, content);
+  assert.equal(readBack.ok, true);
+  assert.equal(readBack.data.degree, 'Bachelor of Computer Science (Software Engineering)');
+  const cleared = await send({ type: 'SET_DEGREE', degree: '' }, popup);
+  assert.equal(cleared.ok, true);
+  assert.equal(cleared.data.degree, '');
+  assert.equal((await send({ type: 'GET_DEGREE' }, content)).data.degree, '');
+  const foreign = await send({ type: 'GET_DEGREE' }, { id: 'ext', url: 'https://evil.example/' });
+  assert.equal(foreign.ok, false);
+});

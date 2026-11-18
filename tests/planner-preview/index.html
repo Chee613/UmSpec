@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Planner preview harness</title>
+<script>
+  // Loads the real planner page with a stand-in for Chrome APIs placed before its scripts.
+  fetch('/dashboard/dashboard.html').then(r => r.text()).then(html => {
+    html = html.replace('<head>', '<head><base href="/dashboard/">')
+      .replace('<script src="dashboard.js"></scr' + 'ipt>', '<script src="/tests/planner-preview/stub.js"></scr' + 'ipt><script src="dashboard.js"></scr' + 'ipt>');
+    document.open(); document.write(html); document.close();
+  });
+</script>
