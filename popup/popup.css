@@ -102,3 +102,9 @@ input[type=radio] { position: absolute; width: 1px; height: 1px; margin: 0; opac
 footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 46px; padding: 0 20px; flex-shrink: 0; }
 footer .text-button, footer a { min-height: 44px; display: inline-flex; align-items: center; padding: 8px 0; color: var(--text-secondary); font-size: 11px; font-weight: 500; text-decoration: none; }
 footer a:hover { color: var(--brand-blue); text-decoration: underline; text-underline-offset: 3px; }
+.planner-entry { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 12px 14px; border: 1px solid var(--border-subtle); border-radius: 10px; }
+.planner-entry strong { font-size: 13px; line-height: 19px; font-weight: 650; }
+.planner-buttons { display: flex; gap: 6px; flex: none; }
+.planner-buttons .primary { background: var(--brand-blue); color: #ffffff; border-color: var(--brand-blue); font-weight: 650; }
+.planner-buttons .primary:hover { background: #203a98; border-color: #203a98; }
+.planner-buttons button[hidden] { display: none; }

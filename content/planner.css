@@ -1,0 +1,15 @@
+.umspec-occ-hidden { display: none !important; }
+.umspec-occ-dim { opacity: .45; }
+.umspec-occ-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0 0 14px; padding: 10px 14px;
+  border: 1px solid #d0d7e2; border-left: 4px solid #2563eb; border-radius: 10px; background: #f6f8fc; color: #1f2937;
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.umspec-occ-bar label { display: inline-flex; align-items: center; gap: 8px; margin: 0; }
+.umspec-occ-bar strong { font: 600 12px/1 ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: .02em; }
+.umspec-occ-bar select { padding: 4px 8px; border: 1px solid #b8c2d3; border-radius: 6px; background: #fff; color: inherit; font: inherit; }
+.umspec-occ-bar span { color: #4b5563; flex: 1 1 200px; }
+.umspec-occ-bar button { padding: 5px 10px; border: 1px solid #b8c2d3; border-radius: 6px; background: #fff; color: #1f2937; font: inherit; cursor: pointer; }
+.umspec-occ-bar button:hover { background: #eef2f9; }
+.umspec-occ-bar button[aria-pressed="true"] { background: #1f2937; border-color: #1f2937; color: #fff; }
+.umspec-occ-bar :focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }

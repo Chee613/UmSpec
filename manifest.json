@@ -37,11 +37,15 @@
         "shared/announcement-core.js",
         "content/materials.js",
         "content/content.js",
-        "content/student-sync.js"
+        "content/student-sync.js",
+        "shared/planner-core.js",
+        "shared/planner-collect.js",
+        "content/planner.js"
       ],
       "css": [
         "content/content.css",
-        "content/student-sync.css"
+        "content/student-sync.css",
+        "content/planner.css"
       ],
       "run_at": "document_end"
     }
@@ -62,8 +66,22 @@
     "storage",
     "identity",
     "activeTab",
-    "scripting"
+    "scripting",
+    "alarms",
+    "sidePanel"
   ],
+  "optional_permissions": [
+    "notifications"
+  ],
+  "side_panel": {
+    "default_path": "dashboard/dashboard.html?panel=1"
+  },
+  "commands": {
+    "open-planner": {
+      "suggested_key": { "default": "Alt+Shift+P" },
+      "description": "Open the UM Spec planner"
+    }
+  },
   "oauth2": {
     "client_id": "604535116312-6hmmkud4h0ruhv2d6uh7vs4lfru0bam9.apps.googleusercontent.com",
     "scopes": [
