@@ -104,7 +104,7 @@ const binding = () => ({ hash: 'binding', spectrumUserId: '42', googleSub: 'sub'
 function fakeGoogle(t, { calendars = [{ id: 'managed', description: 'umspec:v1:binding', etag: 'cal-etag' }], pages, failCreate = false, loseInsert = false, visibilityFailures = 0, visibilityStatus = 403, visibilityBody = {}, visibilityThrows = null } = {}) {
   const events = new Map(), requests = [];
   const calendarList = new Map([...calendars, ...Object.values(pages || {}).flatMap(page => page.items)].map(calendar =>
-    [calendar.id, { ...calendar, selected: calendar.selected ?? false, hidden: calendar.hidden ?? false }]));
+    [calendar.id, { ...calendar, selected: calendar.selected ?? !calendar.hidden, hidden: calendar.hidden ?? false }]));
   const previous = globalThis.UmSpecGoogle;
   t.after(() => { globalThis.UmSpecGoogle = previous; });
   globalThis.UmSpecGoogle = { async googleFetch(path, options = {}, feature) {
@@ -118,18 +118,18 @@ function fakeGoogle(t, { calendars = [{ id: 'managed', description: 'umspec:v1:b
       return reply(200, { ...page, items: items.filter(item => !item.hidden || url.searchParams.get('showHidden') === 'true') });
     }
     if (url.pathname.startsWith('/calendar/v3/users/me/calendarList/')) {
-      assert.equal(method, 'PATCH');
+      // The granted scope is calendarlist.readonly: Google answers a change with 401, so UM Spec must only read.
+      if (method !== 'GET') return reply(401, { error: { code: 401, errors: [{ reason: 'authError' }] } });
       const entry = calendarList.get(decodeURIComponent(url.pathname.split('/').at(-1)));
       if (!entry) return reply(404);
       if (visibilityThrows) throw visibilityThrows;
       if (visibilityFailures > 0) { visibilityFailures--; return reply(visibilityStatus, visibilityBody); }
-      Object.assign(entry, JSON.parse(options.body));
       return reply(200, entry);
     }
     if (url.pathname === '/calendar/v3/calendars' && method === 'POST') {
       const calendar = { ...JSON.parse(options.body), id: 'created', etag: 'cal-new' };
       calendars.push(calendar);
-      calendarList.set(calendar.id, { ...calendar, selected: false, hidden: true });
+      calendarList.set(calendar.id, { ...calendar, selected: true, hidden: false });
       if (failCreate) throw new Error('Lost calendar response');
       return reply(200, calendar);
     }
@@ -160,44 +160,44 @@ function fakeGoogle(t, { calendars = [{ id: 'managed', description: 'umspec:v1:b
   return { events, requests, calendars, calendarList };
 }
 
-test('a newly created owned calendar is selected and unhidden once before it is used', async t => {
+test('a newly created owned calendar is checked once, read-only, before it is used', async t => {
   const fake = fakeGoogle(t, { calendars: [] }), account = { ...binding(), calendarId: null };
   assert.equal((await writer.ensureCalendar(account)).pending, true);
   assert.equal((await writer.ensureCalendar(account)).id, 'created');
-  assert.equal(fake.calendarList.get('created').selected, true);
-  assert.equal(fake.calendarList.get('created').hidden, false);
   assert.equal(account.calendarVisibilityId, 'created');
+  assert.equal(account.calendarVisibilityIssue, undefined);
   assert.equal(fake.requests.filter(request => request.method === 'POST').length, 1);
-  const activation = fake.requests.find(request => request.path.endsWith('/calendarList/created'));
-  assert.deepEqual(JSON.parse(activation.options.body), { selected: true, hidden: false });
+  const check = fake.requests.filter(request => request.path.endsWith('/calendarList/created'));
+  assert.deepEqual(check.map(request => request.method), ['GET']);
 });
 
-test('a legacy owned calendar activates once and preserves later user visibility choices', async t => {
+test('a hidden calendar gets a notice instead of a refused change, and later user choices are preserved', async t => {
   const fake = fakeGoogle(t), account = binding();
-  fake.calendarList.get('managed').hidden = true;
+  Object.assign(fake.calendarList.get('managed'), { selected: false, hidden: true });
+  assert.equal((await writer.ensureCalendar(account)).id, 'managed');
+  assert.equal(account.calendarVisibilityId, undefined);
+  assert.equal(account.calendarVisibilityIssue.reason, 'hidden');
+  assert.match(account.calendarVisibilityIssue.message, /Tick UM Spec under My calendars/);
+  assert.equal(fake.requests.some(request => request.method === 'PATCH'), false);
+  Object.assign(fake.calendarList.get('managed'), { selected: true, hidden: false });
+  delete account.calendarVisibilityIssue;
   await writer.ensureCalendar(account);
-  assert.equal(fake.calendarList.get('managed').selected, true);
-  assert.equal(fake.calendarList.get('managed').hidden, false);
   assert.equal(account.calendarVisibilityId, 'managed');
   Object.assign(fake.calendarList.get('managed'), { selected: false, hidden: true });
   await writer.ensureCalendar(structuredClone(account));
-  assert.equal(fake.calendarList.get('managed').selected, false);
-  assert.equal(fake.calendarList.get('managed').hidden, true);
-  assert.equal(fake.requests.filter(request => request.path.includes('/calendarList/')).length, 1);
+  assert.equal(fake.requests.filter(request => request.path.includes('/calendarList/')).length, 2);
 });
 
-test('recovery includes hidden owned calendars and activates the existing calendar without creating a duplicate', async t => {
+test('recovery includes hidden owned calendars and reuses the existing calendar without creating a duplicate', async t => {
   const fake = fakeGoogle(t, { calendars: [{ id: 'recovered', description: 'umspec:v1:binding', hidden: true }] });
   const account = { ...binding(), calendarId: null, calendarCreateIntent: { state: 'uncertain' } };
   assert.equal((await writer.ensureCalendar(account)).id, 'recovered');
-  assert.equal(fake.calendarList.get('recovered').selected, true);
-  assert.equal(fake.calendarList.get('recovered').hidden, false);
-  assert.equal(account.calendarVisibilityId, 'recovered');
+  assert.equal(account.calendarVisibilityIssue.reason, 'hidden');
   assert.equal(new URL(fake.requests[0].path, 'https://www.googleapis.com').searchParams.get('showHidden'), 'true');
   assert.equal(fake.requests.filter(request => request.method === 'POST').length, 0);
 });
 
-test('refused visibility keeps the calendar usable, records the real status and retries once the issue is cleared', async t => {
+test('a refused visibility check keeps the calendar usable, records the real status and retries once the issue is cleared', async t => {
   for (const fresh of [true, false]) {
     const fake = fakeGoogle(t, { calendars: fresh ? [] : undefined, visibilityFailures: 1 });
     const account = { ...binding(), calendarId: fresh ? null : 'managed' };

@@ -35,18 +35,26 @@
   // Showing the calendar is a convenience the user can also do in Google Calendar, so a refusal must not stop dates
   // from syncing. Account and token failures still stop the job, because every later request would fail the same way.
   const ACCOUNT_FAILURES = new Set(['ACCOUNT_CHANGED', 'RECONNECT_REQUIRED', 'SCOPE_REQUIRED', 'CONFIG_REQUIRED', 'CALENDAR_UNAVAILABLE']);
+  // UM Spec may only read the student's calendar list (calendarlist.readonly); Google refuses a change to it with 401.
+  // So it checks whether its calendar is shown and, if not, says where to turn it on. Once shown it is never checked
+  // again, so a student who later hides it keeps that choice.
   async function showCalendar(binding, id) {
-    // syncEvent adopts once per event, so a recorded refusal waits for the next sync job instead of repeating per event.
+    // syncEvent adopts once per event, so a recorded issue waits for the next sync job instead of repeating per event.
     if (binding.calendarVisibilityId === id || binding.calendarVisibilityIssue?.calendarId === id) return;
     try {
-      await request(BASE + '/users/me/calendarList/' + encodeURIComponent(id), jsonOptions('PATCH', { selected: true, hidden: false }));
-      binding.calendarVisibilityId = id;
-      delete binding.calendarVisibilityIssue;
+      const entry = await request(BASE + '/users/me/calendarList/' + encodeURIComponent(id));
+      if (entry?.selected === true && entry.hidden !== true) {
+        binding.calendarVisibilityId = id;
+        delete binding.calendarVisibilityIssue;
+        return;
+      }
+      binding.calendarVisibilityIssue = { calendarId: id, status: null, reason: 'hidden',
+        message: 'Your dates are saved, but the UM Spec calendar is turned off in Google Calendar. Tick UM Spec under My calendars to see them.' };
     } catch (error) {
       if (ACCOUNT_FAILURES.has(error.code) || error.status === 401) throw error;
       const detail = error.status ? 'HTTP ' + [error.status, error.reason].filter(Boolean).join(' ') : 'no response from Google';
       binding.calendarVisibilityIssue = { calendarId: id, status: error.status ?? null, reason: error.reason ?? null,
-        message: 'UM Spec could not turn on its calendar (' + detail + '). If you cannot see your dates, turn on UM Spec under My calendars in Google Calendar.' };
+        message: 'UM Spec could not check whether its calendar is shown (' + detail + '). If you cannot see your dates, turn on UM Spec under My calendars in Google Calendar.' };
     }
   }
   async function ensureCalendar(binding, interactive = false, persistBinding = async () => {}) {
