@@ -126,7 +126,7 @@
     } else if (item.kind === 'assignment' || item.kind === 'quiz') {
       meta.append(h('span', { class: 'state ' + state, text: state === 'overdue' ? t('overdue') + ' ' + relative(item.start, now).replace(t('ago'), '').trim() : t(state) }),
         h('span', { text: fmt(item.start, { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) }),
-        state === 'todo' ? h('span', { text: relative(item.start, now) }) : null);
+        state === 'todo' ? h('span', { text: item.opensOnly ? t('noDeadline') : relative(item.start, now) }) : null);
       const label = state === 'done' ? t('viewSubmission') : state === 'overdue' ? t('submitLate') + ' →' : state === 'past' ? t('openSpectrum') + ' ↗' : t('submit') + ' →';
       side.push(h('a', { class: 'act' + (state === 'todo' || state === 'overdue' ? ' solid' : ''), href: item.url, target: '_blank', rel: 'noopener noreferrer', text: label }));
     } else {
@@ -545,7 +545,9 @@
         } catch {}
       }
       if (!done) {
-        const fresh = await collector.collect({ progress: (stage, percent) => notice(t('refreshing') + ' ' + percent + '%') });
+        const knownOcc = {};
+        for (const c of courses()) { const occ = occFor(c.id); if (occ) knownOcc[c.id] = occ; }
+        const fresh = await collector.collect({ knownOcc, progress: (stage, percent) => notice(t('refreshing') + ' ' + percent + '%') });
         const saved = await chrome.runtime.sendMessage({ type: 'PLANNER_SAVE', data: fresh });
         if (!saved?.ok) throw new Error(saved?.error?.message || 'Could not save planner data.');
       }

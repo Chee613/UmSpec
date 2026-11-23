@@ -3,7 +3,7 @@
   'use strict';
   if (typeof document === 'undefined' || !root.chrome?.runtime?.id || root.top !== root) return;
   const core = () => root.UmSpecPlannerCore, collector = () => root.UmSpecPlannerCollect;
-  const STALE_MS = 30 * 60000, LOCK = 'umspec_planner_lock';
+  const STALE_MS = 30 * 60000, FULL_MS = 6 * 3600000, LOCK = 'umspec_planner_lock';
   let dead = false, running = null, lastMeta = null;
 
   async function send(message) {
@@ -18,27 +18,39 @@
     }
   }
   function sesskey() { return root.UmSpecExporter?.getSesskey?.() || null; }
-  function collect() {
+  // Course pages are large (up to 1.4 MB), so they are read on a full pass: on Refresh or every six hours.
+  function knownOcc(meta) {
+    const known = {};
+    for (const [id, value] of Object.entries(meta?.detectedOcc || {})) if (value?.occ) known[id] = value.occ;
+    for (const [id, value] of Object.entries(meta?.occ || {})) { if (value) known[id] = value; else delete known[id]; }
+    return known;
+  }
+  function collect({ full = true, meta = null } = {}) {
     if (running) return running;
     running = (async () => {
       const key = sesskey();
       if (!key) throw Object.assign(new Error('Sign in to Spectrum, then refresh the planner.'), { code: 'LOGIN_REQUIRED' });
       let userId = null;
       try { userId = root.UmSpecExporter?.getContext?.()?.userId || null; } catch {}
-      const data = await collector().collect({ sesskey: key, userId });
+      meta ||= await send({ type: 'PLANNER_META' }).catch(() => null);
+      const data = await collector().collect({ sesskey: key, userId, full, knownOcc: knownOcc(meta) });
       return send({ type: 'PLANNER_SAVE', data });
     })().finally(() => { running = null; });
     return running;
   }
+  let holdingLock = false;
   function lockFree() {
     try {
       const held = Number(localStorage.getItem(LOCK) || 0);
       if (Date.now() - held < 5 * 60000) return false;
       localStorage.setItem(LOCK, String(Date.now()));
+      holdingLock = true;
       return true;
     } catch { return true; }
   }
-  function release() { try { localStorage.removeItem(LOCK); } catch {} }
+  function release() { if (!holdingLock) return; holdingLock = false; try { localStorage.removeItem(LOCK); } catch {} }
+  // Leaving the page mid-refresh must not block other tabs for five minutes.
+  root.addEventListener('pagehide', release);
 
   // ---------- OCC filter on course pages ----------
   const courseId = (() => {
@@ -114,13 +126,13 @@
 
   chrome.runtime.onMessage.addListener((message, sender, reply) => {
     if (dead || sender.id !== chrome.runtime.id || message?.type !== 'UMSPEC_PLANNER_COLLECT') return;
-    collect().then(data => reply({ ok: true, data }), error => reply({ ok: false, error: { code: error.code || 'REQUEST_FAILED', message: String(error.message).slice(0, 240) } }));
+    collect({ full: message.full !== false }).then(data => reply({ ok: true, data }), error => reply({ ok: false, error: { code: error.code || 'REQUEST_FAILED', message: String(error.message).slice(0, 240) } }));
     return true;
   });
 
-  const start = async () => {
-    let meta = null;
-    try { meta = courseId ? await refreshOcc() : await send({ type: 'PLANNER_META' }); } catch { return; }
+  // The OCC filter applies as soon as the course content is in the page; the refresh waits until the page has finished loading.
+  const showFilter = async () => {
+    const meta = courseId ? await refreshOcc() : await send({ type: 'PLANNER_META' });
     if (courseId) {
       // Moodle loads some sections lazily; re-apply the saved filter locally, ignoring the bar's own updates.
       let pending = 0;
@@ -129,9 +141,15 @@
         clearTimeout(pending); pending = setTimeout(() => { if (lastMeta) applyOcc(lastMeta); }, 400);
       }).observe(document.querySelector('#region-main') || document.body, { childList: true, subtree: true });
     }
-    if (!sesskey() || (meta?.collectedAt && Date.now() - meta.collectedAt < STALE_MS) || !lockFree()) return;
-    try { await collect(); if (courseId) await refreshOcc(); } catch {} finally { release(); }
+    return meta;
   };
-  const later = () => setTimeout(() => { start().catch(() => {}); }, 6000);
+  const filtered = showFilter().catch(() => null);
+  const refresh = async () => {
+    const meta = await filtered;
+    if (!meta || !sesskey() || (meta.collectedAt && Date.now() - meta.collectedAt < STALE_MS) || !lockFree()) return;
+    const full = !meta.fullAt || Date.now() - meta.fullAt >= FULL_MS;
+    try { await collect({ full, meta }); if (courseId) await refreshOcc(); } catch {} finally { release(); }
+  };
+  const later = () => setTimeout(() => { refresh().catch(() => {}); }, 3000);
   if (document.readyState === 'complete') later(); else root.addEventListener('load', later, { once: true });
 })(globalThis);

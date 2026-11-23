@@ -74,12 +74,22 @@
     if (!kind) throw error('FORBIDDEN', 'Unknown planner sender.');
     if (message.type === 'PLANNER_META') {
       const { data, prefs } = await read();
-      return { collectedAt: data?.collectedAt || null, userHash: data?.userHash || null, occ: prefs.occ, detectedOcc: data?.detectedOcc || {},
+      // Data from an older parser counts as never fully refreshed, so the next visit replaces it.
+      const current = data?.version === core().DATA_VERSION;
+      return { collectedAt: current ? data.collectedAt || null : null, fullAt: current ? data.fullAt || null : null, userHash: data?.userHash || null, occ: prefs.occ, detectedOcc: current ? data.detectedOcc || {} : {},
         showAllOcc: prefs.showAllOcc, lang: prefs.lang, courses: (data?.courses || []).map(c => ({ id: c.id, code: c.code })) };
     }
     if (message.type === 'PLANNER_SAVE') {
-      const clean = core().sanitizePlannerData(message.data);
+      let clean = core().sanitizePlannerData(message.data);
       const { data: previous } = await read();
+      const sameAccount = !previous?.userHash || !clean.userHash || previous.userHash === clean.userHash;
+      // A quick pass skips course pages, so files and announcements from the last full pass are kept for the same account.
+      if (!clean.fullAt && previous?.version === clean.version && sameAccount) {
+        const fresh = new Set(clean.items.map(item => item.key));
+        clean = { ...clean, fullAt: previous.fullAt || null, materials: previous.materials || [],
+          items: [...clean.items, ...(previous.items || []).filter(item => item.key.startsWith('news:') && !fresh.has(item.key))],
+          detectedOcc: { ...(previous.detectedOcc || {}), ...clean.detectedOcc } };
+      }
       // A different Spectrum account replaces the old planner instead of mixing two students' data.
       await chrome.storage.local.set({ [DATA]: clean });
       if (previous?.userHash && clean.userHash && previous.userHash !== clean.userHash) {

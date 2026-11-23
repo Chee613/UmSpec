@@ -52,20 +52,32 @@
   // ---------- Page adaptors: turn Spectrum markup into plain rows for the core rules ----------
   function courseActivities(doc) {
     const out = [], seen = new Set();
-    for (const element of doc.querySelectorAll('li.activity, [data-for="cmitem"], .activity-item')) {
-      const link = element.querySelector('a.aalink, .activityname a, .activity-instance a, a[href*="/mod/"]');
-      let href = link?.getAttribute('href') || '';
-      let url; try { url = new URL(href, ORIGIN); } catch { url = null; }
-      const cmid = (element.id || '').match(/^module-(\d+)$/)?.[1] || element.getAttribute('data-id') || url?.searchParams.get('id');
+    // Each activity is read only from its own <li id="module-N">. Spectrum's theme also nests .activity-item and
+    // data-for="cmitem" wrappers whose links can belong to a neighbouring activity, which once paired the
+    // OCC 4 tutorial's ID with the OCC 7 tutorial's name.
+    const OWNER = 'li.activity[id^="module-"]';
+    const own = doc.querySelectorAll(OWNER);
+    for (const element of own.length ? own : doc.querySelectorAll('[data-for="cmitem"][data-id]')) {
+      // Subsections nest other activities; only nodes that belong to this activity (not a nested one) count.
+      const mine = node => !own.length || node.closest(OWNER) === element;
+      const first = selector => [...element.querySelectorAll(selector)].find(mine) || null;
+      const link = first('a.aalink, .activityname a, .activity-instance a, a[href*="/mod/"]');
+      let url; try { url = link ? new URL(link.getAttribute('href') || '', ORIGIN) : null; } catch { url = null; }
+      const cmid = (element.id || '').match(/^module-(\d+)$/)?.[1] || element.getAttribute('data-id');
       const modtype = [...element.classList].find(c => c.startsWith('modtype_'))?.slice(8) || url?.pathname.match(/^\/mod\/([a-z0-9_]+)\//)?.[1] || '';
-      if (!cmid || seen.has(cmid) || !modtype) continue;
+      if (!/^\d+$/.test(cmid || '') || seen.has(cmid) || !modtype) continue;
       seen.add(cmid);
-      const nameNode = (element.querySelector('.instancename, .activityname, [data-activityname]') || link)?.cloneNode(true);
-      nameNode?.querySelectorAll?.('.accesshide, .sr-only, .visually-hidden').forEach(n => n.remove());
+      // A locked activity shows "Not available unless: You belong to GROUP 7 …" and has no link to open.
+      const restricted = !link && /not available unless|tidak tersedia melainkan/i.test(text(element));
+      const nameNode = (first('.instancename') || first('.activityname') || link)?.cloneNode(true);
+      nameNode?.querySelectorAll?.('.accesshide, .sr-only, .visually-hidden, .availabilityinfo, [data-region="availabilityinfo"]').forEach(n => n.remove());
       const section = element.closest('li.section, [data-for="section"], .course-section, section.section');
-      const sectionName = text(section?.querySelector('.sectionname, [data-for="section_title"], .section-title, h3')) || section?.getAttribute('aria-label') || 'General';
+      // Spectrum's section header also holds hidden "Select section … Collapse" text, so the heading itself is read first.
+      const heading = section && ['.sectionname', 'h3', '.section-title', '[data-for="section_title"]'].map(s => section.querySelector(s)).find(Boolean);
+      const sectionName = text(heading) || section?.getAttribute('aria-label') || 'General';
       const icon = element.querySelector('img.activityicon, img.iconlarge, .activityiconcontainer img, img')?.getAttribute('src') || '';
-      out.push({ cmid, modtype, name: text(nameNode) || element.getAttribute('data-activityname') || 'Activity', url: url ? url.href : '', section: sectionName, icon });
+      const name = text(nameNode).replace(/\s*(?:Not available unless|Tidak tersedia melainkan)\b.*$/i, '').trim();
+      out.push({ cmid, modtype, name: name || element.getAttribute('data-activityname') || 'Activity', url: url ? url.href : '', section: sectionName, icon, restricted });
     }
     return out;
   }
@@ -99,7 +111,7 @@
   function findUserId(html) { return String(html).match(/"userId"\s*:\s*(\d+)/)?.[1] || String(html).match(/data-userid="(\d+)"/)?.[1] || null; }
 
   // ---------- Collection ----------
-  async function collect({ sesskey, userId = null, signal = null, progress = () => {}, now = Date.now() } = {}) {
+  async function collect({ sesskey, userId = null, signal = null, progress = () => {}, now = Date.now(), full = true, knownOcc = {} } = {}) {
     const c = core(), warnings = [];
     if (!sesskey) {
       const response = await fetch(ORIGIN + '/my/', { credentials: 'include', signal: requestSignal(signal) });
@@ -152,43 +164,52 @@
       results.forEach((result, index) => { if (!result.error) groups[courses[index].id] = (result.data?.groups || []).map(g => c.clip(g.name, 80)); });
     } catch {}
 
-    const materials = [], detectedOcc = {}, attendanceCourses = new Set();
+    // A full pass also reads course pages (files, announcements); a quick pass relies on the calendar for attendance activities.
+    const materials = [], detectedOcc = {}, readCmids = new Set();
+    const activitiesByCourse = new Map(courses.map(x => [x.id, c.attendanceFromCalendar([...items.values()], x.id)]));
     let done = 0;
     await pool(courses, 3, async course => {
       try {
-        const doc = await getDoc(course.url, signal);
-        const activities = courseActivities(doc);
-        materials.push(...c.normaliseMaterials(activities, course.id));
+        const attendance = new Map(activitiesByCourse.get(course.id).map(a => [a.cmid, a]));
+        let activities = null;
+        if (full) {
+          activities = courseActivities(await getDoc(course.url, signal));
+          materials.push(...c.normaliseMaterials(activities, course.id));
+          for (const activity of activities) if (activity.modtype === 'attendance' && activity.restricted) attendance.delete(activity.cmid);
+          for (const activity of c.attendanceActivities(activities, course.id)) attendance.set(activity.cmid, activity);
+          for (const forum of c.newsForums(activities)) {
+            try { for (const item of c.announcementItems(forumDiscussions(await getDoc(forum, signal)), course.id, now)) items.set(item.key, item); }
+            catch (error) { if (error.code === 'LOGIN_REQUIRED') throw error; warnings.push(course.code + ' announcements: ' + error.message); }
+          }
+        }
+        // Spectrum keeps one attendance activity per OCC (12 in WIA2001). A quick pass reads only the known OCC's reports;
+        // a full pass reads every report the student can open, so a wrong remembered OCC is corrected.
         const sessions = [];
-        for (const activity of c.attendanceActivities(activities, course.id).slice(0, 8)) {
+        await pool(c.attendanceToRead([...attendance.values()], full ? null : knownOcc[course.id]).slice(0, 20), 2, async activity => {
           try {
             const page = await getDoc(ORIGIN + '/mod/attendance/view.php?id=' + activity.cmid + '&view=5', signal);
-            sessions.push(...c.parseAttendanceRows(attendanceTable(page), activity));
+            const rows = c.parseAttendanceRows(attendanceTable(page), activity);
+            if (rows.length) readCmids.add(activity.cmid);
+            sessions.push(...rows);
           } catch (error) { if (error.code === 'LOGIN_REQUIRED') throw error; warnings.push(course.code + ' attendance: ' + error.message); }
-        }
-        if (sessions.length) attendanceCourses.add(course.id);
+        });
         for (const item of c.attendanceItems(sessions)) items.set(item.key, item);
-        const detected = c.detectOcc({ groups: groups[course.id] || [], sessions });
+        const detected = c.detectOcc({ groups: groups[course.id] || [], sessions, activities });
         if (detected) detectedOcc[course.id] = detected;
-        const forum = c.newsForum(activities);
-        if (forum) {
-          try { for (const item of c.announcementItems(forumDiscussions(await getDoc(forum, signal)), course.id, now)) items.set(item.key, item); }
-          catch (error) { if (error.code === 'LOGIN_REQUIRED') throw error; warnings.push(course.code + ' announcements: ' + error.message); }
-        }
       } catch (error) {
         if (error.code === 'LOGIN_REQUIRED' || signal?.aborted) throw error;
         warnings.push(course.code + ': ' + error.message);
       }
       progress('courses', 30 + Math.round(++done / Math.max(1, courses.length) * 65));
     });
-    // Calendar copies of attendance sessions are only kept for courses whose attendance report could not be read.
+    // Calendar copies of attendance sessions stay only where the attendance report itself was not read.
     for (const [key, item] of items) {
       if (item.kind !== 'attendance' || !key.startsWith('cal:')) continue;
-      if (attendanceCourses.has(item.courseId)) items.delete(key);
+      if (readCmids.has(c.cmidFromUrl(item.url))) items.delete(key);
       else Object.assign(item, { statusKind: 'unmarked', sessionType: c.sessionType(item.title), canSelfMark: false });
     }
     progress('saving', 98);
-    return c.sanitizePlannerData({ collectedAt: now, userHash: userId ? await sha256('umspec-planner:' + userId) : '', courses, items: [...items.values()], materials,
+    return c.sanitizePlannerData({ collectedAt: now, fullAt: full ? now : null, userHash: userId ? await sha256('umspec-planner:' + userId) : '', courses, items: [...items.values()], materials,
       detectedOcc, statusKnown: Boolean(outstanding), warnings }, now);
   }
 
