@@ -1,3 +1,4 @@
+import json
 import os
 import zipfile
 
@@ -29,9 +30,18 @@ def build_zip():
     with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
         for f in include_files:
             fp = os.path.join(base_dir, f)
-            if os.path.exists(fp):
+            if not os.path.exists(fp):
+                continue
+            if f == 'manifest.json':
+                # The "key" field only pins the extension ID for unpacked development builds; the Chrome Web Store
+                # assigns the published ID itself, so the store package leaves it out.
+                with open(fp, encoding='utf-8') as handle:
+                    manifest = json.load(handle)
+                manifest.pop('key', None)
+                zf.writestr('manifest.json', json.dumps(manifest, indent=2, ensure_ascii=False) + '\n')
+            else:
                 zf.write(fp, arcname=f)
-                print(f"Added {f}")
+            print(f"Added {f}")
         
         for d in include_dirs:
             dp = os.path.join(base_dir, d)
