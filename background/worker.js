@@ -1,7 +1,7 @@
 /* Google credentials and durable state stay in this trusted extension context. */
 if (typeof importScripts === 'function') {
   importScripts('../shared/sync-core.js', '../shared/calendar-core.js', '../shared/announcement-core.js',
-    'google.js', 'drive.js', 'calendar.js', '../shared/planner-core.js', 'planner.js', '../shared/course-scan.js');
+    'google.js', 'drive.js', 'calendar.js', '../shared/planner-core.js', '../shared/course-ai.js', 'planner.js', '../shared/course-scan.js');
 }
 (function (root) {
   'use strict';

@@ -41,7 +41,7 @@
     'Recordings & Media': '7.Recordings & Media' };
   const words = list => new RegExp('(?:^|[^\\p{L}\\p{N}])(?:' + list.join('|') + ')(?=$|[^\\p{L}\\p{N}])', 'iu');
   const RULES = [
-    [CATEGORY.info, words(['pro-?forma', 'course outline', 'course info(?:rmation)?', 'course plan', 'teaching plan', 'syllabus', 'maklumat kursus', 'rancangan pengajaran', 'mqf'])],
+    [CATEGORY.info, words(['pro-?forma', 'course outline', 'course info(?:rmation)?', 'course plan', 'teaching plan', 'syllabus', 'synopsis', 'sinopsis', 'learning outcomes?', 'course briefing', 'hasil pembelajaran', 'maklumat kursus', 'rancangan pengajaran', 'mqf'])],
     [CATEGORY.test, words(['past years?', 'pyq', 'exams?', 'examinations?', 'final exam', 'peperiksaan', 'sample papers?', 'mid[- ]?terms?', 'mid[- ]?sem(?:ester)?', 'tests?', 'quiz(?:zes)?', 'kuiz', 'ujian'])],
     // A lab sheet ("Lab 2 worksheet") is a lab, so labs are checked before tutorial words.
     [CATEGORY.lab, words(['labs?', 'lab\\s*\\d+', 'laboratory', 'practicals?', 'amali', 'makmal', 'hands-on'])],
@@ -98,19 +98,23 @@
   // Activity title as shown on Spectrum, prefixed with its week; a folder or assignment with several files adds each file's own name.
   function displayName({ title, section, fileName, multiple = false }) {
     const ext = extensionOf(fileName);
-    let base = cleanTitle(title) || cleanTitle(fileName.replace(/\.[^.]+$/, '')) || 'Material';
+    // An image pasted into a text block has no title of its own ("Material"), so its file name is used instead.
+    const titled = /^(?:material|file|image)?$/i.test(cleanTitle(title)) ? '' : cleanTitle(title);
+    let base = titled || cleanTitle(fileName.replace(/\.[^.]+$/, '')) || 'Material';
     const own = cleanTitle(String(fileName || '').replace(/\.[^.]+$/, ''));
     if (multiple && own && own.toLowerCase() !== base.toLowerCase()) base += ' - ' + own;
     // A title that already starts with its number ("Week 4 Tutorial", "Topic 3 Intro") keeps it; the prefix only adds what is missing.
     const order = sequenceOf(section, title);
     const prefix = order && !STARTS_WITH_ORDER.test(base) ? order.letter + String(order.number).padStart(2, '0') + ' ' : '';
     if (ext && base.toLowerCase().endsWith(ext)) base = base.slice(0, -ext.length).trim();
+    // A title ending in a full stop ("Pop Quiz. DC.") would otherwise give "..pdf".
+    base = base.replace(/[.\s]+$/, '');
     return (prefix + base).slice(0, 140).trim() + ext;
   }
   // Submission, attendance and quiz pages are things to do, not materials, so they stay out of the Links document.
   function isMaterialLink(name, url) {
     // Section shortcuts (course/section.php) only jump around the course page.
-    if (/\/mod\/(?:assign|quiz|attendance|forum|feedback|choice|turnitintooltwo|questionnaire|workshop|lti)\/|\/course\/(?:section|view)\.php/i.test(String(url || ''))) return false;
+    if (/\/mod\/(?:assign|quiz|attendance|forum|feedback|choice|turnitintooltwo|questionnaire|workshop|lti|chat)\/|\/course\/(?:section|view)\.php/i.test(String(url || ''))) return false;
     return !/\b(?:submission|submit|hantar|attendance|kehadiran|quiz|kuiz|feedback|turnitin|evaluation form)\b/i.test(String(name || ''));
   }
 
@@ -173,7 +177,8 @@
       sec.querySelectorAll('.activity').forEach(act => {
         const modClasses = Array.from(act.classList).filter(c => c.startsWith('modtype_'));
         const modType = modClasses.length ? modClasses[0].replace('modtype_', '') : '';
-        if (['attendance', 'forum', 'feedback', 'choice'].includes(modType)) return;
+        // Subsections only group other activities, and chat rooms hold no course files.
+        if (['attendance', 'forum', 'feedback', 'choice', 'subsection', 'chat'].includes(modType)) return;
 
         const inst = act.querySelector('.instancename');
         let actName = inst ? inst.innerText.trim() : 'Material';

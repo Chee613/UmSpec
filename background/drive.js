@@ -209,10 +209,11 @@
   // OCC: nothing is known yet, or the student chose to see items from every OCC.
   async function occFor(courseId) {
     try {
-      const saved = await chrome.storage.local.get(['umspecPlanner', 'umspecPlannerPrefs']);
+      const saved = await chrome.storage.local.get(['umspecPlanner', 'umspecPlannerPrefs', 'umspecCourseAI']);
       const prefs = saved.umspecPlannerPrefs || {};
-      return prefs.showAllOcc ? null : planner()?.effectiveOcc(saved.umspecPlanner, prefs, String(courseId)) || null;
-    } catch { return null; }
+      const layout = prefs.courseAI ? saved.umspecCourseAI?.[String(courseId)]?.layout || null : null;
+      return { occ: prefs.showAllOcc ? null : planner()?.effectiveOcc(saved.umspecPlanner, prefs, String(courseId)) || null, layout };
+    } catch { return { occ: null, layout: null }; }
   }
   function linksHtml(courseName, links, occ = null) {
     const sections = new Map();
@@ -231,10 +232,13 @@
   }
   async function writeLinksDoc(job, courseId) {
     const archiveId = job.binding.settings.archiveId;
-    const occ = await occFor(courseId);
+    const { occ, layout } = await occFor(courseId);
     // Links labelled for another OCC (in their title or section) are left out, like the course-page OCC bar hides them.
+    // Where the title names none, the AI's reading of the course (if the student turned it on) decides.
+    const tokensOf = link => planner().parseOcc([link.displayName || link.name, link.section].join(' ')) ||
+      (layout ? layout.activities?.[String(link.moduleId)]?.occ || layout.sections?.[link.section]?.occ || null : null);
     const links = job.links.filter(link => String(link.courseId) === courseId && scan().isMaterialLink(link.name, link.sourceUrl) &&
-      (!occ || planner().occMatches([link.displayName || link.name, link.section].join(' '), occ)));
+      (!occ || planner().occMatches(tokensOf(link), occ)));
     const course = coursesFor(job).find(item => item.id === courseId);
     const sourceKey = await core.hashParts([job.bindingHash, archiveId, 'links-doc', courseId]);
     const remote = job.remoteFiles.find(file => file.sourceKey === sourceKey && !file.trashed) || null;
