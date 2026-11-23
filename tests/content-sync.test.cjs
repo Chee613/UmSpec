@@ -410,3 +410,9 @@ test('an expired session on the single sign-on page reads as sign-in required, n
     await assert.rejects(sync.refreshPost(candidate), error => error.code === 'LOGIN_REQUIRED');
   }
 });
+
+test('announcement forums are found by the word anywhere in their name', () => {
+  assert.equal(sync.announcementForum('Announcement from Dr. Tarak Nandy', '/mod/forum/view.php?id=7'), 'https://spectrum.um.edu.my/mod/forum/view.php?id=7');
+  assert.equal(sync.announcementForum('Makluman OCC-3', '/mod/forum/view.php?id=8'), 'https://spectrum.um.edu.my/mod/forum/view.php?id=8');
+  assert.equal(sync.announcementForum('Company Website', '/mod/forum/view.php?id=9'), null);
+});

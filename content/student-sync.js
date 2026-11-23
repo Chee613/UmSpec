@@ -126,8 +126,10 @@
     }
     return { records: [...records.values()], complete: !failures.length, failures };
   }
+  // Lecturers add their own announcement forums ("Announcement from Dr. X", "Makluman OCC-3"), so the word may appear
+  // anywhere in the name; discussion forums without it are not read.
   function announcementForum(name, value) {
-    if (!/^(?:announcements?|news(?: forum)?|pengumuman(?: kursus)?)(?:\s+forum)?$/i.test(String(name || '').trim())) return null;
+    if (!/\b(?:announcements?|pengumuman|makluman|hebahan|news|notices?|berita)\b/i.test(String(name || '').trim())) return null;
     try {
       const url = new URL(safeSpectrumUrl(value));
       return url.pathname === '/mod/forum/view.php' && (positiveId(url.searchParams.get('id')) || positiveId(url.searchParams.get('f'))) ? url.href : null;
@@ -204,8 +206,18 @@
     const doc = await fetchPage(candidate.sourceUrl, signal);
     return announcements().normalisePost(postFromDocument(doc, candidate.sourceUrl, candidate.courseId, candidate.forumId, candidate.postId));
   }
+  // The student's OCC per course, as the planner knows it; null keeps every OCC (unknown, or "show every OCC" chosen).
+  async function plannerOcc() {
+    try {
+      const meta = await root.chrome?.runtime?.sendMessage?.({ type: 'PLANNER_META' });
+      const data = meta?.data || meta;
+      if (!data || data.showAllOcc) return () => null;
+      return courseId => Object.hasOwn(data.occ || {}, courseId) ? data.occ[courseId] || null : data.detectedOcc?.[courseId]?.occ || null;
+    } catch { return () => null; }
+  }
   async function discoverAnnouncements(courseIds, signal, cursor = null, progress = () => {}) {
     const posts = [], failures = [], unreadable = [];
+    const occOf = await plannerOcc(), planner = root.UmSpecPlannerCore;
     let resume = cursor;
     for (const courseId of courseIds.map(String)) {
       signal?.throwIfAborted();
@@ -218,7 +230,9 @@
           const name = link.querySelector('.instancename')?.cloneNode(true) || link.cloneNode(true);
           name.querySelectorAll('.accesshide,.sr-only,.icon').forEach(element => element.remove());
           const url = announcementForum(name.textContent, new URL(link.getAttribute('href'), ORIGIN).href);
-          if (url && !forums.includes(url)) forums.push(url);
+          // A forum labelled for other OCCs ("Announcement for OCC-6, OCC-8") is skipped once the student's OCC is known.
+          if (url && planner && !planner.occMatches(name.textContent, occOf(String(courseId)))) continue;
+          if (url && !forums.includes(url) && forums.length < 5) forums.push(url);
         }
         let count = 0;
         for (const forumUrl of forums) {

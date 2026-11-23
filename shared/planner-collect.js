@@ -177,8 +177,8 @@
           materials.push(...c.normaliseMaterials(activities, course.id));
           for (const activity of activities) if (activity.modtype === 'attendance' && activity.restricted) attendance.delete(activity.cmid);
           for (const activity of c.attendanceActivities(activities, course.id)) attendance.set(activity.cmid, activity);
-          for (const forum of c.newsForums(activities)) {
-            try { for (const item of c.announcementItems(forumDiscussions(await getDoc(forum, signal)), course.id, now)) items.set(item.key, item); }
+          for (const forum of c.newsForumEntries(activities)) {
+            try { for (const item of c.announcementItems(forumDiscussions(await getDoc(forum.url, signal)), course.id, now, forum.occ)) items.set(item.key, item); }
             catch (error) { if (error.code === 'LOGIN_REQUIRED') throw error; warnings.push(course.code + ' announcements: ' + error.message); }
           }
         }

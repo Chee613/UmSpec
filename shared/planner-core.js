@@ -34,7 +34,9 @@
   const hhmm = minutes => String(Math.floor(minutes / 60)).padStart(2, '0') + ':' + String(minutes % 60).padStart(2, '0');
 
   // ---------- Occurrence (OCC) groups ----------
-  const OCC_PATTERN = /\b(?:occ(?:urrence)?|kumpulan)\s*[:#.]?\s*((?:[0-9]{1,2}[A-Z]?\b)(?:(?:\s*(?:,|&|\/|\band\b|\bdan\b|-|–|\bto\b))+\s*[0-9]{1,2}[A-Z]?\b)*)/gi;
+  // Lecturers write "OCC 4", "Occ4", "OCC-6", "OCCs 1, 2, 4", "Occurrence 3", "Kumpulan 2" or "Kump. 2". "Group N" is left
+  // out on purpose: it usually names a project group, and Moodle itself hides activities locked to other groups.
+  const OCC_PATTERN = /\b(?:occ(?:urrence)?s?|kumpulan|kump\.?)\s*[:#.\-–]?\s*((?:[0-9]{1,2}[A-Z]?\b)(?:(?:\s*(?:,|&|\/|\band\b|\bdan\b|-|–|\bto\b))+\s*[0-9]{1,2}[A-Z]?\b)*)/gi;
   function parseOcc(text) {
     const tokens = new Set();
     for (const match of String(text || '').matchAll(OCC_PATTERN)) {
@@ -278,16 +280,22 @@
     return open.size === 1 ? [...open][0] : null;
   }
   // Lecturers add extra forums such as "Announcement from Dr. …" or "Announcement on MID-SEM Examination"; read up to three.
-  function newsForums(activities) {
-    return (activities || []).filter(a => a.modtype === 'forum' && positiveId(a.cmid) && /^(announcements?|news(?: forum)?|pengumuman|notices?)\b/i.test(clip(a.name, 80)))
-      .slice(0, 3).map(forum => ORIGIN + '/mod/forum/view.php?id=' + forum.cmid);
+  // Lecturers add their own announcement forums ("Announcement from Dr. X", "Important Announcement for OCC-3"), so
+  // the word may appear anywhere in the name. Discussion forums ("Company Website", "Review Questions") are not read.
+  const ANNOUNCEMENT_WORDS = /\b(?:announcements?|pengumuman|makluman|hebahan|news|notices?|berita)\b/i;
+  function isAnnouncementForum(name) { return ANNOUNCEMENT_WORDS.test(String(name || '')); }
+  // Each forum keeps the OCC its name is labelled for, so its posts are filtered like any other OCC item.
+  function newsForumEntries(activities) {
+    return (activities || []).filter(a => a.modtype === 'forum' && positiveId(a.cmid) && isAnnouncementForum(clip(a.name, 120)))
+      .slice(0, 5).map(forum => ({ url: ORIGIN + '/mod/forum/view.php?id=' + forum.cmid, occ: parseOcc(forum.name) }));
   }
+  function newsForums(activities) { return newsForumEntries(activities).map(forum => forum.url); }
   function newsForum(activities) { return newsForums(activities)[0] || null; }
-  function announcementItems(discussions, courseId, collectedAt) {
+  function announcementItems(discussions, courseId, collectedAt, forumOcc = null) {
     return (discussions || []).filter(d => positiveId(d.id)).slice(0, 8).map(d => ({
       key: 'news:' + d.id, kind: 'notice', courseId: String(courseId), title: clip(d.title, 200) || 'Announcement',
       start: Number.isFinite(d.time) ? d.time : collectedAt, end: null, url: ORIGIN + '/mod/forum/discuss.php?d=' + d.id,
-      status: null, occ: parseOcc(d.title), detail: clip(d.author, 80), datedFromList: Number.isFinite(d.time)
+      status: null, occ: parseOcc(d.title) || forumOcc || null, detail: clip(d.author, 80), datedFromList: Number.isFinite(d.time)
     }));
   }
 
@@ -502,7 +510,7 @@
 
   const api = { ORIGIN, DAY, MINUTE, KINDS, DATA_VERSION, STRINGS, LANGS, t, clip, safeUrl, mytParts, mytInstant, dayKey, startOfDay, startOfWeek, hhmm,
     parseOcc, occMatches, detectOcc, courseMeta, parseDateText, parseTimeRange, parseSessionTime, statusKind, sessionType, parseAttendanceRows,
-    classifyEvent, outstandingFromActionEvents, itemState, fileType, normaliseMaterials, attendanceActivities, occFromAccess, attendanceFromCalendar, attendanceToRead, cmidFromUrl, newsForum, newsForums, announcementItems,
+    classifyEvent, outstandingFromActionEvents, itemState, fileType, normaliseMaterials, attendanceActivities, occFromAccess, attendanceFromCalendar, attendanceToRead, cmidFromUrl, newsForum, newsForums, newsForumEntries, isAnnouncementForum, announcementItems,
     attendanceItems, sanitizePlannerData, visibleItems, effectiveOcc, uniquePath, layoutDaySlots, buildTimetable, timetableCSV, sessionsICS, semesterWeek, reminderPlan, dueSoonCount };
   root.UmSpecPlannerCore = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

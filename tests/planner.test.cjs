@@ -355,3 +355,24 @@ test('locked OCC activities are skipped and the one open OCC activity identifies
   assert.equal(C.normaliseMaterials(activities, '129').length, 0);
   assert.equal(C.sanitizePlannerData({ courses: [] }).version, C.DATA_VERSION);
 });
+
+test('OCC labels and announcement forums are recognised in the forms lecturers actually write', () => {
+  assert.deepEqual(C.parseOcc('Announcement for OCC-6 , OCC-8 and OCC-9'), ['6', '8', '9']);
+  assert.deepEqual(C.parseOcc('Lecture Group 1 (OCCs 1, 2, 4, 6, 7, 10)'), ['1', '2', '4', '6', '7', '10']);
+  assert.deepEqual(C.parseOcc('Important Announcement for OCC-3 (18-11-2025)'), ['3']);
+  assert.deepEqual(C.parseOcc('Tutorial Kump. 2'), ['2']);
+  assert.equal(C.parseOcc('Group 3 presentation slides'), null, 'project group numbers are not OCCs');
+  assert.equal(C.parseOcc('Occasionally 3 students'), null);
+  const forums = C.newsForumEntries([
+    { modtype: 'forum', cmid: '1', name: 'Announcements' },
+    { modtype: 'forum', cmid: '2', name: 'Important Announcement for OCC-3 (18-11-2025)' },
+    { modtype: 'forum', cmid: '3', name: 'Makluman Kursus' },
+    { modtype: 'forum', cmid: '4', name: 'Group Project: System Testing Planning' },
+    { modtype: 'forum', cmid: '5', name: 'Company Website' }
+  ]);
+  assert.deepEqual(forums.map(forum => forum.url.split('=')[1]), ['1', '2', '3']);
+  assert.deepEqual(forums[1].occ, ['3']);
+  const [post] = C.announcementItems([{ id: 9, title: 'Class moved to Friday' }], '7', 0, ['3']);
+  assert.deepEqual(post.occ, ['3'], 'a post without its own OCC label takes its forum\'s OCC');
+  assert.equal(C.occMatches(post.occ, '4'), false);
+});
