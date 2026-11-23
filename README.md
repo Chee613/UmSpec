@@ -9,16 +9,17 @@
 * **⚡ Zero-Touch 1-Click Export**: No checkboxes, no manual toggling, and no technical knowledge required. Click the button and the engine handles everything.
 * **🎓 Automatic Academic Profile Detection**: Analyzes enrolled course codes to identify your Faculty, Bachelor Major (e.g., *Computer Science - Software Engineering*), and Academic Year/Semester.
 * **🗂️ Adaptive Taxonomy Folders (Not Limited to Static Categories)**:
-  Instead of forcing courses into fixed static folders, UmSpec dynamically creates folders only for material types that actually exist:
-  * `1.Lecture Slide` — Lecture slides, notes, proforma, syllabus
-  * `2.Tutorial` — Tutorials and problem sets
-  * `3.Lab` — Lab exercises and practical worksheets
-  * `4.Assignment` — Project specs, assignment briefs, rubrics, templates
-  * `5.Past Year Questions (PYQ)` — Past exam papers and PYQs
-  * `6.Source Code` — Code samples, starter projects (`.java`, `.py`, `.sql`)
-  * `7.Datasets` — Datasets and data files (`.sav`, `.csv`, `.xlsx`)
-  * `8.Video Lectures` — Recorded video/audio lectures or indexed YouTube video links
-  * `9.Reference` — Textbooks, reference materials, reading guides
+  Each course gets a folder per material type, created only when the course has that type. Words are matched whole ("example" is not "exam"), and the activity's title decides before its section:
+  * `Course Info` — Proforma, course outline, syllabus, teaching plan
+  * `Lecture Slides` — Lecture slides and notes (also the default)
+  * `Tutorials` — Tutorials, exercises, worksheets
+  * `Labs` — Lab sheets and practicals
+  * `Assignments & Projects` — Briefs, rubrics, proposals, reports
+  * `Past Year & Tests` — Past papers, mid-terms, tests, quizzes
+  * `Source Code` — Code files (`.py`, `.java`, `.sql`, …)
+  * `Recordings & Media` — Video and audio files
+
+  In Google Drive, files are named after their Spectrum title with their place in the course in front: `W04` for Week 4 (or Minggu 4), `T03` Topic, `C02` Chapter, `B02` Bab, `L05` Lecture or Kuliah, `U`/`M`/`S` for unit, module and session (for example `W04 Normalization - Compact Notes.pptx`). Course folders keep three- and four-letter UM codes (`WIA2001`, `KXEX1110`), and each course folder has a **Links** Google Doc with its videos, online classes and websites, grouped by section. Submission, attendance and quiz pages are left out. Files from earlier versions are renamed and moved in place on the next sync; files you renamed or moved yourself are left alone.
 * **📋 Auto-Generated Academic Audit Report**:
   Generates `SEMESTER_AUDIT_REPORT.md` at the root of the ZIP detailing:
   * Student Name, Faculty & Detected Programme
