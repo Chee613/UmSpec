@@ -62,6 +62,40 @@
     return [...document.querySelectorAll('li.activity, [data-for="cmitem"], #region-main table tbody tr')]
       .filter(element => !element.closest('#umspec-modal, .umspec-occ-bar'));
   }
+  // AI reading of this course's OCC labels ("G1", "Group 1M", lecturer sections), used where a title names no OCC.
+  let aiLayout = null, aiNote = '', aiBusy = false;
+  const AI_CONSENT = 'Let UM Spec\'s AI read how this course labels its class groups (for example "G1" or "Group 1M")?\n\n' +
+    'This sends the activity titles, section names and lock notes of your Spectrum courses to UM Spec\'s server and Google Gemini. ' +
+    'Your name, matric number, submissions and OCC are not sent. Answers are shared with other students in the same course.\n\n' +
+    'You can turn this off again from the OCC bar.';
+  async function refreshAI(meta, enable) {
+    const ai = root.UmSpecCourseAI;
+    if (!courseId || !ai || aiBusy || (!meta?.courseAI && enable !== true)) return;
+    const activities = ai.layoutActivities(document);
+    if (!activities.length) return;
+    aiBusy = true; aiNote = 'AI is reading this course…';
+    if (lastMeta) applyOcc(lastMeta);
+    try {
+      const code = (document.title.match(/\b[A-Z]{3,4}\d{4}[A-Z]?\b/) || [])[0] || '';
+      const result = await send({ type: 'PLANNER_COURSE_AI', courseId, courseCode: code, activities, ...(enable != null ? { enable } : {}) });
+      aiLayout = result?.layout || null;
+      aiNote = !result?.enabled ? '' : aiLayout ? 'AI read this course\'s groups' + (aiLayout.groupStyle ? ': ' + aiLayout.groupStyle : '') :
+        result.rejected ? 'AI answer disagreed with Spectrum, so it is not used' : '';
+    } catch (error) {
+      aiNote = 'AI course reading failed: ' + String(error.message).slice(0, 80);
+    } finally { aiBusy = false; }
+    const meta2 = await refreshOcc().catch(() => lastMeta);
+    return meta2;
+  }
+  function aiTokens(element) {
+    if (!aiLayout) return null;
+    const item = element.closest('li.activity[id^="module-"]');
+    const id = item?.id?.slice(7);
+    const section = element.closest('li.section, [data-for="section"], .course-section, section.section');
+    const heading = section && ['.sectionname', 'h3', '.section-title', '[data-for="section_title"]'].map(s => section.querySelector(s)).find(Boolean);
+    const sectionName = String(heading?.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+    return (id && aiLayout.activities?.[id]?.occ) || aiLayout.sections?.[sectionName]?.occ || null;
+  }
   function applyOcc(meta) {
     if (!courseId) return;
     const hasOverride = Boolean(meta.occ && Object.hasOwn(meta.occ, courseId));
@@ -73,7 +107,7 @@
     let hidden = 0;
     for (const element of candidates()) {
       const label = element.querySelector('.instancename, .activityname, a')?.textContent || element.textContent;
-      const found = core().parseOcc(label);
+      const found = core().parseOcc(label) || aiTokens(element);
       found?.forEach(token => tokens.add(token));
       const other = Boolean(mine && found && !found.includes(mine));
       element.classList.toggle('umspec-occ-hidden', other && !showAll);
@@ -111,10 +145,24 @@
     toggle.setAttribute('aria-pressed', String(showAll));
     toggle.hidden = !mine;
     toggle.addEventListener('click', () => send({ type: 'PLANNER_SET_OCC', courseId, occ: mine, showAllOcc: !showAll }).then(refreshOcc).catch(() => {}));
+    const aiButton = document.createElement('button');
+    aiButton.type = 'button';
+    aiButton.textContent = meta.courseAI ? (aiBusy ? 'AI reading…' : 'AI on') : 'Read groups with AI';
+    aiButton.title = meta.courseAI ? (aiNote || 'AI reads labels such as "G1" or "Group 1M". Click to turn it off.') : 'Let AI work out labels such as "G1" or "Group 1M" in this course.';
+    aiButton.setAttribute('aria-pressed', String(Boolean(meta.courseAI)));
+    aiButton.disabled = aiBusy;
+    aiButton.addEventListener('click', () => {
+      if (meta.courseAI) {
+        if (!confirm('Turn off AI course reading? Saved AI answers are removed from this device.')) return;
+        aiLayout = null; aiNote = '';
+        send({ type: 'PLANNER_COURSE_AI', courseId, activities: [], enable: false }).then(refreshOcc).catch(() => {});
+      } else if (confirm(AI_CONSENT)) refreshAI(meta, true).catch(() => {});
+    });
     const open = document.createElement('button');
     open.type = 'button'; open.textContent = t('planner') + ' ↗';
     open.addEventListener('click', () => send({ type: 'PLANNER_OPEN' }).catch(() => {}));
-    bar.append(label, summary, toggle, open);
+    bar.append(label, summary, toggle, aiButton, open);
+    if (aiNote) { const note = document.createElement('small'); note.className = 'umspec-occ-ai'; note.textContent = aiNote; bar.append(note); }
   }
   async function refreshOcc() {
     if (!courseId) return null;
@@ -144,10 +192,15 @@
     return meta;
   };
   const filtered = showFilter().catch(() => null);
+  filtered.then(meta => { if (meta?.courseAI) refreshAI(meta).catch(() => {}); });
   const refresh = async () => {
     const meta = await filtered;
-    if (!meta || !sesskey() || (meta.collectedAt && Date.now() - meta.collectedAt < STALE_MS) || !lockFree()) return;
-    const full = !meta.fullAt || Date.now() - meta.fullAt >= FULL_MS;
+    // Data saved for a different Spectrum account (after switching accounts) is replaced at once with a full read.
+    let userId = null; try { userId = root.UmSpecExporter?.getContext?.()?.userId || null; } catch {}
+    const tag = userId ? await core().accountTag(userId) : '';
+    const otherAccount = Boolean(tag && meta?.userHash && meta.userHash !== tag);
+    if (!meta || !sesskey() || (!otherAccount && meta.collectedAt && Date.now() - meta.collectedAt < STALE_MS) || !lockFree()) return;
+    const full = otherAccount || !meta.fullAt || Date.now() - meta.fullAt >= FULL_MS;
     try { await collect({ full, meta }); if (courseId) await refreshOcc(); } catch {} finally { release(); }
   };
   const later = () => setTimeout(() => { refresh().catch(() => {}); }, 3000);

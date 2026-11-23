@@ -4,7 +4,7 @@
   const ORIGIN = 'https://spectrum.um.edu.my';
   const MYT = 8 * 3600000, DAY = 86400000, MINUTE = 60000;
   const KINDS = ['assignment', 'quiz', 'attendance', 'notice', 'event'];
-  const DATA_VERSION = 2;
+  const DATA_VERSION = 4;
   const clip = (value, max = 300) => String(value ?? '').replace(/[\x00-\x08\x0b-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
   const positiveId = value => /^[1-9]\d{0,12}$/.test(String(value ?? ''));
 
@@ -36,9 +36,12 @@
   // ---------- Occurrence (OCC) groups ----------
   // Lecturers write "OCC 4", "Occ4", "OCC-6", "OCCs 1, 2, 4", "Occurrence 3", "Kumpulan 2" or "Kump. 2". "Group N" is left
   // out on purpose: it usually names a project group, and Moodle itself hides activities locked to other groups.
-  const OCC_PATTERN = /\b(?:occ(?:urrence)?s?|kumpulan|kump\.?)\s*[:#.\-–]?\s*((?:[0-9]{1,2}[A-Z]?\b)(?:(?:\s*(?:,|&|\/|\band\b|\bdan\b|-|–|\bto\b))+\s*[0-9]{1,2}[A-Z]?\b)*)/gi;
+  const OCC_PATTERN = /(?<![A-Za-z0-9])(?:occ(?:urrence)?s?|kumpulan|kump\.?)\s*[:#._\-–]?\s*((?:[0-9]{1,2}[A-Z]?(?![A-Za-z0-9]))(?:(?:\s*(?:,|&|\/|\band\b|\bdan\b|-|–|\bto\b))+\s*[0-9]{1,2}[A-Z]?(?![A-Za-z0-9]))*)/gi;
+  // Moodle names UM's class groups "GROUP 3 2026/2027_1" (with the academic year), which is the OCC number.
+  const GROUP_YEAR = /\bgroup\s+(\d{1,2}[A-Z]?)\s+20\d\d\s*\/\s*20\d\d/gi;
   function parseOcc(text) {
     const tokens = new Set();
+    for (const match of String(text || '').matchAll(GROUP_YEAR)) tokens.add(match[1].toUpperCase().replace(/^0+(?=\d)/, ''));
     for (const match of String(text || '').matchAll(OCC_PATTERN)) {
       const parts = match[1].toUpperCase().split(/\s*(?:,|&|\/|\bAND\b|\bDAN\b)\s*/);
       for (const part of parts) {
@@ -75,6 +78,8 @@
     if (attended) return { occ: attended, source: 'attendance' };
     const access = occFromAccess(activities);
     if (access) return { occ: access, source: 'attendance' };
+    const left = occFromLocks(activities);
+    if (left) return { occ: left, source: 'attendance' };
     const taken = pick(sessions.filter(s => ['present', 'late', 'absent', 'excused'].includes(s.statusKind)));
     return taken ? { occ: taken, source: 'attendance' } : null;
   }
@@ -271,6 +276,24 @@
   // Locked attendance activities (other groups' OCCs) only redirect to a "restricted" page, so they are not opened.
   function attendanceActivities(activities, courseId) {
     return (activities || []).filter(a => a.modtype === 'attendance' && !a.restricted && positiveId(a.cmid)).map(a => ({ cmid: String(a.cmid), name: clip(a.name, 160), courseId: String(courseId) }));
+  }
+  // Moodle names group events after the group ("Attendance (Group GROUP 3 2026/2027_1)") and shows a student only the
+  // events of their own groups, so those names say which OCC the student is in.
+  function calendarGroups(items, courseId) {
+    return (items || []).filter(item => item.courseId === String(courseId))
+      .map(item => String(item.title || '').match(/\(Group ([^)]*)\)?\s*$/i)?.[1]).filter(Boolean).map(name => clip(name, 80));
+  }
+  // Every OCC the course labels, minus those whose activities are locked to their group ("You belong to GROUP 1 …"):
+  // when exactly one is left, it is the student's.
+  function occFromLocks(activities) {
+    const all = new Set(), locked = new Set();
+    for (const a of activities || []) {
+      for (const token of parseOcc([a.name, a.section].join(' ')) || []) all.add(token);
+      if (a.restricted) for (const token of a.lockOcc || []) locked.add(token);
+    }
+    if (!locked.size) return null;
+    const left = [...all].filter(token => !locked.has(token));
+    return left.length === 1 ? left[0] : null;
   }
   // When other OCCs' attendance is locked to their groups, the one OCC activity the student can open is theirs.
   function occFromAccess(activities) {
@@ -506,11 +529,33 @@
       courses: '课程', type: '类型', all: '全部', zipping: '正在打包', of: '/', previewUnavailable: '此文件类型无法预览。', close: '关闭', permissionDenied: '通知权限未获允许。', coursePack: '课程资料包 (.zip)' }
   };
   const LANGS = { en: 'en-MY', ms: 'ms-MY', zh: 'zh-CN' };
+  // Overview and sync status strings.
+  Object.assign(STRINGS.en, { overview: 'Overview', syncStatus: 'Sync status', drive: 'Google Drive', gcal: 'Google Calendar', plannerData: 'Planner',
+    stSynced: 'Up to date', stSyncing: 'Syncing', stPaused: 'Paused', stAttention: 'Needs attention', stNotConnected: 'Not connected', stOff: 'Turned off', stNever: 'Not synced yet',
+    connectHint: 'Connect it from the UM Spec toolbar button.', lastSync: 'Last sync', items: 'items', dates: 'dates saved', inBackground: 'in the background',
+    openFolder: 'Open folder', openCalendar: 'Open calendar', dueWeek: 'Due in 7 days', overdueNow: 'Overdue', classesToday: 'Classes today', filesSynced: 'Files in Drive',
+    allGood: 'All synced', justNow: 'just now', needAttention: 'need attention' });
+  Object.assign(STRINGS.ms, { overview: 'Ringkasan', syncStatus: 'Status penyegerakan', drive: 'Google Drive', gcal: 'Google Calendar', plannerData: 'Perancang',
+    stSynced: 'Terkini', stSyncing: 'Sedang disegerakkan', stPaused: 'Dijeda', stAttention: 'Perlu perhatian', stNotConnected: 'Belum disambung', stOff: 'Dimatikan', stNever: 'Belum disegerakkan',
+    connectHint: 'Sambungkan melalui butang UM Spec di bar alat.', lastSync: 'Penyegerakan terakhir', items: 'item', dates: 'tarikh disimpan', inBackground: 'di latar belakang',
+    openFolder: 'Buka folder', openCalendar: 'Buka kalendar', dueWeek: 'Tamat dalam 7 hari', overdueNow: 'Lewat', classesToday: 'Kelas hari ini', filesSynced: 'Fail dalam Drive',
+    allGood: 'Semua disegerakkan', justNow: 'baru sahaja', needAttention: 'perlu perhatian' });
+  Object.assign(STRINGS.zh, { overview: '概览', syncStatus: '同步状态', drive: 'Google 云端硬盘', gcal: 'Google 日历', plannerData: '计划',
+    stSynced: '已是最新', stSyncing: '同步中', stPaused: '已暂停', stAttention: '需要处理', stNotConnected: '未连接', stOff: '已关闭', stNever: '尚未同步',
+    connectHint: '请通过工具栏的 UM Spec 按钮连接。', lastSync: '上次同步', items: '项', dates: '个日期已保存', inBackground: '（后台）',
+    openFolder: '打开文件夹', openCalendar: '打开日历', dueWeek: '7 天内截止', overdueNow: '已逾期', classesToday: '今日课程', filesSynced: '已存入云端硬盘',
+    allGood: '全部已同步', justNow: '刚刚', needAttention: '项需要处理' });
+  // The planner keeps one account's data. This tag (also stored with the data) tells whose it is, without storing the ID.
+  async function accountTag(userId) {
+    if (!/^[1-9]\d*$/.test(String(userId || ''))) return '';
+    const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('umspec-planner:' + userId));
+    return [...new Uint8Array(bytes)].map(b => b.toString(16).padStart(2, '0')).join('');
+  }
   function t(lang, key) { return (STRINGS[lang] || STRINGS.en)[key] ?? STRINGS.en[key] ?? key; }
 
   const api = { ORIGIN, DAY, MINUTE, KINDS, DATA_VERSION, STRINGS, LANGS, t, clip, safeUrl, mytParts, mytInstant, dayKey, startOfDay, startOfWeek, hhmm,
     parseOcc, occMatches, detectOcc, courseMeta, parseDateText, parseTimeRange, parseSessionTime, statusKind, sessionType, parseAttendanceRows,
-    classifyEvent, outstandingFromActionEvents, itemState, fileType, normaliseMaterials, attendanceActivities, occFromAccess, attendanceFromCalendar, attendanceToRead, cmidFromUrl, newsForum, newsForums, newsForumEntries, isAnnouncementForum, announcementItems,
+    classifyEvent, outstandingFromActionEvents, itemState, fileType, normaliseMaterials, attendanceActivities, occFromAccess, attendanceFromCalendar, attendanceToRead, accountTag, calendarGroups, occFromLocks, cmidFromUrl, newsForum, newsForums, newsForumEntries, isAnnouncementForum, announcementItems,
     attendanceItems, sanitizePlannerData, visibleItems, effectiveOcc, uniquePath, layoutDaySlots, buildTimetable, timetableCSV, sessionsICS, semesterWeek, reminderPlan, dueSoonCount };
   root.UmSpecPlannerCore = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

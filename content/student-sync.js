@@ -42,7 +42,7 @@
     if (typeof document === 'undefined') return String(value || '').replace(/<[^>]*>/g, ' ').trim();
     return new DOMParser().parseFromString(String(value || ''), 'text/html').body.textContent.trim();
   }
-  async function adaptCalendarResponse(payload, selectedIds) {
+  async function adaptCalendarResponse(payload, selectedIds, occ = null) {
     const data = payload?.[0]?.data;
     if (!Array.isArray(payload) || payload.length !== 1 || payload[0]?.error || !Array.isArray(data?.weeks)) {
       throw fail('CALENDAR_UNAVAILABLE', 'Official calendar sync unavailable on this Spectrum version.');
@@ -65,7 +65,15 @@
           // absence means nothing is left to hand in. The line lets Google Calendar and the UM Spec bot tell a missed
           // deadline from a finished one.
           const pending = Boolean(raw.action), quiz = raw.modulename === 'quiz';
-          const progress = !deadline ? '' : 'Spectrum: ' + (pending ? (quiz ? 'not attempted yet' : 'not submitted yet') : (quiz ? 'nothing left to attempt' : 'nothing left to submit'));
+          // A deadline labelled for another OCC (in its title, or by the AI's reading of the course) is kept, but says so,
+          // so Google Calendar and the UM Spec bot do not count it as the student's own work.
+          let cmid = null;
+          try { cmid = new URL(raw.url, ORIGIN).searchParams.get('id'); } catch {}
+          const forOcc = deadline && occ ? root.UmSpecPlannerCore?.parseOcc?.(plainText(raw.name)) || occ.ai(courseId, cmid) : null;
+          const mine = forOcc ? occ.mine(courseId) : null;
+          const other = Boolean(mine && forOcc && !forOcc.includes(mine));
+          const progress = !deadline ? '' : 'Spectrum: ' + (other ? 'for OCC ' + forOcc.join(', ') + ', not your OCC (' + mine + ')' :
+            pending ? (quiz ? 'not attempted yet' : 'not submitted yet') : (quiz ? 'nothing left to attempt' : 'nothing left to submit'));
           const title = plainText(raw.name), description = [plainText(raw.description), progress].filter(Boolean).join('\n');
           let sourceUrl = ORIGIN + '/calendar/view.php?view=event&id=' + raw.id;
           try {
@@ -103,6 +111,7 @@
     const records = new Map(), failures = [];
     const sesskey = exporter()?.getSesskey();
     if (!sesskey) return { records: [], complete: false, failures: [{ message: 'Sign in to Spectrum before scanning dates.' }] };
+    const occ = await occContext();
     for (const { year, month } of calendarMonths(now)) {
       signal?.throwIfAborted();
       try {
@@ -114,7 +123,7 @@
           } }])
         });
         if (!response.ok) throw fail('CALENDAR_UNAVAILABLE', 'Official calendar read was denied (' + response.status + ').');
-        const items = await adaptCalendarResponse(await response.json(), courseIds);
+        const items = await adaptCalendarResponse(await response.json(), courseIds, occ);
         for (const record of items) records.set(record.sourceKey, record);
         progress({ year, month });
       } catch (error) {
@@ -207,13 +216,91 @@
     return announcements().normalisePost(postFromDocument(doc, candidate.sourceUrl, candidate.courseId, candidate.forumId, candidate.postId));
   }
   // The student's OCC per course, as the planner knows it; null keeps every OCC (unknown, or "show every OCC" chosen).
-  async function plannerOcc() {
+  // The student's OCC per course (their choice first, then detection) and the AI's per-activity readings.
+  async function occContext() {
     try {
       const meta = await root.chrome?.runtime?.sendMessage?.({ type: 'PLANNER_META' });
       const data = meta?.data || meta;
-      if (!data || data.showAllOcc) return () => null;
-      return courseId => Object.hasOwn(data.occ || {}, courseId) ? data.occ[courseId] || null : data.detectedOcc?.[courseId]?.occ || null;
-    } catch { return () => null; }
+      if (!data) return null;
+      // OCC choices saved for another Spectrum account (before an account switch) must never label this one's deadlines.
+      let userId = null; try { userId = exporter()?.getContext?.()?.userId || null; } catch {}
+      const tag = userId ? await root.UmSpecPlannerCore?.accountTag?.(userId) : '';
+      if (!tag || (data.userHash && data.userHash !== tag)) return null;
+      return { showAll: Boolean(data.showAllOcc),
+        mine: courseId => Object.hasOwn(data.occ || {}, courseId) ? data.occ[courseId] || null : data.detectedOcc?.[courseId]?.occ || null,
+        ai: (courseId, cmid) => data.aiOcc?.[courseId]?.[cmid] || null };
+    } catch { return null; }
+  }
+  // ---------- OCC check-in: the student confirms or types each course's OCC before a manual sync ----------
+  const OCC_ASKED = 'umspec_occ_asked';
+  const OCC_VALUE = /^\d{1,2}[A-Z]?$/;
+  function occAsked() { try { return JSON.parse(localStorage.getItem(OCC_ASKED) || '{}'); } catch { return {}; } }
+  async function occRows(courses) {
+    let data = null;
+    try { const meta = await root.chrome?.runtime?.sendMessage?.({ type: 'PLANNER_META' }); data = meta?.data || meta || null; } catch {}
+    let userId = null; try { userId = exporter()?.getContext?.()?.userId || null; } catch {}
+    const tag = userId ? await root.UmSpecPlannerCore?.accountTag?.(userId) : '';
+    // Choices saved for another Spectrum account are not shown as this one's.
+    const own = data && (!data.userHash || data.userHash === tag);
+    return { tag, rows: courses.map(course => {
+      const id = String(course.id), manual = own && Object.hasOwn(data.occ || {}, id) ? data.occ[id] || '' : null;
+      const detected = own ? data.detectedOcc?.[id]?.occ || '' : '';
+      return { id, name: String(course.fullName || course.name || course.shortName || id).slice(0, 90), value: manual ?? detected, auto: manual == null && Boolean(detected), known: manual != null || Boolean(detected) };
+    }) };
+  }
+  // Opens the form; resolves true when saved, false when skipped. `always` opens it even when every OCC is known.
+  async function askOcc({ courses = exporter()?.selectedCourses?.() || [], always = false } = {}) {
+    const modal = typeof document !== 'undefined' && document.getElementById('umspec-modal');
+    if (!modal || !courses.length) return false;
+    const { tag, rows } = await occRows(courses);
+    const key = tag + ':' + rows.map(row => row.id).sort().join(',');
+    if (!always && (rows.every(row => row.known) || occAsked()[key])) return false;
+    return new Promise(resolve => {
+      document.getElementById('umspec-occ-ask')?.remove();
+      const box = node('div', null, 'umspec-occ-ask'); box.id = 'umspec-occ-ask';
+      box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-labelledby', 'umspec-occ-ask-title');
+      const card = node('div', null, 'umspec-occ-card');
+      const title = node('h3', 'Your class group (OCC) for each course'); title.id = 'umspec-occ-ask-title';
+      const list = node('div', null, 'umspec-occ-list'), inputs = [];
+      for (const row of rows) {
+        const label = node('label', null, 'umspec-occ-row');
+        const name = node('span', row.name, 'umspec-occ-name');
+        const input = node('input'); input.type = 'text'; input.maxLength = 3; input.value = row.value; input.placeholder = '—';
+        input.setAttribute('aria-label', 'OCC for ' + row.name); input.autocomplete = 'off'; input.inputMode = 'text';
+        label.append(name, row.auto ? node('small', 'auto', 'umspec-occ-auto') : node('small', '', 'umspec-occ-auto'), input);
+        list.append(label); inputs.push({ row, input });
+      }
+      const error = node('p', '', 'umspec-occ-error'); error.setAttribute('role', 'alert');
+      const actions = node('div', null, 'umspec-occ-actions');
+      const skip = node('button', always ? 'Cancel' : 'Skip for now'); skip.type = 'button';
+      const save = node('button', always ? 'Save' : 'Save and continue', 'umspec-occ-save'); save.type = 'button';
+      actions.append(skip, save);
+      card.append(title, list, error, actions); box.append(card); modal.append(box);
+      const close = result => {
+        box.remove();
+        if (!always) { const asked = occAsked(); asked[key] = Date.now(); try { localStorage.setItem(OCC_ASKED, JSON.stringify(asked)); } catch {} }
+        resolve(result);
+      };
+      skip.addEventListener('click', () => close(false));
+      box.addEventListener('keydown', event => { if (event.key === 'Escape') { event.stopPropagation(); close(false); } });
+      save.addEventListener('click', async () => {
+        const values = inputs.map(({ row, input }) => ({ row, value: input.value.trim().toUpperCase().replace(/^OCC\s*[-_]?\s*/, ''), input }));
+        const bad = values.find(item => item.value && !OCC_VALUE.test(item.value));
+        if (bad) { error.textContent = 'Use a number with an optional letter, such as 4 or 1M.'; bad.input.focus(); return; }
+        save.disabled = true;
+        for (const { row, value } of values) {
+          if (value === row.value && (row.auto || !row.known)) continue;
+          try { await root.chrome.runtime.sendMessage({ type: 'PLANNER_SET_OCC', courseId: row.id, occ: value }); } catch {}
+        }
+        close(true);
+      });
+      (inputs.find(({ row }) => !row.known)?.input || inputs[0]?.input || save).focus();
+    });
+  }
+  // null keeps every OCC (unknown, or "show every OCC" chosen).
+  async function plannerOcc() {
+    const context = await occContext();
+    return context && !context.showAll ? context.mine : () => null;
   }
   async function discoverAnnouncements(courseIds, signal, cursor = null, progress = () => {}) {
     const posts = [], failures = [], unreadable = [];
@@ -557,6 +644,7 @@
       let selected = exporter().selectedCourses().map(course => String(course.id));
       if (!selected.length && typeof document !== 'undefined' && !document.getElementById('umspec-courses-container')) selected = status.settings.courseIds;
       if (!selected.length) throw fail('SELECT_COURSES', 'Select at least one course above.');
+      await askOcc().catch(() => {});
       await command({ type: 'SAVE_SETTINGS', settings: {
         courseIds: selected, videoPolicy: exporter().videoPolicy()
       } });
@@ -910,6 +998,7 @@
         <label class="umspec-setting-row"><span><strong>Automatic Drive updates</strong><small>Check when you open Spectrum.</small></span><span class="umspec-switch"><input type="checkbox" name="autoSync"><span class="umspec-slider" aria-hidden="true"></span></span></label>
         <p data-auto-hint class="umspec-helper">Connect Drive and complete one sync to enable automatic updates.</p>
         <p class="umspec-helper">Hosted recordings stay as links. Drive files over 50 MiB are linked.</p>
+        <div class="umspec-occ-setup"><span><strong>Class groups (OCC)</strong><small>Check or change your OCC for each selected course.</small></span><button type="button" data-occ-edit>Set my OCC</button></div>
       </section>
       <section id="umspec-settings-calendar" data-settings-view="calendar" role="tabpanel" hidden>
         <h3 class="umspec-provider-heading"><img src="${runtimeIcon('icons/google-calendar.svg')}" alt="" width="28" height="28">Calendar preferences</h3>
@@ -922,6 +1011,7 @@
         <div class="umspec-cleanup" data-cleanup><h4>Drive clean-up</h4><p class="umspec-helper" data-cleanup-text>Find extra copies of files UM Spec uploaded more than once. Files you added yourself are never touched.</p><ul data-cleanup-list hidden></ul><div class="umspec-sync-actions"><button type="button" data-cleanup-find>Find duplicates</button><button type="button" data-cleanup-apply hidden>Move to Drive trash</button></div></div></section>
       <div class="umspec-sync-actions"><div class="umspec-settings-connection" data-settings-connection><img data-settings-provider="drive" src="${runtimeIcon('icons/google-drive.svg')}" alt="" width="26" height="26"><img data-settings-provider="calendar" src="${runtimeIcon('icons/google-calendar.svg')}" alt="" width="26" height="26" hidden><span data-settings-provider-status>Checking Google Drive…</span></div><span data-settings-saved role="status"></span><button type="button" data-sync-save>Save changes</button></div>`;
     host.append(panel);
+    panel.querySelector('[data-occ-edit]')?.addEventListener('click', () => askOcc({ always: true }).catch(error => messageText(error.message)));
     const extras = document.getElementById('umspec-extra-settings');
     if (extras) panel.querySelector('[data-settings-view="about"]').append(extras);
     wireTabs(panel, 'settings');
@@ -990,7 +1080,7 @@
       input.value = choice.dataset.modeChoice;
       input.dispatchEvent(new Event('change', { bubbles: true }));
     });
-    dates.querySelector('[data-sync-now]').addEventListener('click', () => analyseDates({ force: true }));
+    dates.querySelector('[data-sync-now]').addEventListener('click', () => askOcc().catch(() => {}).then(() => analyseDates({ force: true })));
     dates.querySelector('[data-date-stop]').addEventListener('click', stopDateAnalysis);
     home.querySelector('[data-sync-pause]').addEventListener('click', () => {
       controller?.abort(); command({ type: 'PAUSE_SYNC' }).then(() => messageText('Sync paused.')).catch(error => messageText(error.message));
@@ -998,7 +1088,7 @@
     refreshPanel();
   }
   const api = { safeSpectrumUrl, calendarMonths, shouldRunFeature, adaptCalendarResponse, makeReviewFields,
-    announcementForum, safeForumPage, discoverOfficialEvents, discoverAnnouncements, refreshPost, exportOrSync, syncNow, refreshPanel,
+    askOcc, announcementForum, safeForumPage, discoverOfficialEvents, discoverAnnouncements, refreshPost, exportOrSync, syncNow, refreshPanel,
     analyseDates, stopDateAnalysis, dateRecords, onTabChange,
     savedCourseIds: () => contextReady && status?.settings?.courseIds?.length ? [...status.settings.courseIds] : null };
   root.UmSpecStudentSync = api;

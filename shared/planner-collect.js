@@ -69,6 +69,8 @@
       seen.add(cmid);
       // A locked activity shows "Not available unless: You belong to GROUP 7 …" and has no link to open.
       const restricted = !link && /not available unless|tidak tersedia melainkan/i.test(text(element));
+      // The lock names the group it is for ("You belong to GROUP 7 2026/2027_1"), which is that OCC.
+      const lockOcc = restricted ? core().parseOcc(text(element.querySelector('.availabilityinfo, [data-region="availabilityinfo"]') || element).replace(/^[\s\S]*?(?=not available unless|tidak tersedia melainkan)/i, '')) : null;
       const nameNode = (first('.instancename') || first('.activityname') || link)?.cloneNode(true);
       nameNode?.querySelectorAll?.('.accesshide, .sr-only, .visually-hidden, .availabilityinfo, [data-region="availabilityinfo"]').forEach(n => n.remove());
       const section = element.closest('li.section, [data-for="section"], .course-section, section.section');
@@ -77,7 +79,7 @@
       const sectionName = text(heading) || section?.getAttribute('aria-label') || 'General';
       const icon = element.querySelector('img.activityicon, img.iconlarge, .activityiconcontainer img, img')?.getAttribute('src') || '';
       const name = text(nameNode).replace(/\s*(?:Not available unless|Tidak tersedia melainkan)\b.*$/i, '').trim();
-      out.push({ cmid, modtype, name: name || element.getAttribute('data-activityname') || 'Activity', url: url ? url.href : '', section: sectionName, icon, restricted });
+      out.push({ cmid, modtype, name: name || element.getAttribute('data-activityname') || 'Activity', url: url ? url.href : '', section: sectionName, icon, restricted, lockOcc });
     }
     return out;
   }
@@ -194,7 +196,7 @@
           } catch (error) { if (error.code === 'LOGIN_REQUIRED') throw error; warnings.push(course.code + ' attendance: ' + error.message); }
         });
         for (const item of c.attendanceItems(sessions)) items.set(item.key, item);
-        const detected = c.detectOcc({ groups: groups[course.id] || [], sessions, activities });
+        const detected = c.detectOcc({ groups: [...(groups[course.id] || []), ...c.calendarGroups([...items.values()], course.id)], sessions, activities });
         if (detected) detectedOcc[course.id] = detected;
       } catch (error) {
         if (error.code === 'LOGIN_REQUIRED' || signal?.aborted) throw error;

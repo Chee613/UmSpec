@@ -376,3 +376,40 @@ test('OCC labels and announcement forums are recognised in the forms lecturers a
   assert.deepEqual(post.occ, ['3'], 'a post without its own OCC label takes its forum\'s OCC');
   assert.equal(C.occMatches(post.occ, '4'), false);
 });
+
+test('OCC is detected from the student\'s calendar groups, or from the one OCC whose items are not locked', () => {
+  const items = [{ courseId: '25562', title: 'Attendance (Group GROUP 3 2026/2027_1)' }, { courseId: '25562', title: 'Quiz 1 is due' }, { courseId: '9', title: 'Attendance (Group GROUP 1 2026/2027_1)' }];
+  assert.deepEqual(C.calendarGroups(items, '25562'), ['GROUP 3 2026/2027_1']);
+  assert.deepEqual(C.detectOcc({ groups: C.calendarGroups(items, '25562') }), { occ: '3', source: 'group' });
+  // KIG2013: sections "…_OCC_1_…", "…_OCC_2_…", "…_OCC_3_…"; OCC 1 and 2 items are locked to their groups.
+  const activities = [
+    { name: 'Lecture notes', section: 'KIG2013_SEM 1_26/27_ OCC_1_Dr. Meor/Dr. Judha' },
+    { name: 'WhatsApp Group for Occ_2', section: 'General' },
+    { name: 'Week 1', section: 'KIG2013_SEM 1_26/27_OCC_3_Dr. Nashrul/Dr.Abdo' },
+    { name: 'Quiz 2', section: 'KIG2013_SEM 1_26/27_ OCC_1_Dr. Meor/Dr. Judha', restricted: true, lockOcc: ['1'] },
+    { name: 'Tutorial 2 Assignment submission', section: 'KIG2013_SEM 1_26/27_OCC_2_Dr. Abdo/Dr. Meor', restricted: true, lockOcc: ['2'] }];
+  assert.deepEqual(C.detectOcc({ activities }), { occ: '3', source: 'attendance' });
+  assert.equal(C.occFromLocks(activities.slice(0, 3)), null, 'nothing locked means nothing to rule out');
+  assert.equal(C.occFromLocks([...activities, { name: 'Lab', section: 'OCC 4', restricted: false }]), null, 'two OCCs left is not an answer');
+  assert.deepEqual(C.parseOcc('KIG2013_SEM 1_26/27_OCC_3_Dr. Nashrul'), ['3']);
+  assert.equal(C.parseOcc('Soccer 3'), null);
+});
+
+test('reading a course page with an activity locked to another group keeps the lock\'s OCC instead of failing', () => {
+  const collect = require('../shared/planner-collect.js');
+  const node = (props = {}) => ({ textContent: '', classList: [], id: '', children: {}, attrs: {}, ...props,
+    getAttribute(name) { return this.attrs[name] ?? null; }, querySelector(sel) { return this.children[sel] || null; },
+    querySelectorAll(sel) { return this.children[sel] ? [this.children[sel]] : []; }, closest() { return this.parent || null; },
+    cloneNode() { return node({ textContent: this.textContent }); } });
+  const section = node({ children: { '.sectionname': node({ textContent: 'Topic 3' }) } });
+  const lock = node({ textContent: 'Not available unless: You belong to GROUP 2 2026/2027_1' });
+  const locked = node({ id: 'module-1146064', classList: ['activity', 'modtype_assign'], parent: section,
+    textContent: 'Technical Memo 1 Submission for Occ2/Group 2 Not available unless: You belong to GROUP 2 2026/2027_1',
+    children: { '.instancename': node({ textContent: 'Technical Memo 1 Submission for Occ2/Group 2' }), '.availabilityinfo, [data-region="availabilityinfo"]': lock } });
+  locked.closest = sel => sel.startsWith('li.activity') ? locked : section;
+  const doc = { querySelectorAll: sel => sel.startsWith('li.activity') ? [locked] : [] };
+  const [activity] = collect.courseActivities(doc);
+  assert.equal(activity.restricted, true);
+  assert.deepEqual(activity.lockOcc, ['2']);
+  assert.equal(activity.section, 'Topic 3');
+});

@@ -416,3 +416,24 @@ test('announcement forums are found by the word anywhere in their name', () => {
   assert.equal(sync.announcementForum('Makluman OCC-3', '/mod/forum/view.php?id=8'), 'https://spectrum.um.edu.my/mod/forum/view.php?id=8');
   assert.equal(sync.announcementForum('Company Website', '/mod/forum/view.php?id=9'), null);
 });
+
+test('a deadline for another OCC is kept in Calendar but labelled as not the student\'s', async () => {
+  require('../shared/planner-core.js');
+  const event = (id, name, url, action) => ({ id, courseid: 25559, name, eventtype: 'due', modulename: 'assign', timestart: 1794758340, timeduration: 0,
+    url: 'https://spectrum.um.edu.my/mod/assign/view.php?id=' + url, ...(action ? { action: { name: 'Add submission' } } : {}) });
+  const payload = [{ data: { weeks: [{ days: [{ events: [
+    event(1, 'Assignment. Occ 1, Occ 1M is due', 1128831, true),
+    event(2, 'Online class quiz is due', 1128814, true),
+    event(3, 'Pop Quiz. DC. is due', 1141243, true),
+    event(4, 'Tutorial 3 (Occ3) is due', 1150000, false)
+  ] }] }] } }];
+  const occ = { mine: id => id === '25559' ? '3' : null, ai: (id, cmid) => cmid === '1128814' ? ['1', '1M'] : null };
+  const records = await sync.adaptCalendarResponse(payload, ['25559'], occ);
+  const line = id => records.find(r => r.sourceKey.endsWith(':event:' + id)).description;
+  assert.match(line(1), /^Spectrum: for OCC 1, 1M, not your OCC \(3\)$/m, 'the title names other OCCs');
+  assert.match(line(2), /^Spectrum: for OCC 1, 1M, not your OCC \(3\)$/m, 'the AI placed it with OCC 1, 1M');
+  assert.match(line(3), /^Spectrum: not submitted yet$/m, 'no OCC label: for everyone');
+  assert.match(line(4), /^Spectrum: nothing left to submit$/m, 'the student\'s own OCC');
+  const unknown = await sync.adaptCalendarResponse(payload, ['25559'], { mine: () => null, ai: () => null });
+  assert.match(unknown.find(r => r.sourceKey.endsWith(':event:1')).description, /not submitted yet/, 'with no known OCC nothing is hidden');
+});
