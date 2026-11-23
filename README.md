@@ -123,6 +123,12 @@ Checks run while Spectrum is open and signed in, with a 15-minute cooldown per f
 
 Google integration is Chrome-first and still needs an authenticated live pilot after OAuth setup. Keep ZIP available on other supported Chromium browsers until their Google sign-in paths are verified.
 
+## Telegram bot (optional)
+
+Chat with your courses from your phone. Ask *"What's due this week?"* or *"Send me the week 4 slides for WIA2001"*, and the bot answers from what UM Spec synced to Drive and Calendar. It runs free on Google Apps Script with a Gemini API key. It never sees your SPeCTRUM password, and its Google access is read-only.
+
+It needs Drive and Calendar connected here first. **[Set up the UM Spec Bot →](https://github.com/Chee613/gdg-workshop/tree/main/agentic-ai/umspec-bot)**
+
 ## Development checks
 
 Run **node --test tests/*.test.cjs** for the dependency-free regression suite. Build the extension with **python scripts/build_release_zip.py**; this includes the background/shared/setup files and excludes backend secrets and test fixtures.
