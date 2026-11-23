@@ -104,6 +104,109 @@ async function callGemini(keys, prompt, pdfBase64, primaryModel, fallbackModel) 
   throw (lastError || new Error('All Gemini models and API keys exhausted.'));
 }
 
+// ---------- Course layout reading (POST /api/v1/course/layout) ----------
+// Each course labels its class groups its own way ("OCC 3", "G1", "Group 1M", "Kumpulan 2", lab groups "W3-1").
+// The extension sends only the course's structure (activity titles, types, section names and lock text); the AI
+// says which OCC each activity is for. One answer per course page version is cached for every student.
+const LAYOUT_LIMITS = { activities: 400, name: 140, section: 120, lock: 160 };
+const OCC_TOKEN = /^[0-9]{1,2}[A-Z]?$/;
+const clipText = (value, max) => String(value ?? '').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+
+function cleanLayoutRequest(body) {
+  const courseId = String(body?.courseId ?? '');
+  if (!/^[1-9]\d{0,9}$/.test(courseId)) throw new Error('courseId must be a Spectrum course number.');
+  const list = Array.isArray(body?.activities) ? body.activities : [];
+  if (!list.length || list.length > LAYOUT_LIMITS.activities) throw new Error('Send between 1 and ' + LAYOUT_LIMITS.activities + ' activities.');
+  const seen = new Set();
+  const activities = [];
+  for (const raw of list) {
+    const id = String(raw?.id ?? '');
+    if (!/^[1-9]\d{0,9}$/.test(id) || seen.has(id)) continue;
+    seen.add(id);
+    activities.push({ id, type: clipText(raw.type, 30).toLowerCase(), name: clipText(raw.name, LAYOUT_LIMITS.name),
+      section: clipText(raw.section, LAYOUT_LIMITS.section), lock: clipText(raw.lock, LAYOUT_LIMITS.lock) });
+  }
+  if (!activities.length) throw new Error('No valid activities.');
+  return { courseId, courseCode: clipText(body.courseCode, 20).toUpperCase(), activities };
+}
+
+function layoutPrompt(request) {
+  const rows = request.activities.map(a => [a.id, a.type, a.name, a.section, a.lock].join(' | ')).join('\n');
+  return `You read the course page structure of a Universiti Malaya SPeCTRUM (Moodle) course ${request.courseCode || ''}.
+Students are split into class occurrences (OCC). Lecturers label them in many ways: "OCC 3", "Occ_2", "OCCs 1, 2, 4",
+"Kumpulan 2", "G1", "G1M", "Group 1M", or Moodle groups such as "GROUP 3 2026/2027_1" (that number is the OCC).
+"Group" can also mean a lab group ("W3-1") or a project team, which are NOT OCCs.
+A "lock" such as "Not available unless: You belong to GROUP 7 2026/2027_1" means the activity is only for OCC 7.
+A section may belong to one lecturer who teaches certain OCCs; use the OCC-labelled activities inside it as evidence.
+
+Activities (id | type | title | section | lock):
+${rows}
+
+Return STRICTLY this JSON, listing ONLY activities meant for some OCCs (leave out activities for everyone):
+{"groupStyle":"short note on how this course labels OCCs",
+ "activities":[{"id":"123","occ":["1","1M"],"why":"title says G1, G1M"}],
+ "sections":[{"name":"exact section name","occ":["4","7"],"why":"its tutorials are labelled OCC4 and OCC7"}]}
+Rules: OCC values are numbers with an optional letter ("1", "1M"). Never guess an OCC without evidence in the titles,
+sections or locks. Lab groups and project teams are not OCCs.`;
+}
+
+// Models sometimes answer with keyed objects ({"123": {...}}) instead of lists, or with "OCC 1, 1M" as one string;
+// both shapes are accepted, and anything that is not a known activity, section or OCC number is dropped.
+function entriesOf(value, keyName) {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === 'object') return Object.entries(value).map(([key, item]) => ({ [keyName]: key, ...(Array.isArray(item) ? { occ: item } : item) }));
+  return [];
+}
+function cleanLayoutResult(parsed, request) {
+  // The answer is sometimes wrapped in a list ([{ "activities": ... }]); its first object is the answer.
+  if (Array.isArray(parsed)) parsed = parsed.find(item => item && typeof item === 'object' && (item.activities || item.sections)) || {};
+  const ids = new Set(request.activities.map(a => a.id));
+  const sectionNames = new Set(request.activities.map(a => a.section));
+  const tokens = list => [...new Set((Array.isArray(list) ? list : String(list ?? '').split(/[,;/&]|\band\b/i))
+    .map(t => String(t).toUpperCase().replace(/^\s*(?:OCC|G|GROUP|KUMPULAN)\s*[-_]?\s*/, '').trim().replace(/^0+(?=\d)/, ''))
+    .filter(t => OCC_TOKEN.test(t)))].slice(0, 20);
+  const activities = {};
+  for (const item of entriesOf(parsed?.activities, 'id')) {
+    const id = String(item?.id ?? item?.activityId ?? item?.cmid ?? ''), occ = tokens(item?.occ ?? item?.occs);
+    if (ids.has(id) && occ.length) activities[id] = { occ, why: clipText(item.why, 120) };
+  }
+  const sections = {};
+  for (const item of entriesOf(parsed?.sections, 'name')) {
+    const name = clipText(item?.name ?? item?.section, LAYOUT_LIMITS.section), occ = tokens(item?.occ ?? item?.occs);
+    if (sectionNames.has(name) && occ.length) sections[name] = { occ, why: clipText(item.why, 120) };
+  }
+  return { version: 1, courseId: request.courseId, groupStyle: clipText(parsed?.groupStyle, 200), activities, sections };
+}
+
+async function handleCourseLayout(request, env) {
+  const json = (data, status = 200, extra = {}) => new Response(JSON.stringify(data), { status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json', ...extra } });
+  let clean;
+  try { clean = cleanLayoutRequest(await request.json()); } catch (error) { return json({ error: error.message || 'Invalid JSON payload' }, 400); }
+  const cacheKey = 'layout:v3:' + clean.courseId + ':' + await computeHash(JSON.stringify(clean.activities));
+  if (env.UMSPEC_CACHE) {
+    try {
+      const cached = await env.UMSPEC_CACHE.get(cacheKey, 'json');
+      if (cached) return json({ ...cached, cached: true }, 200, { 'X-Cache': 'HIT-KV' });
+    } catch (kvErr) { console.warn('[UmSpec] KV read error:', kvErr); }
+  }
+  const keys = getKeyPool(env);
+  if (!keys.length) return json({ error: 'GEMINI_API_KEYS secret not set in Cloudflare Worker environment variables.' }, 500);
+  try {
+    const ai = await callGemini(keys, layoutPrompt(clean), null, env.PRIMARY_MODEL || 'gemini-3.5-flash-lite', env.FALLBACK_MODEL || 'gemini-3.1-flash-lite');
+    let parsed = null;
+    try { parsed = JSON.parse(ai.text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim()); } catch {}
+    if (!parsed) return json({ error: 'The AI answer was not valid JSON.' }, 502);
+    const result = { ...cleanLayoutResult(parsed, clean), modelUsed: ai.modelUsed, analysedAt: new Date().toISOString() };
+    // An empty answer may just mean the course labels nothing by OCC, but it is retried after a day in case the model slipped.
+    const empty = !Object.keys(result.activities).length && !Object.keys(result.sections).length;
+    if (empty) result.rawStart = clipText(ai.text, 300);
+    if (env.UMSPEC_CACHE) await env.UMSPEC_CACHE.put(cacheKey, JSON.stringify(result), { expirationTtl: 60 * 60 * 24 * (empty ? 1 : 90) }).catch(() => {});
+    return json({ ...result, cached: false }, 200, { 'X-Cache': 'MISS' });
+  } catch (err) {
+    return json({ error: err.message }, 502);
+  }
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === 'OPTIONS') {
@@ -129,6 +232,8 @@ export default {
         headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
       });
     }
+
+    if (url.pathname === '/api/v1/course/layout' && request.method === 'POST') return handleCourseLayout(request, env);
 
     // ==========================================
     // 2. Campus Cache Lookup (GET /api/v1/course/:code/deadlines)

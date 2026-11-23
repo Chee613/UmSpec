@@ -2,9 +2,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const sync = require('../content/student-sync.js');
 
-test('six-month scan uses the Malaysia month across UTC boundaries', () => {
+test('the date scan reads last month and six months ahead, using the Malaysia month across UTC boundaries', () => {
   assert.deepEqual(sync.calendarMonths('2026-12-31T18:00:00Z'), [
-    { year: 2027, month: 1 }, { year: 2027, month: 2 }, { year: 2027, month: 3 },
+    { year: 2026, month: 12 }, { year: 2027, month: 1 }, { year: 2027, month: 2 }, { year: 2027, month: 3 },
     { year: 2027, month: 4 }, { year: 2027, month: 5 }, { year: 2027, month: 6 }
   ]);
 });
@@ -80,7 +80,7 @@ test('announcement forums require a recognised name and exact Spectrum forum URL
   assert.throws(() => sync.safeForumPage('/course/view.php?id=5', '/mod/forum/view.php?id=5'));
 });
 
-test('official scanner performs six read requests and deduplicates monthly IDs', async t => {
+test('official scanner reads seven months, deduplicates monthly IDs and records submission status', async t => {
   const oldFetch = global.fetch, oldExporter = global.UmSpecExporter;
   t.after(() => { global.fetch = oldFetch; global.UmSpecExporter = oldExporter; });
   global.UmSpecExporter = { getSesskey: () => 'synthetic-session-key' };
@@ -88,16 +88,23 @@ test('official scanner performs six read requests and deduplicates monthly IDs',
   global.fetch = async (url, options) => {
     requests.push({ url, options });
     return { ok: true, redirected: false, json: async () => [{ data: { weeks: [{ days: [{ events: [
-      { id: 77, courseid: 123, name: 'Report', eventtype: 'due', modulename: 'assign', timestart: 1794758340, timeduration: 0 }
+      { id: 77, courseid: 123, name: 'Report', eventtype: 'due', modulename: 'assign', timestart: 1794758340, timeduration: 0 },
+      { id: 78, courseid: 123, name: 'Tutorial 5', eventtype: 'due', modulename: 'assign', timestart: 1794758340, timeduration: 0,
+        action: { name: 'Add submission', actionable: true } },
+      { id: 79, courseid: 123, name: 'Quiz 2', eventtype: 'close', modulename: 'quiz', timestart: 1794758340, timeduration: 0 }
     ] }] }] } }] };
   };
   const result = await sync.discoverOfficialEvents(['123'], undefined, '2026-10-24T00:00:00Z');
   assert.equal(result.complete, true);
-  assert.equal(result.records.length, 1);
-  assert.equal(requests.length, 6);
+  assert.equal(result.records.length, 3);
+  assert.equal(requests.length, 7);
   const body = JSON.parse(requests[0].options.body);
   assert.equal(body[0].methodname, 'core_calendar_get_calendar_monthly_view');
-  assert.equal(body[0].args.month, 10);
+  assert.equal(body[0].args.month, 9);
+  const line = id => result.records.find(record => record.sourceKey.endsWith(':event:' + id)).description;
+  assert.match(line(77), /^Spectrum: nothing left to submit$/m);
+  assert.match(line(78), /^Spectrum: not submitted yet$/m);
+  assert.match(line(79), /^Spectrum: nothing left to attempt$/m);
   assert.equal(requests[0].options.credentials, 'include');
 });
 
@@ -387,4 +394,46 @@ test('a finished Drive sync names the items that failed instead of only counting
   await sync.syncNow();
   assert.match(output.textContent, /1 failed/);
   assert.match(output.textContent, /Affected: Notes\.pdf \(SPECTRUM_HTTP_404\)\./);
+});
+
+test('an expired session on the single sign-on page reads as sign-in required, not a changed announcement layout', async t => {
+  const previous = { fetch: global.fetch, parser: global.DOMParser };
+  t.after(() => { global.fetch = previous.fetch; global.DOMParser = previous.parser; });
+  const candidate = { sourceUrl: 'https://spectrum.um.edu.my/mod/forum/discuss.php?d=5', courseId: '1', forumId: '2', postId: '3' };
+  for (const [landed, page] of [
+    ['https://spectrum.um.edu.my/login/index.php', { body: { id: 'page-login-index' }, selector: null }],
+    ['https://spectrum.um.edu.my/mod/forum/discuss.php?d=5', { body: { id: 'page-login-index' }, selector: null }],
+    ['https://login.microsoftonline.com/tenant/oauth2/authorize', { body: { id: 'other' }, selector: null }]
+  ]) {
+    global.fetch = async () => Object.defineProperty(new Response('<html></html>', { status: 200 }), 'url', { value: landed });
+    global.DOMParser = class { parseFromString() { return { body: page.body, querySelector: query => page.selector && query.includes(page.selector) ? {} : null, querySelectorAll: () => [] }; } };
+    await assert.rejects(sync.refreshPost(candidate), error => error.code === 'LOGIN_REQUIRED');
+  }
+});
+
+test('announcement forums are found by the word anywhere in their name', () => {
+  assert.equal(sync.announcementForum('Announcement from Dr. Tarak Nandy', '/mod/forum/view.php?id=7'), 'https://spectrum.um.edu.my/mod/forum/view.php?id=7');
+  assert.equal(sync.announcementForum('Makluman OCC-3', '/mod/forum/view.php?id=8'), 'https://spectrum.um.edu.my/mod/forum/view.php?id=8');
+  assert.equal(sync.announcementForum('Company Website', '/mod/forum/view.php?id=9'), null);
+});
+
+test('a deadline for another OCC is kept in Calendar but labelled as not the student\'s', async () => {
+  require('../shared/planner-core.js');
+  const event = (id, name, url, action) => ({ id, courseid: 25559, name, eventtype: 'due', modulename: 'assign', timestart: 1794758340, timeduration: 0,
+    url: 'https://spectrum.um.edu.my/mod/assign/view.php?id=' + url, ...(action ? { action: { name: 'Add submission' } } : {}) });
+  const payload = [{ data: { weeks: [{ days: [{ events: [
+    event(1, 'Assignment. Occ 1, Occ 1M is due', 1128831, true),
+    event(2, 'Online class quiz is due', 1128814, true),
+    event(3, 'Pop Quiz. DC. is due', 1141243, true),
+    event(4, 'Tutorial 3 (Occ3) is due', 1150000, false)
+  ] }] }] } }];
+  const occ = { mine: id => id === '25559' ? '3' : null, ai: (id, cmid) => cmid === '1128814' ? ['1', '1M'] : null };
+  const records = await sync.adaptCalendarResponse(payload, ['25559'], occ);
+  const line = id => records.find(r => r.sourceKey.endsWith(':event:' + id)).description;
+  assert.match(line(1), /^Spectrum: for OCC 1, 1M, not your OCC \(3\)$/m, 'the title names other OCCs');
+  assert.match(line(2), /^Spectrum: for OCC 1, 1M, not your OCC \(3\)$/m, 'the AI placed it with OCC 1, 1M');
+  assert.match(line(3), /^Spectrum: not submitted yet$/m, 'no OCC label: for everyone');
+  assert.match(line(4), /^Spectrum: nothing left to submit$/m, 'the student\'s own OCC');
+  const unknown = await sync.adaptCalendarResponse(payload, ['25559'], { mine: () => null, ai: () => null });
+  assert.match(unknown.find(r => r.sourceKey.endsWith(':event:1')).description, /not submitted yet/, 'with no known OCC nothing is hidden');
 });

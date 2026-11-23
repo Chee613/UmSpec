@@ -148,28 +148,7 @@
     return btoa(binary);
   }
 
-  // Helper: Extract clean course folder name
-  function formatCourseFolder(fullName, shortName) {
-    const raw = fullName || shortName || 'Course Materials';
-    const codeMatch = raw.match(/([A-Z]{3}\d{4})/i) || (shortName || '').match(/([A-Z]{3}\d{4})/i);
-    const code = codeMatch ? codeMatch[1].toUpperCase() : '';
-
-    let title = raw
-      .replace(/[A-Z]{3}\d{4}(?:\s*\/\s*[A-Z]{3}\d{4})*/gi, ' ')
-      .replace(/[\(\[\{].*?[\)\]\}]/g, ' ')
-      .replace(/\b(sem(?:ester)?\s*\d+|20\d\d\s*\/\s*20\d\d|occ\s*\d+|sec(?:tion)?\s*\d+|kumpulan\s*\d+)\b/gi, ' ')
-      .replace(/[^\w\s]/gi, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    const titleWords = title
-      .split(' ')
-      .filter(w => w.length > 0)
-      .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
-
-    const cleanTitle = titleWords.join(' ') || 'Course Materials';
-    return sanitizeName(code ? `${code} ${cleanTitle}` : cleanTitle);
-  }
+  const formatCourseFolder = (fullName, shortName) => globalThis.UmSpecCourseScan.formatCourseFolder(fullName, shortName);
 
   // Comprehensive UM Multi-Faculty Curriculum Knowledge Base (All 16 UM Faculties)
   const UM_CURRICULUM_CATALOG = {
@@ -735,70 +714,10 @@
     };
   }
 
-  // Adaptive Taxonomy Classification
-  function classifyAdaptiveCategory(actName, secName, ext) {
-    const text = `${actName} ${secName}`.toLowerCase();
-    const e = (ext || '').toLowerCase();
-
-    if (text.includes('past year') || text.includes('pyq') || text.includes('exam') || text.includes('peperiksaan') || text.includes('sample paper') || text.includes('mid term') || text.includes('midterm') || text.includes('test')) {
-      return { id: '4.Past Year Questions', label: 'Past Year & Tests' };
-    }
-    if (text.includes('tutorial') || text.includes('exercise') || text.includes('latihan') || text.includes('worksheet') || text.includes('tuto')) {
-      return { id: '2.Tutorials', label: 'Tutorials' };
-    }
-    if (text.includes('lab') || text.includes('practical') || text.includes('amali') || text.includes('hands-on')) {
-      return { id: '3.Lab Materials', label: 'Labs' };
-    }
-    if (text.includes('assignment') || text.includes('project') || text.includes('tugasan') || text.includes('rubric') || text.includes('milestone')) {
-      return { id: '5.Assignments & Projects', label: 'Assignments' };
-    }
-    if (text.includes('lecture') || text.includes('slide') || text.includes('kuliah') || text.includes('topic') || text.includes('week') || text.includes('nota') || text.includes('notes') || text.includes('chapter') || text.includes('unit')) {
-      return { id: '1.Lecture Slide', label: 'Lecture Slides' };
-    }
-    if (['.py', '.java', '.c', '.cpp', '.sql', '.html', '.js', '.css', '.ipynb', '.dart', '.kt', '.php'].includes(e) || text.includes('source code') || text.includes('script') || text.includes('code')) {
-      return { id: '6.Source Code & References', label: 'Source Code' };
-    }
-    if (['.mp4', '.mkv', '.avi', '.mov', '.mp3', '.webm', '.flv', '.m4v'].includes(e) || text.includes('recording') || text.includes('video') || text.includes('webinar') || text.includes('panopto') || text.includes('zoom meeting')) {
-      return { id: '7.Recordings & Media', label: 'Media & Videos' };
-    }
-    return { id: '1.Lecture Slide', label: 'General Course Materials' };
-  }
-
-  const VIDEO_EXTENSIONS = ['.mp4', '.mkv', '.avi', '.mov', '.mp3', '.webm', '.flv', '.m4v', '.wav', '.ogg'];
-  const EXTERNAL_VIDEO_DOMAINS = [
-    'panopto.com',
-    'panopto.eu',
-    'zoom.us',
-    'teams.microsoft.com',
-    'microsoftstream.com',
-    'webex.com',
-    'youtube.com',
-    'youtu.be',
-    'drive.google.com',
-    'vimeo.com',
-    'echo360',
-    'loom.com'
-  ];
-
-  function isExternalVideoUrl(url) {
-    if (!url) return false;
-    const lower = url.toLowerCase();
-    return EXTERNAL_VIDEO_DOMAINS.some(domain => lower.includes(domain));
-  }
-
-  function isVideoActivity(actName, actUrl, modType, categoryId) {
-    if (globalThis.UmSpecSync.isVideoMaterial({ name: actName, url: actUrl, type: modType, category: categoryId })) return true;
-    const text = `${actName}`.toLowerCase();
-    const extMatch = (actUrl || '').match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
-    const ext = extMatch ? `.${extMatch[1].toLowerCase()}` : '';
-
-    if (VIDEO_EXTENSIONS.includes(ext)) return true;
-    if (categoryId === '7.Recordings & Media') return true;
-    if (['kalvidres', 'panopto'].includes(modType)) return true;
-    if (text.includes('recording') || text.includes('lecture video') || text.includes('webinar') || text.includes('zoom meeting') || text.includes('panopto')) return true;
-
-    return false;
-  }
+  // Category, video and folder rules live in shared/course-scan.js so the background Drive sync files materials identically.
+  const classifyAdaptiveCategory = (...args) => globalThis.UmSpecCourseScan.classifyAdaptiveCategory(...args);
+  const isExternalVideoUrl = url => globalThis.UmSpecCourseScan.isExternalVideoUrl(url);
+  const isVideoActivity = (...args) => globalThis.UmSpecCourseScan.isVideoActivity(...args);
 
   // Get SPeCTRUM sesskey
   function getSesskey() {
@@ -2026,96 +1945,8 @@
     startBtn.innerHTML = `${ICONS.download} <span>${destinationMode === 'drive' ? 'Sync to Drive' : 'Download ZIP'}</span>`;
   }
 
-  // Parse activities from course HTML (shared by drawer, pre-flight analysis, and export)
-  function parseCourseActivitiesFromHTML(cHtml, course) {
-    const cDoc = new DOMParser().parseFromString(cHtml, 'text/html');
-    if (cDoc.querySelector('form#login, input[name="password"]')) throw new Error('Spectrum session expired. Sign in again.');
-    const items = [];
-    const externalLinks = [];
-    const seenUrls = new Set();
-
-    const sections = cDoc.querySelectorAll('.course-content ul.topics > li, .course-content ul.weeks > li, .course-content .section');
-    sections.forEach(sec => {
-      const secTitleEl = sec.querySelector('.sectionname, .section-title, h3');
-      const secName = secTitleEl ? secTitleEl.innerText.trim() : 'General';
-
-      sec.querySelectorAll('.activity').forEach(act => {
-        const modClasses = Array.from(act.classList).filter(c => c.startsWith('modtype_'));
-        const modType = modClasses.length ? modClasses[0].replace('modtype_', '') : '';
-        if (['attendance', 'forum', 'feedback', 'choice'].includes(modType)) return;
-
-        const inst = act.querySelector('.instancename');
-        let actName = inst ? inst.innerText.trim() : 'Material';
-        ['File', 'URL', 'Assignment', 'Folder', 'Page', 'External tool'].forEach(sfx => {
-          if (actName.endsWith(sfx)) actName = actName.slice(0, -sfx.length).trim();
-        });
-
-        const link = act.querySelector('a');
-        if (!link || !link.href) return;
-        const actUrl = link.href;
-        // Labels and inline files have no view.php link, so keep Moodle's own module ID for a stable Drive identity.
-        const moduleId = (act.id || '').match(/^module-(\d+)$/)?.[1] || act.getAttribute?.('data-id') || undefined;
-        if (seenUrls.has(actUrl)) return;
-        seenUrls.add(actUrl);
-
-        if (isExternalVideoUrl(actUrl)) {
-          externalLinks.push({ title: actName, url: actUrl, section: secName, isStreaming: true });
-          items.push({
-            name: actName,
-            url: actUrl,
-            type: modType,
-            category: '7.Recordings & Media',
-            section: secName,
-            isVideo: true,
-            isExternal: true,
-            courseName: course?.fullName || '',
-            courseFolder: course?.folderName || ''
-          });
-          return;
-        }
-
-        const extMatch = actUrl.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
-        const ext = extMatch ? `.${extMatch[1]}` : '';
-        const cat = classifyAdaptiveCategory(actName, secName, ext);
-        const isVideo = isVideoActivity(actName, actUrl, modType, cat.id);
-        const isProforma = /proforma|pro-forma|course outline|maklumat kursus|syllabus/i.test(actName);
-
-        items.push({
-          name: actName,
-          url: actUrl,
-          type: modType,
-          moduleId,
-          category: cat.id,
-          section: secName,
-          isVideo,
-          isProforma,
-          courseName: course?.fullName || '',
-          courseFolder: course?.folderName || ''
-        });
-      });
-
-      sec.querySelectorAll('a[href*="youtu.be"], a[href*="youtube.com"], a[href*="drive.google.com"], a[href*="panopto."], a[href*="zoom.us"], a[href*="teams.microsoft.com"], a[href*="webex.com"], a[href*="echo360."], a[href*="vimeo.com"], a[href*="loom.com"]').forEach(ea => {
-        if (!seenUrls.has(ea.href)) {
-          seenUrls.add(ea.href);
-          const title = ea.innerText.trim() || 'External Lecture Link';
-          externalLinks.push({ title, url: ea.href, section: secName, isStreaming: true });
-          items.push({
-            name: title,
-            url: ea.href,
-            type: 'url',
-            category: '7.Recordings & Media',
-            section: secName,
-            isVideo: true,
-            isExternal: true,
-            courseName: course?.fullName || '',
-            courseFolder: course?.folderName || ''
-          });
-        }
-      });
-    });
-
-    return { items, externalLinks };
-  }
+  // Parse activities from course HTML (shared by drawer, pre-flight analysis, and export): see shared/course-scan.js.
+  const parseCourseActivitiesFromHTML = (cHtml, course) => globalThis.UmSpecCourseScan.parseCourseActivitiesFromHTML(cHtml, course, DOMParser);
 
   // Fetch and parse activities for a specific course
   async function fetchAndParseCourseItems(courseId, signal) {
@@ -3503,8 +3334,8 @@ Output STRICTLY a JSON object with this exact structure:
             linksMd += `- ${link}\n`;
           });
           if (rejectedLinks) linksMd += `\n> ${rejectedLinks} unsafe link(s) omitted.\n`;
-          zip.file(`${course.folderName}/1.Lecture Slide/Lecture_Videos_and_Links.md`, linksMd);
-          zip.file(`${course.folderName}/7.Recordings & Media/Lecture_Videos_and_Links.md`, linksMd);
+          zip.file(`${course.folderName}/Lecture Slides/Lecture_Videos_and_Links.md`, linksMd);
+          zip.file(`${course.folderName}/Recordings & Media/Lecture_Videos_and_Links.md`, linksMd);
           courseDownloadedCount++;
           totalFiles++;
         }
@@ -3668,32 +3499,38 @@ ${Array.from(discoveredCategories).map(c => `* **${c}**`).join('\n')}
     if (!current) { verifiedSync = null; throw loginRequired('Could not identify your Spectrum account. Sign in and refresh this tab.'); }
     if (verifiedSync?.userId === current.userId && Date.now() - verifiedSync.at < 30000) return current;
     verifiedSync = null;
-    try {
-      const response = await fetchWithTimeout(location.origin + '/my/', {
-        credentials: 'include', cache: 'no-store', redirect: 'follow'
-      }, 20000);
-      const url = new URL(response.url);
-      if (!response.ok || url.origin !== location.origin || /\/login[/.]/.test(url.pathname)) {
-        throw loginRequired('Spectrum session could not be verified. Sign in again and refresh this tab.');
+    // Spectrum occasionally answers /my/ with a short page that names no account (seen live mid-sync, then not
+    // reproducible). One retry stops that blip from pausing a long Drive sync; a real sign-out or switch still fails.
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const response = await fetchWithTimeout(location.origin + '/my/', {
+          credentials: 'include', cache: 'no-store', redirect: 'follow'
+        }, 20000);
+        const url = new URL(response.url);
+        if (!response.ok || url.origin !== location.origin || /\/login[/.]/.test(url.pathname)) {
+          throw loginRequired('Spectrum session could not be verified. Sign in again and refresh this tab.');
+        }
+        const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+        if (doc.querySelector('form#login, input[name="password"]')) throw loginRequired('Spectrum session expired. Sign in again and refresh this tab.');
+        const remoteId = syncUserId(doc);
+        if (!remoteId) throw Object.assign(loginRequired('Could not identify your current Spectrum account. Refresh this tab and retry.'), { retry: true });
+        if (remoteId !== current.userId) {
+          throw Object.assign(new Error('Spectrum account changed. Refresh this tab before syncing.'), { code: 'ACCOUNT_CHANGED' });
+        }
+        break;
+      } catch (e) {
+        const transient = e.retry || !(e.code === 'ACCOUNT_CHANGED' || e.code === 'LOGIN_REQUIRED');
+        if (transient && attempt < 2) { await new Promise(resolve => setTimeout(resolve, 1500)); continue; }
+        if (e.code === 'ACCOUNT_CHANGED' || e.code === 'LOGIN_REQUIRED') throw e;
+        throw loginRequired('Could not verify Spectrum. Check your connection, refresh this tab and retry.');
       }
-      const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
-      if (doc.querySelector('form#login, input[name="password"]')) throw loginRequired('Spectrum session expired. Sign in again and refresh this tab.');
-      const remoteId = syncUserId(doc);
-      if (!remoteId) throw loginRequired('Could not identify your current Spectrum account. Refresh this tab and retry.');
-      if (remoteId !== current.userId) {
-        throw Object.assign(new Error('Spectrum account changed. Refresh this tab before syncing.'), { code: 'ACCOUNT_CHANGED' });
-      }
-    } catch (e) {
-      if (e.code === 'ACCOUNT_CHANGED' || e.code === 'LOGIN_REQUIRED') throw e;
-      throw loginRequired('Could not verify Spectrum. Check your connection, refresh this tab and retry.');
     }
     verifiedSync = { userId: current.userId, at: Date.now() };
     return current;
   }
   async function resolveCourseMaterials(course, selectedUrls, signal, onProgress) {
     const parsed = await fetchAndParseCourseItems(course.id, signal);
-    const materials = [];
-    let skipped = 0;
+    const materials = [], skippedItems = [];
     const items = selectedUrls ? parsed.items.filter(item => selectedUrls.has(item.url)) : parsed.items;
     for (const [index, item] of items.entries()) {
       if (signal?.aborted) throw new DOMException('Cancelled', 'AbortError');
@@ -3704,15 +3541,15 @@ ${Array.from(discoveredCategories).map(c => `* **${c}**`).join('\n')}
           ? [{ url: item.url, name: item.name, kind: 'link' }]
           : await globalThis.UmSpecMaterials.resolveItemFiles(item, signal, videoDownloadPreference === 'include' ? 'include' : 'links');
         for (const file of files) {
-          try { materials.push(await globalThis.UmSpecMaterials.describeMaterial(course, item, file, '')); }
-          catch { skipped++; }
+          try { materials.push(await globalThis.UmSpecMaterials.describeMaterial(course, { ...item, fileCount: files.length }, file, '')); }
+          catch (error) { skippedItems.push(globalThis.UmSpecMaterials.skippedItem(item, error)); }
         }
       } catch (error) {
         if (error?.name === 'AbortError' || signal?.aborted || error?.code === 'LOGIN_REQUIRED') throw error;
-        skipped++;
+        skippedItems.push(globalThis.UmSpecMaterials.skippedItem(item, error));
       }
     }
-    return Object.assign([...new Map(materials.map(item => [item.sourceKey, item])).values()], { skipped });
+    return Object.assign([...new Map(materials.map(item => [item.sourceKey, item])).values()], { skipped: skippedItems.length, skippedItems });
   }
   globalThis.UmSpecExporter = {
     getContext: getSyncContext, verifyContext: verifySyncContext, getSesskey, generateDeadlinesICS, resolveCourseMaterials,

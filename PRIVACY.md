@@ -1,6 +1,6 @@
 # Privacy Policy for UM Spec
 
-Last updated: 30 October 2026.
+Last updated: 23 November 2026 (version 2.1.0).
 
 UM Spec helps Universiti Malaya students export and organise selected SPeCTRUM course content. Features are optional and process different data as described below.
 
@@ -14,11 +14,19 @@ When connected, selected materials, folder names and source-mapping metadata are
 
 Source IDs, revisions and checksums allow updates to existing managed files. Missing Spectrum content does not automatically delete backups. Manual destination edits/deletions require review. Videos configured as links and files above the initial 50 MiB limit are saved as source links with an explicit status.
 
+Files are sorted into type folders and named after their Spectrum title (for example `W04 Normalization.pptx`). Files UM Spec uploaded with an older name or folder are renamed or moved in place; files you renamed or moved yourself are left alone. Each course folder gets a **Links** Google Doc listing its videos, online classes and websites, limited to your class group (OCC) when it is known.
+
+After your first successful sync, automatic Drive updates start when you open a signed-in Spectrum page and continue in the extension's background after you leave it. A hidden extension page (Chrome's offscreen document) reads your selected courses through your Spectrum session for this; it does not run while Chrome is closed.
+
+**Drive clean-up** (Settings → More) lists extra copies and empty leftover folders that UM Spec itself created. Nothing is removed until you confirm the preview; confirmed items go to Drive's trash, where you can restore them for 30 days. Files you added yourself are never touched.
+
 ## Google Calendar
 
 When enabled, official dates and reviewed announcement dates are copied to a dedicated UM Spec calendar. Details may include course names, descriptions, reminders, original Spectrum links and meeting links.
 
-On first use or recovery, UM Spec makes its managed calendar visible in Google Calendar. Later visibility choices are preserved.
+UM Spec only reads your calendar list. If its managed calendar is hidden, it tells you how to turn it on in Google Calendar instead of changing your list.
+
+Each deadline includes its submission status from Spectrum's own to-do list ("Spectrum: not submitted yet" or "nothing left to submit"). Deadlines labelled for another class group (OCC) are marked "not your OCC" so they are not counted as yours.
 
 Permissions manage UM Spec-created calendars and read calendar names/IDs to recover the existing calendar. They do not grant access to events on unrelated calendars. UM Spec does not send meeting invitations or create meeting rooms.
 
@@ -29,6 +37,14 @@ Automatic announcement scanning defaults on for new preferences; saved choices a
 Date extraction runs locally and saves bounded excerpts/date suggestions for review. It does not send announcements to an AI service. Only approved announcement event details and joining links are copied to Google Calendar. Official dates sync when Calendar is connected and enabled. Stop cancels date analysis and pauses its Calendar writes without stopping a file export.
 
 The separate proforma AI preference defaults on and can be turned off in Settings. Before its first analysis, you must accept the disclosure that selected proforma documents and prompts are sent to the configured UM Spec proxy and Google Gemini. Declining skips AI analysis for that export. The bundled default proxy may cache analysis output for up to 90 days. These requests exclude Spectrum cookies and Google access tokens. Automatic Drive/Calendar checks do not call this AI feature.
+
+## AI course reading (optional)
+
+Courses label class groups differently ("OCC 3", "G1", "Group 1M", lecturer sections). If you choose **Read groups with AI** on a course page's OCC bar and accept the notice, UM Spec sends that course's structure to the UM Spec proxy and Google Gemini: activity IDs, types, titles, section names and "Not available unless…" notes. It does not send your name, matric number, submissions, grades or your own OCC. The answer only says which OCC each activity is meant for. It is cached on the proxy for up to 90 days and reused for other students of the same course, and kept on this device for a week. An answer that disagrees with Spectrum's own locks or labels is not used. Turning it off from the OCC bar removes saved answers from this device.
+
+## Class groups (OCC)
+
+UM Spec works out your OCC in each course from Spectrum's own data: your groups, the attendance sessions you can see, and items locked to other groups. Before a manual sync it may ask you to confirm or type the OCC of courses it could not work out. Your OCC is stored only on this device and is never sent to Google, the AI proxy or anyone else.
 
 ## Planner
 
@@ -44,13 +60,13 @@ Pending detailed reviews are limited to 500 per account binding. Recent changes 
 
 ## Your controls
 
-ZIP/Drive destination, courses, automatic updates, Calendar and announcement scanning are separate choices. Automatic checks require an open, signed-in Spectrum page. Disconnecting Google pauses writes and clears cached authorisation; remote files/calendars remain yours.
+ZIP/Drive destination, courses, automatic updates, Calendar and announcement scanning are separate choices. Automatic checks start from an open, signed-in Spectrum page; a Drive update that has started continues in the background, and nothing runs while Chrome is closed. Disconnecting Google pauses writes and clears cached authorisation; remote files/calendars remain yours.
 
 Revoke access through Google Account settings. Removing the extension clears local extension storage. ZIPs, Drive files and calendars remain under your control and can be deleted in their applications.
 
 ## Permissions and providers
 
-Spectrum host access reads course content. Storage saves progress/preferences. Identity connects Google. Google API host access is optional and requested during connection. Existing active-tab/scripting access opens the exporter. Alarms schedule planner reminders and the badge count; Side panel shows the planner beside a page; Notifications is optional and only used for reminders.
+Spectrum host access reads course content. Storage saves progress/preferences. Identity connects Google. Google API host access is optional and requested during connection. Existing active-tab/scripting access opens the exporter. Alarms schedule planner reminders, the badge count and resuming a background Drive update; Side panel shows the planner beside a page; Offscreen lets the background Drive update read your Spectrum courses after the tab is closed; Notifications is optional and only used for reminders.
 
 No analytics or advertising is added. Google and the configured AI provider/proxy process requests under their respective service and operational policies. UM Spec does not sell student data. Executable extension code is bundled; no remotely hosted JavaScript is loaded.
 

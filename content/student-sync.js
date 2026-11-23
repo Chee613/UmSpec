@@ -17,11 +17,12 @@
     }
     return url.href;
   }
+  // Last month is read again too, so deadlines that just passed get their latest submission status.
   function calendarMonths(now = new Date()) {
     const malaysia = new Date(new Date(now).getTime() + 8 * 3600000);
     if (!Number.isFinite(malaysia.getTime())) throw new TypeError('Invalid scan date');
-    return Array.from({ length: 6 }, (_, index) => {
-      const month = new Date(Date.UTC(malaysia.getUTCFullYear(), malaysia.getUTCMonth() + index, 1));
+    return Array.from({ length: 7 }, (_, index) => {
+      const month = new Date(Date.UTC(malaysia.getUTCFullYear(), malaysia.getUTCMonth() + index - 1, 1));
       return { year: month.getUTCFullYear(), month: month.getUTCMonth() + 1 };
     });
   }
@@ -41,7 +42,7 @@
     if (typeof document === 'undefined') return String(value || '').replace(/<[^>]*>/g, ' ').trim();
     return new DOMParser().parseFromString(String(value || ''), 'text/html').body.textContent.trim();
   }
-  async function adaptCalendarResponse(payload, selectedIds) {
+  async function adaptCalendarResponse(payload, selectedIds, occ = null) {
     const data = payload?.[0]?.data;
     if (!Array.isArray(payload) || payload.length !== 1 || payload[0]?.error || !Array.isArray(data?.weeks)) {
       throw fail('CALENDAR_UNAVAILABLE', 'Official calendar sync unavailable on this Spectrum version.');
@@ -60,7 +61,20 @@
           if (!positiveId(raw.id) || !Number.isInteger(raw.timestart) || !Number.isInteger(raw.timeduration) || raw.timeduration < 0) {
             throw fail('CALENDAR_UNAVAILABLE', 'An official calendar item has unsupported timestamps.');
           }
-          const title = plainText(raw.name), description = plainText(raw.description);
+          // Spectrum offers an action ("Add submission", "Attempt quiz now") only while something is still to do, so its
+          // absence means nothing is left to hand in. The line lets Google Calendar and the UM Spec bot tell a missed
+          // deadline from a finished one.
+          const pending = Boolean(raw.action), quiz = raw.modulename === 'quiz';
+          // A deadline labelled for another OCC (in its title, or by the AI's reading of the course) is kept, but says so,
+          // so Google Calendar and the UM Spec bot do not count it as the student's own work.
+          let cmid = null;
+          try { cmid = new URL(raw.url, ORIGIN).searchParams.get('id'); } catch {}
+          const forOcc = deadline && occ ? root.UmSpecPlannerCore?.parseOcc?.(plainText(raw.name)) || occ.ai(courseId, cmid) : null;
+          const mine = forOcc ? occ.mine(courseId) : null;
+          const other = Boolean(mine && forOcc && !forOcc.includes(mine));
+          const progress = !deadline ? '' : 'Spectrum: ' + (other ? 'for OCC ' + forOcc.join(', ') + ', not your OCC (' + mine + ')' :
+            pending ? (quiz ? 'not attempted yet' : 'not submitted yet') : (quiz ? 'nothing left to attempt' : 'nothing left to submit'));
+          const title = plainText(raw.name), description = [plainText(raw.description), progress].filter(Boolean).join('\n');
           let sourceUrl = ORIGIN + '/calendar/view.php?view=event&id=' + raw.id;
           try {
             const activity = new URL(raw.url, ORIGIN);
@@ -97,6 +111,7 @@
     const records = new Map(), failures = [];
     const sesskey = exporter()?.getSesskey();
     if (!sesskey) return { records: [], complete: false, failures: [{ message: 'Sign in to Spectrum before scanning dates.' }] };
+    const occ = await occContext();
     for (const { year, month } of calendarMonths(now)) {
       signal?.throwIfAborted();
       try {
@@ -108,7 +123,7 @@
           } }])
         });
         if (!response.ok) throw fail('CALENDAR_UNAVAILABLE', 'Official calendar read was denied (' + response.status + ').');
-        const items = await adaptCalendarResponse(await response.json(), courseIds);
+        const items = await adaptCalendarResponse(await response.json(), courseIds, occ);
         for (const record of items) records.set(record.sourceKey, record);
         progress({ year, month });
       } catch (error) {
@@ -120,8 +135,10 @@
     }
     return { records: [...records.values()], complete: !failures.length, failures };
   }
+  // Lecturers add their own announcement forums ("Announcement from Dr. X", "Makluman OCC-3"), so the word may appear
+  // anywhere in the name; discussion forums without it are not read.
   function announcementForum(name, value) {
-    if (!/^(?:announcements?|news(?: forum)?|pengumuman(?: kursus)?)(?:\s+forum)?$/i.test(String(name || '').trim())) return null;
+    if (!/\b(?:announcements?|pengumuman|makluman|hebahan|news|notices?|berita)\b/i.test(String(name || '').trim())) return null;
     try {
       const url = new URL(safeSpectrumUrl(value));
       return url.pathname === '/mod/forum/view.php' && (positiveId(url.searchParams.get('id')) || positiveId(url.searchParams.get('f'))) ? url.href : null;
@@ -138,12 +155,17 @@
   async function fetchPage(value, signal) {
     const url = safeSpectrumUrl(value);
     const response = await fetch(url, { credentials: 'include', signal: requestSignal(signal) });
+    // An expired session lands on Spectrum's sign-in page, which at UM offers only the Microsoft (OIDC) button and no
+    // password form; without these checks it reads as an unsupported URL or a changed announcement layout.
+    const landed = response.url ? new URL(response.url) : null;
+    if (landed && (landed.origin !== ORIGIN || /^\/(?:login|auth)\//.test(landed.pathname))) throw fail('LOGIN_REQUIRED', 'Sign in to Spectrum to resume scanning.');
     if (!response.ok) throw fail('SPECTRUM_UNAVAILABLE', 'Spectrum page could not be read (' + response.status + ').');
     if (response.url) safeSpectrumUrl(response.url);
     const html = await response.text();
     if (html.length > 2 * 1024 * 1024) throw fail('CAPACITY', 'This Spectrum page is too large for one scan.');
     const doc = new DOMParser().parseFromString(html, 'text/html');
-    if (doc.querySelector('form#login,form[action*="/login/index.php"]')) throw fail('LOGIN_REQUIRED', 'Sign in to Spectrum to resume scanning.');
+    if (doc.body?.id === 'page-login-index' ||
+        doc.querySelector('form#login,form[action*="/login/index.php"]')) throw fail('LOGIN_REQUIRED', 'Sign in to Spectrum to resume scanning.');
     return doc;
   }
   function forumIdFrom(doc, url) {
@@ -193,8 +215,96 @@
     const doc = await fetchPage(candidate.sourceUrl, signal);
     return announcements().normalisePost(postFromDocument(doc, candidate.sourceUrl, candidate.courseId, candidate.forumId, candidate.postId));
   }
+  // The student's OCC per course, as the planner knows it; null keeps every OCC (unknown, or "show every OCC" chosen).
+  // The student's OCC per course (their choice first, then detection) and the AI's per-activity readings.
+  async function occContext() {
+    try {
+      const meta = await root.chrome?.runtime?.sendMessage?.({ type: 'PLANNER_META' });
+      const data = meta?.data || meta;
+      if (!data) return null;
+      // OCC choices saved for another Spectrum account (before an account switch) must never label this one's deadlines.
+      let userId = null; try { userId = exporter()?.getContext?.()?.userId || null; } catch {}
+      const tag = userId ? await root.UmSpecPlannerCore?.accountTag?.(userId) : '';
+      if (!tag || (data.userHash && data.userHash !== tag)) return null;
+      return { showAll: Boolean(data.showAllOcc),
+        mine: courseId => Object.hasOwn(data.occ || {}, courseId) ? data.occ[courseId] || null : data.detectedOcc?.[courseId]?.occ || null,
+        ai: (courseId, cmid) => data.aiOcc?.[courseId]?.[cmid] || null };
+    } catch { return null; }
+  }
+  // ---------- OCC check-in: the student confirms or types each course's OCC before a manual sync ----------
+  const OCC_ASKED = 'umspec_occ_asked';
+  const OCC_VALUE = /^\d{1,2}[A-Z]?$/;
+  function occAsked() { try { return JSON.parse(localStorage.getItem(OCC_ASKED) || '{}'); } catch { return {}; } }
+  async function occRows(courses) {
+    let data = null;
+    try { const meta = await root.chrome?.runtime?.sendMessage?.({ type: 'PLANNER_META' }); data = meta?.data || meta || null; } catch {}
+    let userId = null; try { userId = exporter()?.getContext?.()?.userId || null; } catch {}
+    const tag = userId ? await root.UmSpecPlannerCore?.accountTag?.(userId) : '';
+    // Choices saved for another Spectrum account are not shown as this one's.
+    const own = data && (!data.userHash || data.userHash === tag);
+    return { tag, rows: courses.map(course => {
+      const id = String(course.id), manual = own && Object.hasOwn(data.occ || {}, id) ? data.occ[id] || '' : null;
+      const detected = own ? data.detectedOcc?.[id]?.occ || '' : '';
+      return { id, name: String(course.fullName || course.name || course.shortName || id).slice(0, 90), value: manual ?? detected, auto: manual == null && Boolean(detected), known: manual != null || Boolean(detected) };
+    }) };
+  }
+  // Opens the form; resolves true when saved, false when skipped. `always` opens it even when every OCC is known.
+  async function askOcc({ courses = exporter()?.selectedCourses?.() || [], always = false } = {}) {
+    const modal = typeof document !== 'undefined' && document.getElementById('umspec-modal');
+    if (!modal || !courses.length) return false;
+    const { tag, rows } = await occRows(courses);
+    const key = tag + ':' + rows.map(row => row.id).sort().join(',');
+    if (!always && (rows.every(row => row.known) || occAsked()[key])) return false;
+    return new Promise(resolve => {
+      document.getElementById('umspec-occ-ask')?.remove();
+      const box = node('div', null, 'umspec-occ-ask'); box.id = 'umspec-occ-ask';
+      box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true'); box.setAttribute('aria-labelledby', 'umspec-occ-ask-title');
+      const card = node('div', null, 'umspec-occ-card');
+      const title = node('h3', 'Your class group (OCC) for each course'); title.id = 'umspec-occ-ask-title';
+      const list = node('div', null, 'umspec-occ-list'), inputs = [];
+      for (const row of rows) {
+        const label = node('label', null, 'umspec-occ-row');
+        const name = node('span', row.name, 'umspec-occ-name');
+        const input = node('input'); input.type = 'text'; input.maxLength = 3; input.value = row.value; input.placeholder = '—';
+        input.setAttribute('aria-label', 'OCC for ' + row.name); input.autocomplete = 'off'; input.inputMode = 'text';
+        label.append(name, row.auto ? node('small', 'auto', 'umspec-occ-auto') : node('small', '', 'umspec-occ-auto'), input);
+        list.append(label); inputs.push({ row, input });
+      }
+      const error = node('p', '', 'umspec-occ-error'); error.setAttribute('role', 'alert');
+      const actions = node('div', null, 'umspec-occ-actions');
+      const skip = node('button', always ? 'Cancel' : 'Skip for now'); skip.type = 'button';
+      const save = node('button', always ? 'Save' : 'Save and continue', 'umspec-occ-save'); save.type = 'button';
+      actions.append(skip, save);
+      card.append(title, list, error, actions); box.append(card); modal.append(box);
+      const close = result => {
+        box.remove();
+        if (!always) { const asked = occAsked(); asked[key] = Date.now(); try { localStorage.setItem(OCC_ASKED, JSON.stringify(asked)); } catch {} }
+        resolve(result);
+      };
+      skip.addEventListener('click', () => close(false));
+      box.addEventListener('keydown', event => { if (event.key === 'Escape') { event.stopPropagation(); close(false); } });
+      save.addEventListener('click', async () => {
+        const values = inputs.map(({ row, input }) => ({ row, value: input.value.trim().toUpperCase().replace(/^OCC\s*[-_]?\s*/, ''), input }));
+        const bad = values.find(item => item.value && !OCC_VALUE.test(item.value));
+        if (bad) { error.textContent = 'Use a number with an optional letter, such as 4 or 1M.'; bad.input.focus(); return; }
+        save.disabled = true;
+        for (const { row, value } of values) {
+          if (value === row.value && (row.auto || !row.known)) continue;
+          try { await root.chrome.runtime.sendMessage({ type: 'PLANNER_SET_OCC', courseId: row.id, occ: value }); } catch {}
+        }
+        close(true);
+      });
+      (inputs.find(({ row }) => !row.known)?.input || inputs[0]?.input || save).focus();
+    });
+  }
+  // null keeps every OCC (unknown, or "show every OCC" chosen).
+  async function plannerOcc() {
+    const context = await occContext();
+    return context && !context.showAll ? context.mine : () => null;
+  }
   async function discoverAnnouncements(courseIds, signal, cursor = null, progress = () => {}) {
-    const posts = [], failures = [];
+    const posts = [], failures = [], unreadable = [];
+    const occOf = await plannerOcc(), planner = root.UmSpecPlannerCore;
     let resume = cursor;
     for (const courseId of courseIds.map(String)) {
       signal?.throwIfAborted();
@@ -202,11 +312,14 @@
       let forums = [], current = { courseId, forumUrl: null, listingUrl: null, threadOffset: 0 };
       try {
         const course = await fetchPage(ORIGIN + '/course/view.php?id=' + courseId, signal);
+        const courseLabel = (String(course.title || '').match(/\b[A-Z]{3,4}\d{4}[A-Z]?\b/) || [])[0] || 'course ' + courseId;
         for (const link of course.querySelectorAll('a[href*="/mod/forum/view.php"]')) {
           const name = link.querySelector('.instancename')?.cloneNode(true) || link.cloneNode(true);
           name.querySelectorAll('.accesshide,.sr-only,.icon').forEach(element => element.remove());
           const url = announcementForum(name.textContent, new URL(link.getAttribute('href'), ORIGIN).href);
-          if (url && !forums.includes(url)) forums.push(url);
+          // A forum labelled for other OCCs ("Announcement for OCC-6, OCC-8") is skipped once the student's OCC is known.
+          if (url && planner && !planner.occMatches(name.textContent, occOf(String(courseId)))) continue;
+          if (url && !forums.includes(url) && forums.length < 5) forums.push(url);
         }
         let count = 0;
         for (const forumUrl of forums) {
@@ -230,7 +343,13 @@
               current.threadOffset = index;
               if (count >= 100 || posts.length >= 100) return { posts, complete: false, cursor: current, failures };
               const thread = await fetchPage(threads[index], signal);
-              posts.push(await announcements().normalisePost(postFromDocument(thread, threads[index], courseId, forumId)));
+              // One post in an unusual layout is skipped and named, so it neither stops the other posts nor becomes the
+              // saved resume point that every later scan would fail on again.
+              try { posts.push(await announcements().normalisePost(postFromDocument(thread, threads[index], courseId, forumId))); }
+              catch (error) {
+                if (error?.code !== 'ANNOUNCEMENTS_UNAVAILABLE') throw error;
+                unreadable.push('"' + String(thread.querySelector('h1,h2,h3')?.textContent || 'Announcement').replace(/\s+/g, ' ').trim().slice(0, 60) + '" (' + courseLabel + ')');
+              }
               progress({ courseId, posts: posts.length });
               count++;
             }
@@ -249,6 +368,8 @@
         return { posts, complete: false, cursor: current, failures };
       }
     }
+    if (unreadable.length) failures.push({ courseId: null, message: unreadable.length + ' announcement post(s) could not be read and were skipped: ' +
+      unreadable.slice(0, 3).join(', ') + (unreadable.length > 3 ? ' and ' + (unreadable.length - 3) + ' more' : '') + '.' });
     return { posts, complete: true, cursor: null, failures };
   }
   let status = null, contextReady = false, localZip = false, running = null, runningAutomatic = false, controller = null, notice = '';
@@ -434,7 +555,9 @@
   async function runDrive(automatic, signal) {
     if (!linked('drive')) throw fail('CONNECT_REQUIRED', status?.configured ? 'Connect Google Drive from the extension popup.' : 'Google setup is required. ZIP and local announcement review remain available.');
     if (!status.settings.archiveId) throw fail('ARCHIVE_REQUIRED', 'Enter and save a semester archive name before syncing to Drive.');
-    let job = status.job, skipped = 0;
+    if (status.background?.running) { messageText(backgroundText()); return; }
+    let job = status.job;
+    const skipped = [];
     if (job && !job.done && !job.scopeChanged) {
       await command({ type: 'BEGIN_DRIVE_SYNC', bindingHash: status.bindingHash, materials: [], retry: !automatic });
     } else {
@@ -447,7 +570,7 @@
         messageText(label + '… Keep this tab open.');
         const found = await exporter().resolveCourseMaterials(course, automatic ? null : exporter().selectedUrls(course.id), signal,
           (done, total) => messageText(label + ': item ' + done + ' of ' + total + '. Keep this tab open.'));
-        skipped += found.skipped || 0;
+        skipped.push(...(found.skippedItems || []));
         materials.push(...found);
         selected.delete(String(course.id));
       }
@@ -466,7 +589,20 @@
       throw fail('PARTIAL_SYNC', 'Drive sync: ' + (summary.failed || 0) + ' failed, ' + (summary.conflicts || 0) +
         ' conflict(s). Retry failed items or open Drive to review edits and restore removed files.' + attentionText(status.job));
     }
-    if (skipped) throw fail('PARTIAL_SCAN', 'Drive sync finished, but ' + skipped + ' course item(s) could not be read and were left out. Sync again later to retry them.');
+    if (skipped.length) throw fail('PARTIAL_SCAN', skippedText(skipped));
+  }
+  // Names what was left out and why, so a broken lecturer link is not mistaken for something a retry would fix.
+  function skippedText(items) {
+    const shown = items.slice(0, 3).map(item => '"' + item.name + '" (' + item.reason + ')').join(', ') + (items.length > 3 ? ' and ' + (items.length - 3) + ' more' : '');
+    const retry = items.some(item => !item.permanent);
+    return 'Drive sync finished, but ' + items.length + ' course item(s) were left out: ' + shown + '.' +
+      (retry ? ' Sync again later to retry them.' : ' These need fixing on Spectrum itself, so ask your lecturer if you need them.');
+  }
+  function backgroundText() {
+    const bg = status?.background, job = status?.job;
+    if (bg?.progress?.phase === 'scanning') return 'Syncing to Google Drive in the background: checking course ' + (bg.progress.course || 1) + ' of ' + (bg.progress.courses || '…') + '. You can leave this page.';
+    if (job?.background && !job.done) return 'Syncing to Google Drive in the background: ' + job.cursor + ' of ' + job.total + ' items. You can leave this page.';
+    return 'Syncing to Google Drive in the background. You can leave this page.';
   }
   async function runCalendar(automatic, signal, useDateScan = false) {
     if (!linked('calendar')) throw fail('CONNECT_REQUIRED', 'Connect Google Calendar from the extension popup.');
@@ -508,6 +644,7 @@
       let selected = exporter().selectedCourses().map(course => String(course.id));
       if (!selected.length && typeof document !== 'undefined' && !document.getElementById('umspec-courses-container')) selected = status.settings.courseIds;
       if (!selected.length) throw fail('SELECT_COURSES', 'Select at least one course above.');
+      await askOcc().catch(() => {});
       await command({ type: 'SAVE_SETTINGS', settings: {
         courseIds: selected, videoPolicy: exporter().videoPolicy()
       } });
@@ -515,12 +652,17 @@
     if (!status.settings.courseIds.length) return status;
     const errors = [];
     const signal = controller.signal;
-    for (const [feature, run] of [['drive', () => runDrive(automatic, signal)], ['calendar', () => runCalendar(automatic, signal)], ['announcements', () => runAnnouncements(signal)]]) {
+    // Automatic Drive updates run in the extension's background, so they continue after this tab is closed.
+    // An unfinished sync a tab started earlier still resumes here, where its checkpoint belongs.
+    const tabJob = status.job && !status.job.done && !status.job.background && status.job.status === 'running';
+    const drive = automatic && !tabJob ? () => command({ type: 'BACKGROUND_DRIVE_SYNC' }) : () => runDrive(automatic, signal);
+    for (const [feature, run] of [['drive', drive], ['calendar', () => runCalendar(automatic, signal)], ['announcements', () => runAnnouncements(signal)]]) {
       const due = automatic ? dueInBackground(feature) : shouldRunFeature(feature, status, false);
       if (signal.aborted || (dateRunning && feature !== 'drive') || !due) continue;
       try {
         // Start the cooldown first: a scan cut short by leaving the page must not restart on every visit.
-        if (automatic) await command({ type: 'MARK_SYNC_ATTEMPT', feature });
+        // The background Drive run records its own attempt.
+        if (automatic && feature !== 'drive') await command({ type: 'MARK_SYNC_ATTEMPT', feature });
         await run();
       }
       catch (error) {
@@ -685,6 +827,46 @@
     wireTabs(row, 'review');
     pager(target, candidates.length, reviewPage, 1, page => { reviewPage = page; renderPanel(); });
   }
+  // ---------- Drive clean-up: preview first, then move only those items to Drive trash ----------
+  const cleanup = { busy: false, preview: null, done: null, error: '' };
+  const megabytes = bytes => (bytes / 1048576).toFixed(bytes < 10485760 ? 1 : 0) + ' MB';
+  function renderCleanup(panel) {
+    const box = panel?.querySelector?.('[data-cleanup]');
+    if (!box) return;
+    const find = box.querySelector('[data-cleanup-find]'), apply = box.querySelector('[data-cleanup-apply]');
+    const text = box.querySelector('[data-cleanup-text]'), list = box.querySelector('[data-cleanup-list]');
+    const usable = Boolean(status && contextReady && !contextInvalidated && linked('drive'));
+    find.disabled = !usable || cleanup.busy || Boolean(running) || Boolean(status?.background?.running);
+    const preview = cleanup.preview;
+    apply.hidden = !preview?.total || Boolean(cleanup.done);
+    apply.disabled = cleanup.busy;
+    apply.textContent = 'Move ' + (preview?.total || 0) + ' item' + (preview?.total === 1 ? '' : 's') + ' to Drive trash';
+    list.hidden = !preview?.sample?.length || Boolean(cleanup.done);
+    list.replaceChildren(...(preview?.sample || []).map(item => node('li', item.name + ' — ' + item.reason)));
+    text.textContent = cleanup.error ? cleanup.error :
+      !usable ? 'Connect Google Drive to find duplicate files.' :
+      cleanup.done ? (cleanup.done.done < cleanup.done.total ? 'Moving to Drive trash: ' + cleanup.done.done + ' of ' + cleanup.done.total + '…' : 'Moved ' + cleanup.done.total + ' items to Drive trash. You can restore them from Drive trash for 30 days.') :
+      cleanup.busy ? 'Checking your UM Spec files in Drive…' :
+      preview ? (preview.total ? 'Found ' + (preview.total - preview.folders) + ' extra copies (' + megabytes(preview.bytes) + ')' + (preview.folders ? ' and ' + preview.folders + ' empty old folders' : '') + '. ' + preview.kept + ' files stay. Nothing is removed until you choose Move.' : 'No duplicates found. ' + preview.kept + ' files checked.') :
+      'Find extra copies of files UM Spec uploaded more than once. Files you added yourself are never touched.';
+  }
+  async function findDuplicates(panel) {
+    cleanup.busy = true; cleanup.preview = null; cleanup.done = null; cleanup.error = ''; renderCleanup(panel);
+    try { await contextStatus(); cleanup.preview = (await command({ type: 'DRIVE_CLEANUP_PREVIEW' })).cleanup; }
+    catch (error) { cleanup.error = error.message; }
+    finally { cleanup.busy = false; renderCleanup(panel); }
+  }
+  async function trashDuplicates(panel) {
+    cleanup.busy = true; cleanup.error = ''; cleanup.done = { done: 0, total: cleanup.preview?.total || 0 }; renderCleanup(panel);
+    try {
+      for (let guard = 0; guard < 400; guard++) {
+        cleanup.done = (await command({ type: 'DRIVE_CLEANUP_APPLY' })).cleanup;
+        renderCleanup(panel);
+        if (cleanup.done.done >= cleanup.done.total) break;
+      }
+    } catch (error) { cleanup.error = error.message; cleanup.done = null; }
+    finally { cleanup.busy = false; renderCleanup(panel); }
+  }
   function renderPanel() {
     const available = Boolean(status && contextReady && !contextInvalidated);
     if (available) exporter()?.applySettings?.(localZip ? { ...status.settings, mode: 'zip' } : status.settings);
@@ -751,7 +933,11 @@
     if (status.calendarId) providerLinks.append(externalLink('Open Google Calendar', 'https://calendar.google.com/calendar/'));
     providerLinks.hidden = !providerLinks.childElementCount;
     modal.querySelector('[data-sync-pause]').disabled = !running && status.job?.status !== 'running';
+    if (status.background?.running) notice = backgroundText();
+    else if (status.background?.phase === 'paused' && status.background.error && !running && notice.startsWith('Syncing to Google Drive in the background')) notice = 'Background Drive sync paused: ' + status.background.error;
+    else if (status.background?.phase === 'complete' && !running && notice.startsWith('Syncing to Google Drive in the background')) notice = 'Background Drive sync finished.';
     if (notice) modal.querySelector('#umspec-sync-status').textContent = notice;
+    renderCleanup(panel);
     const upcoming = modal.querySelector('[data-sync-upcoming]'); upcoming.replaceChildren();
     const scan = status.dateScan;
     const calendarFeedback = modal.querySelector('[data-calendar-feedback]');
@@ -812,6 +998,7 @@
         <label class="umspec-setting-row"><span><strong>Automatic Drive updates</strong><small>Check when you open Spectrum.</small></span><span class="umspec-switch"><input type="checkbox" name="autoSync"><span class="umspec-slider" aria-hidden="true"></span></span></label>
         <p data-auto-hint class="umspec-helper">Connect Drive and complete one sync to enable automatic updates.</p>
         <p class="umspec-helper">Hosted recordings stay as links. Drive files over 50 MiB are linked.</p>
+        <div class="umspec-occ-setup"><span><strong>Class groups (OCC)</strong><small>Check or change your OCC for each selected course.</small></span><button type="button" data-occ-edit>Set my OCC</button></div>
       </section>
       <section id="umspec-settings-calendar" data-settings-view="calendar" role="tabpanel" hidden>
         <h3 class="umspec-provider-heading"><img src="${runtimeIcon('icons/google-calendar.svg')}" alt="" width="28" height="28">Calendar preferences</h3>
@@ -820,12 +1007,22 @@
         <div class="umspec-sync-fields"><label>Remind me<select name="reminders"><option value="1440,60">1 day and 1 hour before</option><option value="1440">1 day before</option><option value="60">1 hour before</option><option value="">No reminders</option></select></label></div>
         <p class="umspec-helper">Use Dates → Analyse dates to check selected courses. Announcement suggestions need review before saving to Calendar.</p>
       </section>
-      <section id="umspec-settings-about" data-settings-view="about" role="tabpanel" hidden><h3>Account & extras</h3><p data-sync-account></p></section>
+      <section id="umspec-settings-about" data-settings-view="about" role="tabpanel" hidden><h3>Account & extras</h3><p data-sync-account></p>
+        <div class="umspec-cleanup" data-cleanup><h4>Drive clean-up</h4><p class="umspec-helper" data-cleanup-text>Find extra copies of files UM Spec uploaded more than once. Files you added yourself are never touched.</p><ul data-cleanup-list hidden></ul><div class="umspec-sync-actions"><button type="button" data-cleanup-find>Find duplicates</button><button type="button" data-cleanup-apply hidden>Move to Drive trash</button></div></div></section>
       <div class="umspec-sync-actions"><div class="umspec-settings-connection" data-settings-connection><img data-settings-provider="drive" src="${runtimeIcon('icons/google-drive.svg')}" alt="" width="26" height="26"><img data-settings-provider="calendar" src="${runtimeIcon('icons/google-calendar.svg')}" alt="" width="26" height="26" hidden><span data-settings-provider-status>Checking Google Drive…</span></div><span data-settings-saved role="status"></span><button type="button" data-sync-save>Save changes</button></div>`;
     host.append(panel);
+    panel.querySelector('[data-occ-edit]')?.addEventListener('click', () => askOcc({ always: true }).catch(error => messageText(error.message)));
     const extras = document.getElementById('umspec-extra-settings');
     if (extras) panel.querySelector('[data-settings-view="about"]').append(extras);
     wireTabs(panel, 'settings');
+    panel.querySelector('[data-cleanup-find]')?.addEventListener('click', () => findDuplicates(panel));
+    panel.querySelector('[data-cleanup-apply]')?.addEventListener('click', () => trashDuplicates(panel));
+    // While a background Drive sync runs, refresh its progress every few seconds when this tab is visible.
+    const poll = root.setInterval?.(() => {
+      if (contextInvalidated || document.visibilityState !== 'visible' || !status?.background?.running || running) return;
+      command({ type: 'GET_STATUS' }).catch(() => {});
+    }, 5000);
+    poll?.unref?.();
     const home = document.getElementById('umspec-sync-home-host');
     home.innerHTML = `<div class="umspec-save-row"><div class="umspec-destination-field"><span id="umspec-destination-label">Save to</span><div class="umspec-destination-options" role="group" aria-labelledby="umspec-destination-label"><button type="button" data-mode-choice="zip" aria-pressed="true">ZIP file</button><button type="button" data-mode-choice="drive" aria-pressed="false" disabled><img class="umspec-provider-icon" src="${runtimeIcon('icons/google-drive.svg')}" alt="" width="20" height="20">Google Drive</button></div><select name="mode" hidden aria-hidden="true" tabindex="-1"><option value="zip">ZIP file</option><option value="drive">Google Drive</option></select></div><button type="button" data-sync-pause disabled>Pause sync</button></div><p data-sync-progress></p><div data-sync-provider-links class="umspec-provider-links"></div>`;
     panel.querySelector('[data-settings-view="about"]').append(home.querySelector('[data-sync-provider-links]'));
@@ -883,7 +1080,7 @@
       input.value = choice.dataset.modeChoice;
       input.dispatchEvent(new Event('change', { bubbles: true }));
     });
-    dates.querySelector('[data-sync-now]').addEventListener('click', () => analyseDates({ force: true }));
+    dates.querySelector('[data-sync-now]').addEventListener('click', () => askOcc().catch(() => {}).then(() => analyseDates({ force: true })));
     dates.querySelector('[data-date-stop]').addEventListener('click', stopDateAnalysis);
     home.querySelector('[data-sync-pause]').addEventListener('click', () => {
       controller?.abort(); command({ type: 'PAUSE_SYNC' }).then(() => messageText('Sync paused.')).catch(error => messageText(error.message));
@@ -891,7 +1088,7 @@
     refreshPanel();
   }
   const api = { safeSpectrumUrl, calendarMonths, shouldRunFeature, adaptCalendarResponse, makeReviewFields,
-    announcementForum, safeForumPage, discoverOfficialEvents, discoverAnnouncements, refreshPost, exportOrSync, syncNow, refreshPanel,
+    askOcc, announcementForum, safeForumPage, discoverOfficialEvents, discoverAnnouncements, refreshPost, exportOrSync, syncNow, refreshPanel,
     analyseDates, stopDateAnalysis, dateRecords, onTabChange,
     savedCourseIds: () => contextReady && status?.settings?.courseIds?.length ? [...status.settings.courseIds] : null };
   root.UmSpecStudentSync = api;

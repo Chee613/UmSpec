@@ -1,7 +1,7 @@
 /* Google credentials and durable state stay in this trusted extension context. */
 if (typeof importScripts === 'function') {
   importScripts('../shared/sync-core.js', '../shared/calendar-core.js', '../shared/announcement-core.js',
-    'google.js', 'drive.js', 'calendar.js', '../shared/planner-core.js', 'planner.js');
+    'google.js', 'drive.js', 'calendar.js', '../shared/planner-core.js', '../shared/course-ai.js', 'planner.js', '../shared/course-scan.js');
 }
 (function (root) {
   'use strict';
@@ -90,7 +90,8 @@ if (typeof importScripts === 'function') {
       syncTimes: binding?.syncTimes || {}, driveRootId: binding?.driveRootId || null,
       calendarId: binding?.calendarId || null,
       calendarVisibilityNotice: binding?.calendarId && binding.calendarVisibilityIssue?.calendarId === binding.calendarId ? binding.calendarVisibilityIssue.message : null,
-      job: job ? { id: job.id, tabId: job.tabId, done: Boolean(job.done), status: job.status, cursor: job.cursor || 0,
+      background: binding ? { ...(binding.background || {}), running: Boolean(bgRun), progress: bgProgress } : null,
+      job: job ? { id: job.id, tabId: job.tabId, background: Boolean(job.background), done: Boolean(job.done), status: job.status, cursor: job.cursor || 0,
         total: job.materials.length, scopeChanged: !scopeMatches(job, binding, 'drive'),
         summary: core().summariseResults(job.results || []), error: job.error || null,
         attention: (job.results || []).filter(result => ['failed', 'conflict', 'trashed'].includes(result.action)).slice(0, 5)
@@ -249,14 +250,16 @@ if (typeof importScripts === 'function') {
       if (url.protocol !== 'https:' || url.username || url.password || url.searchParams.has('sesskey')) throw error('INVALID_SOURCE', 'Unsafe material URL.');
       if (!['binary', 'link'].includes(item.kind)) throw error('INVALID_SOURCE', 'Unknown material type.');
       const name = String(item.name || 'Material').replace(/[\x00-\x1f/\\]/g, '_').slice(0, 240);
-      const category = String(item.category || '9.Reference').replace(/[\x00-\x1f/\\]/g, '_').slice(0, 100);
+      const category = String(item.category || 'Lecture Slides').replace(/[\x00-\x1f/\\]/g, '_').slice(0, 100);
+      const displayName = item.displayName ? String(item.displayName).replace(/[\x00-\x1f/\\]/g, '_').slice(0, 160) : null;
+      const section = String(item.section || '').replace(/[\x00-\x1f]/g, ' ').slice(0, 160);
       const courseName = String(item.courseName || item.courseId).replace(/[\x00-\x1f/\\]/g, '_').slice(0, 240);
       const courseFolder = String(item.courseFolder || courseName).replace(/[\x00-\x1f/\\]/g, '_').slice(0, 240);
       const revision = item.kind === 'binary' ? core().canonicalSource(url.href).revision : null;
       const sourceFingerprint = revision ? await core().hashParts(['resource-revision', revision]) : null;
       const mimeType = String(item.mimeType || item.contentType || '').replace(/[\x00-\x1f\x7f]/g, '').slice(0, 100);
       return { sourceKey: item.sourceKey, sourceUrl: url.href, courseId: String(item.courseId),
-        moduleId: String(item.moduleId || ''), name, category, courseName, courseFolder, archiveId: binding.settings.archiveId,
+        moduleId: String(item.moduleId || ''), name, displayName, section, category, courseName, courseFolder, archiveId: binding.settings.archiveId,
         kind: item.kind, sourceFingerprint, contentSha256: null, mimeType,
         isVideo: core().isVideoMaterial({ ...item, name, category, mimeType }),
         sizeBytes: Number.isSafeInteger(item.sizeBytes) ? item.sizeBytes : null };
@@ -420,24 +423,39 @@ if (typeof importScripts === 'function') {
         await save(state);
         return publicStatus(state, sender, message);
       }
-      const before = job.results.length;
-      try {
-        await authorise(state, tabId, binding, 'drive');
-        state.activeJob = await dep('UmSpecDrive', './drive.js').runDriveStep(job);
-        binding.driveRootId = state.activeJob.binding.driveRootId ?? binding.driveRootId;
-        binding.driveLinks = state.activeJob.binding.driveLinks ?? binding.driveLinks;
-        addChanges(state, binding, state.activeJob.results.slice(before));
-        if (state.activeJob.done) {
-          state.activeJob.status = 'complete';
-          const summary = core().summariseResults(state.activeJob.results);
-          if (!summary.failed && !summary.conflicts) binding.syncTimes.drive.lastSuccessfulSyncAt = Date.now();
-        }
-      } catch (e) {
-        job.status = 'paused';
-        job.error = { code: e.code || 'SYNC_FAILED', message: 'Sync paused. ' + String(e.message).slice(0, 180) };
-      }
+      await advanceDrive(state, binding, job, () => authorise(state, tabId, binding, 'drive'));
       await save(state);
       return publicStatus(state, sender, message);
+    }
+    if (message.type === 'BACKGROUND_DRIVE_SYNC') {
+      if (kind !== 'content') throw error('FORBIDDEN', 'Background sync starts from a signed-in Spectrum tab.');
+      // The tab only starts it; the worker and its hidden reader page carry on after the tab is closed.
+      startBackgroundSync(binding.hash, { force: message.force === true });
+      return publicStatus(state, sender, message);
+    }
+    if (message.type === 'DRIVE_CLEANUP_PREVIEW' || message.type === 'DRIVE_CLEANUP_APPLY') {
+      if (kind !== 'content') throw error('FORBIDDEN', 'Clean up Drive from a signed-in Spectrum tab.');
+      const job = state.activeJob?.bindingHash === binding.hash ? state.activeJob : state.savedJobs.drive[binding.hash] || null;
+      if (!job?.done) throw error('SYNC_FIRST', 'Finish a Drive sync first, so clean-up knows which files are current.');
+      await authorise(state, tabId, binding, 'drive');
+      const drive = dep('UmSpecDrive', './drive.js');
+      if (message.type === 'DRIVE_CLEANUP_PREVIEW') {
+        const plan = drive.planCleanup(await drive.listAppFiles(), { bindingHash: binding.hash, archiveId: binding.settings.archiveId,
+          keepKeys: new Set(job.materials.map(item => item.sourceKey)), keepFolderIds: Object.values(job.folders || {}) });
+        binding.cleanupPlan = { at: Date.now(), ids: plan.items.map(item => item.id), done: 0 };
+        await save(state);
+        return { ...publicStatus(state, sender, message), cleanup: { total: plan.items.length, folders: plan.items.filter(item => item.folder).length,
+          bytes: plan.bytes, kept: plan.kept, sample: plan.items.filter(item => !item.folder).slice(0, 8).map(item => ({ name: item.name, reason: item.reason })) } };
+      }
+      // Trashing waits for an explicit preview from the last 15 minutes and works through it in short batches.
+      const plan = binding.cleanupPlan;
+      if (!plan || Date.now() - plan.at > 15 * 60000) throw error('PREVIEW_FIRST', 'Find duplicates again before moving them to Drive trash.');
+      const started = Date.now();
+      while (plan.done < plan.ids.length && Date.now() - started < 2500) { await drive.trashFile(plan.ids[plan.done]); plan.done++; }
+      const progress = { done: plan.done, total: plan.ids.length };
+      if (plan.done >= plan.ids.length) { binding.cleanupPlan = null; binding.lastCleanup = { at: Date.now(), trashed: plan.ids.length }; }
+      await save(state);
+      return { ...publicStatus(state, sender, message), cleanup: progress };
     }
     if (message.type === 'BEGIN_CALENDAR_SYNC') {
       if (!binding.settings.calendarEnabled) throw error('DISABLED', 'Enable Google Calendar first.');
@@ -577,6 +595,176 @@ if (typeof importScripts === 'function') {
     }
     throw error('INVALID_MESSAGE', 'Unsupported command.');
   }
+  // One Drive step, then any further files that finish without an upload, under a single verification and state write
+  // (live: 480 items took ~1.7 s each when every file needed its own account checks and state write).
+  async function advanceDrive(state, binding, job, authoriseFn) {
+    const before = job.results.length;
+    try {
+      await authoriseFn();
+      const drive = dep('UmSpecDrive', './drive.js');
+      state.activeJob = await drive.runDriveStep(job);
+      const started = Date.now();
+      for (let settled = 1; settled < 60 && Date.now() - started < 2000; settled++) {
+        const current = state.activeJob, count = current.results.length;
+        if (current.done || current.upload || current.folderIntent || current.status !== 'running' || !current.remoteFiles || count === before) break;
+        const next = await drive.runDriveStep(current);
+        state.activeJob = next;
+        if (next.results.length === count) break;
+      }
+      binding.driveRootId = state.activeJob.binding.driveRootId ?? binding.driveRootId;
+      binding.driveLinks = state.activeJob.binding.driveLinks ?? binding.driveLinks;
+      addChanges(state, binding, state.activeJob.results.slice(before));
+      if (state.activeJob.done) {
+        state.activeJob.status = 'complete';
+        const summary = core().summariseResults(state.activeJob.results);
+        if (!summary.failed && !summary.conflicts) binding.syncTimes.drive.lastSuccessfulSyncAt = Date.now();
+      }
+    } catch (e) {
+      // Keep whatever this call already settled; pause on the item that failed.
+      const paused = state.activeJob || job;
+      if (paused !== job) {
+        binding.driveRootId = paused.binding.driveRootId ?? binding.driveRootId;
+        binding.driveLinks = paused.binding.driveLinks ?? binding.driveLinks;
+        addChanges(state, binding, paused.results.slice(before));
+      }
+      paused.status = 'paused';
+      paused.error = { code: e.code || 'SYNC_FAILED', message: 'Sync paused. ' + String(e.message).slice(0, 180) };
+    }
+  }
+
+  // ---------- Background Drive sync ----------
+  // Opening Spectrum starts it; a hidden extension page reads course pages with the signed-in session, and this worker
+  // uploads. Progress is saved after every batch, and a one-minute alarm resumes it if Chrome stops the worker.
+  const BG_ALARM = 'umspec-bg-drive';
+  let bgRun = null, bgProgress = null, bgVerifiedAt = 0;
+  function exclusive(fn) {
+    const task = serial.then(fn);
+    serial = task.then(() => {}, () => {});
+    return task;
+  }
+  async function offscreen(type, payload = {}) {
+    if (!root.chrome?.offscreen) throw error('UNSUPPORTED', 'This browser cannot sync in the background. Keep a Spectrum tab open instead.');
+    const open = chrome.runtime.getContexts ? (await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] })).length > 0 : false;
+    if (!open) {
+      await chrome.offscreen.createDocument({ url: 'offscreen/sync.html', reasons: ['DOM_PARSER'],
+        justification: 'Read signed-in Spectrum course pages so Google Drive sync continues without an open tab.' })
+        .catch(e => { if (!/single offscreen|already/i.test(e.message)) throw e; });
+    }
+    const response = await chrome.runtime.sendMessage({ target: 'umspec-offscreen', type, ...payload });
+    if (!response?.ok) throw error(response?.error?.code || 'BACKGROUND_UNAVAILABLE', response?.error?.message || 'Background reader unavailable.');
+    return response.data;
+  }
+  async function closeOffscreen() { try { await chrome.offscreen?.closeDocument(); } catch {} }
+  async function authoriseBackground(binding) {
+    if (Date.now() - bgVerifiedAt > 60000) {
+      const current = await offscreen('CONTEXT');
+      if (String(current.userId) !== binding.spectrumUserId) throw error('LOGIN_REQUIRED', 'A different Spectrum account is signed in. Background sync stopped.');
+      bgVerifiedAt = Date.now();
+    }
+    if (!binding.googleSub || !binding.features?.includes('drive')) throw error('CONNECT_REQUIRED', 'Connect Google Drive first.');
+    await google().verifyAccount(binding.googleSub, 'drive');
+  }
+  function backgroundDue(binding, now = Date.now()) {
+    const settings = binding.settings, times = binding.syncTimes?.drive || {};
+    return Boolean(settings.mode === 'drive' && settings.autoSync && settings.archiveId && settings.courseIds.length &&
+      binding.features?.includes('drive') && times.lastSuccessfulSyncAt && now - (times.lastAttemptAt || 0) >= 15 * 60000);
+  }
+  // Course names and Drive folder names come from the last Drive job, so files land in the same folders as before.
+  async function backgroundCourses(state, binding) {
+    const known = new Map();
+    for (const job of [state.activeJob, state.savedJobs.drive[binding.hash]]) {
+      if (job?.bindingHash !== binding.hash) continue;
+      for (const item of job.materials || []) {
+        if (!known.has(String(item.courseId)) && item.courseName) known.set(String(item.courseId), { id: Number(item.courseId), fullName: item.courseName, shortName: '', folderName: item.courseFolder || item.courseName });
+      }
+    }
+    const planner = (await chrome.storage.local.get('umspecPlanner')).umspecPlanner;
+    const scan = dep('UmSpecCourseScan', '../shared/course-scan.js');
+    return binding.settings.courseIds.map(id => {
+      if (known.has(String(id))) return known.get(String(id));
+      const course = planner?.courses?.find(item => item.id === String(id));
+      return course ? { id: Number(id), fullName: course.fullName, shortName: course.shortName, folderName: scan.formatCourseFolder(course.fullName, course.shortName) } : null;
+    });
+  }
+  function startBackgroundSync(bindingHash, options = {}) {
+    if (bgRun) return bgRun;
+    bgRun = backgroundSync(bindingHash, options).catch(() => {}).finally(() => { bgRun = null; bgProgress = null; });
+    return bgRun;
+  }
+  async function recordBackground(bindingHash, patch) {
+    await exclusive(async () => {
+      const state = await readState(), binding = state.bindings[bindingHash];
+      if (!binding) return;
+      binding.background = { ...binding.background, ...patch, at: Date.now() };
+      await save(state);
+    });
+  }
+  async function backgroundSync(bindingHash, { force = false } = {}) {
+    let jobId = await exclusive(async () => {
+      const state = await readState(), binding = state.bindings[bindingHash];
+      if (!binding) return null;
+      const current = state.activeJob?.bindingHash === bindingHash ? state.activeJob : null;
+      if (current && !current.done && current.background && current.status === 'running' && current.tabId == null && scopeMatches(current, binding, 'drive')) return current.id;
+      if (current && !current.done && current.upload != null) return null;
+      if (!(force ? binding.settings.mode === 'drive' && binding.features?.includes('drive') : backgroundDue(binding))) return null;
+      binding.syncTimes.drive = { ...binding.syncTimes.drive, lastAttemptAt: Date.now() };
+      binding.background = { phase: 'scanning', error: null, at: Date.now() };
+      await save(state);
+      return 'scan';
+    });
+    if (!jobId) return;
+    await chrome.alarms?.create(BG_ALARM, { periodInMinutes: 1 });
+    try {
+      if (jobId === 'scan') {
+        bgProgress = { phase: 'scanning', course: 0, courses: 0 };
+        const state = await readState(), binding = state.bindings[bindingHash];
+        await authoriseBackground(binding);
+        const courses = await backgroundCourses(state, binding);
+        if (courses.some(course => !course)) throw error('PARTIAL_SCAN', 'Some selected courses are not known yet. Open Courses in UM Spec once.');
+        const scanned = await offscreen('SCAN', { courses, videoPolicy: binding.settings.videoPolicy });
+        jobId = await exclusive(async () => {
+          const state = await readState(), binding = state.bindings[bindingHash];
+          const materials = await validateMaterials(scanned.materials, binding);
+          const existing = selectJob(state, 'drive', binding);
+          // A sync the student started in a Spectrum tab meanwhile keeps priority.
+          if (existing && !existing.done && (existing.upload != null || (existing.tabId != null && existing.status === 'running'))) throw error('BUSY', 'A Spectrum tab is already syncing to Drive.');
+          state.activeJob = { id: crypto.randomUUID(), bindingHash, binding: structuredClone(binding), scopeKey: scopeKey(binding.settings, 'drive'), scopeChanged: false,
+            tabId: null, background: true, heartbeat: Date.now(), materials, cursor: 0, results: [], status: 'running', done: false };
+          binding.background = { phase: 'uploading', error: null, skipped: scanned.skipped || 0, at: Date.now() };
+          await save(state);
+          return state.activeJob.id;
+        });
+      }
+      bgProgress = { phase: 'uploading' };
+      for (;;) {
+        const outcome = await exclusive(async () => {
+          const state = await readState(), binding = state.bindings[bindingHash], job = state.activeJob;
+          // A Spectrum tab that took the job over (tabId set) or a pause from the student ends the background loop.
+          if (!binding || !job || job.id !== jobId || job.tabId != null || job.done || job.status !== 'running') return 'stop';
+          if (!scopeMatches(job, binding, 'drive')) { pauseForScope(job, binding, 'drive'); await save(state); return 'stop'; }
+          await advanceDrive(state, binding, job, () => authoriseBackground(binding));
+          state.activeJob.heartbeat = Date.now();
+          if (state.activeJob.done) binding.background = { phase: 'complete', error: null, at: Date.now() };
+          else if (state.activeJob.error) binding.background = { phase: 'paused', error: state.activeJob.error.message, at: Date.now() };
+          await save(state);
+          return state.activeJob.done || state.activeJob.status !== 'running' ? 'stop' : 'more';
+        });
+        if (outcome === 'stop') break;
+      }
+    } catch (e) {
+      await recordBackground(bindingHash, { phase: 'paused', error: String(e.message).slice(0, 200) });
+    } finally {
+      bgVerifiedAt = 0;
+      await chrome.alarms?.clear(BG_ALARM);
+      await closeOffscreen();
+    }
+  }
+  async function resumeBackground() {
+    const state = await readState(), job = state.activeJob;
+    if (job?.background && !job.done && job.status === 'running' && job.tabId == null) startBackgroundSync(job.bindingHash);
+    else await chrome.alarms?.clear(BG_ALARM);
+  }
+
   function handleMessage(message, sender) {
     // Planner commands keep their own storage key, so they never wait behind a long Drive or Calendar step.
     if (typeof message?.type === 'string' && message.type.startsWith('PLANNER_')) {
@@ -597,8 +785,19 @@ if (typeof importScripts === 'function') {
     const ready = chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
     root.UmSpecPlannerWorker?.install();
     chrome.runtime.onMessage.addListener((message, sender, reply) => {
+      // The hidden background reader talks only to this worker; its requests are not student commands.
+      if (message?.target === 'umspec-offscreen') return;
+      if (message?.target === 'umspec-worker') {
+        if (sender.id === chrome.runtime.id && !sender.tab && message.type === 'BG_SCAN_PROGRESS' && bgProgress) {
+          bgProgress = { phase: 'scanning', course: Number(message.course) || 0, courses: Number(message.courses) || 0 };
+        }
+        return;
+      }
       ready.then(() => handleMessage(message, sender)).then(reply);
       return true;
     });
+    chrome.alarms?.onAlarm.addListener(alarm => { if (alarm.name === BG_ALARM) ready.then(resumeBackground).catch(() => {}); });
+    chrome.runtime.onStartup?.addListener(() => { ready.then(resumeBackground).catch(() => {}); });
   }
+  root.UmSpecWorker.backgroundDue = backgroundDue;
 })(globalThis);

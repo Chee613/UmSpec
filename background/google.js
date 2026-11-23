@@ -88,11 +88,21 @@
         await new Promise(resolve => setTimeout(resolve, 1000 * 2 ** attempt + Math.random() * 250));
         continue;
       }
-      if (response.status === 401 && !refreshed) {
+      if (response.status === 401) {
         await chrome.identity.removeCachedAuthToken({ token });
         identities.delete(token);
-        refreshed = true;
-        continue;
+        if (!refreshed) { refreshed = true; continue; }
+        // A fresh token was refused too, so retrying cannot help: Google no longer honours this connection.
+        // The cached token is already gone, so connecting again from the popup asks Google for a new one.
+        const label = feature === 'calendar' ? 'Calendar' : 'Drive';
+        let said = '';
+        try { said = String((await response.json())?.error?.message || ''); } catch {}
+        said = said.replace(/[^\w .,:'()-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+        const endpoint = method + ' ' + url.pathname.split('/').slice(3, 6).map(part => part.length > 24 || part.includes('%40') ? ':id' : part).join('/');
+        const reason = (response.headers.get('WWW-Authenticate') || '').match(/error="?([\w-]{1,40})/)?.[1];
+        throw Object.assign(fail('RECONNECT_REQUIRED', 'Google stopped accepting UM Spec\'s ' + label + ' access' +
+          ' (' + [endpoint, reason, said].filter(Boolean).join(' · ') + '). Open the UM Spec popup and connect Google ' + label + ' again.'),
+        { status: 401, reason: reason || null });
       }
       if (!canRetry || attempt >= 3 || ![429, 500, 502, 503, 504].includes(response.status)) return response;
       const retryAfter = response.headers.get('Retry-After');

@@ -52,7 +52,7 @@
 
 After updating the extension files, click **Reload** on UmSpec in the browser’s Extensions page, then refresh your SPeCTRUM tab. Existing tabs keep the previous injected UI until refreshed.
 
-If `Extension context invalidated` appears during a reload, close **all** Spectrum tabs, reload UM Spec, clear its old error entries, and open Spectrum again. This retires older injected scripts in every tab. Version **2.0.4** includes the guarded runtime; its popup and dashboard show the same version.
+If `Extension context invalidated` appears during a reload, close **all** Spectrum tabs, reload UM Spec, clear its old error entries, and open Spectrum again. This retires older injected scripts in every tab. Version **2.1.0** is the current release; its popup and options page show the same version.
 
 ---
 
@@ -91,7 +91,7 @@ Open it from the toolbar popup (**Open planner** or the side-panel button), with
 
 Deadlines show **Overdue**, **To do** or **Submitted** from Spectrum's own outstanding-action list. Attendance shows **Check-in open**, **Present** or **Absent**; the check-in button opens Spectrum so you mark it yourself. UM Spec never submits attendance automatically.
 
-The OCC bar on course pages hides activities labelled for other OCCs (use **Show items from every OCC** to dim them instead). Reminders are optional browser notifications before deadlines and classes, and the toolbar badge counts deadlines due within 48 hours or overdue.
+The OCC bar on course pages hides activities labelled for other OCCs (use **Show items from every OCC** to dim them instead). OCC is detected from your groups, attendance and locked items; before a manual sync UM Spec asks you to confirm any it could not detect (Settings → Files → **Set my OCC**). Optional **Read groups with AI** handles unusual labels such as "G1" or a lecturer's section; it sends only the course structure, never your details. Reminders are optional browser notifications before deadlines and classes, and the toolbar badge counts deadlines due within 48 hours or overdue.
 
 The parsers follow standard Moodle attendance, calendar and forum layouts and are covered by synthetic tests; check them against a signed-in Spectrum account after any Spectrum upgrade.
 
@@ -117,9 +117,9 @@ ZIP exports show the interactive Chrome Dino Runner with jump controls, cancella
 4. After a successful Drive pass, automatic updates check on Spectrum visits unless you turn them off.
 5. Connect Calendar separately from Drive, then open Dates → Analyse dates. Official dates sync when enabled; announcement suggestions require review before saving.
 
-Events appear in the separate **UM Spec** calendar under the connected Google account. UM Spec makes that calendar visible on first use or recovery. Dates reports the saved count, pending reviews and sync errors; Settings → Calendar reports Calendar's own connection status.
+Events appear in the separate **UM Spec** calendar under the connected Google account. If that calendar is hidden, UM Spec tells you how to turn it on. Each deadline shows Spectrum's submission status, and deadlines for another OCC are marked "not your OCC". Dates reports the saved count, pending reviews and sync errors; Settings → Calendar reports Calendar's own connection status.
 
-Checks run while Spectrum is open and signed in, with a 15-minute cooldown per feature. They do not run with the browser closed. Drive initially buffers one file up to 50 MiB; larger files and videos configured as links get an explicit linked-only result.
+Checks start when Spectrum is open and signed in, with a 15-minute cooldown per feature. A started Drive update continues in the background after you leave the page; nothing runs while Chrome is closed. Drive initially buffers one file up to 50 MiB; larger files and videos configured as links get an explicit linked-only result.
 
 Google integration is Chrome-first and still needs an authenticated live pilot after OAuth setup. Keep ZIP available on other supported Chromium browsers until their Google sign-in paths are verified.
 

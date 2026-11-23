@@ -6,7 +6,7 @@
   const ORIGIN = C.ORIGIN, DAY = C.DAY;
   const panelMode = new URLSearchParams(location.search).has('panel');
   const $ = selector => document.querySelector(selector);
-  let data = null, prefs = null, driveKeys = new Set(), busy = false, zipping = null;
+  let data = null, prefs = null, driveKeys = new Set(), busy = false, zipping = null, sync = null;
   const ui = Object.assign({ view: 'calendar', course: 'all', month: null, day: null, calMode: 'count', sort: 'oldest', type: 'all', search: '',
     expanded: [], collapsedSections: [] }, readUi());
   const selected = new Set();
@@ -44,7 +44,7 @@
   async function load() {
     const saved = await chrome.storage.local.get([DATA, PREFS]);
     data = saved[DATA] || null;
-    prefs = { lang: 'en', theme: 'system', occ: {}, showAllOcc: false, reminders: { enabled: false, deadlineLeads: [1440, 60], classLead: 10 }, ...(saved[PREFS] || {}) };
+    prefs = { lang: 'en', theme: 'light', occ: {}, showAllOcc: false, reminders: { enabled: false, deadlineLeads: [1440, 60], classLead: 10 }, ...(saved[PREFS] || {}) };
     prefs.reminders = { enabled: false, deadlineLeads: [1440, 60], classLead: 10, ...(prefs.reminders || {}) };
     try { const keys = (await chrome.runtime.sendMessage({ type: 'PLANNER_DRIVE' }))?.data?.keys; driveKeys = new Set(Array.isArray(keys) ? keys : []); } catch {}
   }
@@ -52,8 +52,15 @@
     prefs = { ...prefs, ...patch };
     await chrome.storage.local.set({ [PREFS]: prefs });
   }
+  // Drive and Calendar state, refreshed whenever the extension saves sync progress (at most twice a second).
+  let syncTimer = 0;
+  async function loadSync() {
+    try { sync = (await chrome.runtime.sendMessage({ type: 'PLANNER_SYNC_STATUS' }))?.data || null; } catch { sync = null; }
+    if (prefs) { renderSyncPill(); renderOverview(); }
+  }
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
+    if (changes.umspecState) { clearTimeout(syncTimer); syncTimer = setTimeout(loadSync, 500); }
     if (changes[DATA]) data = changes[DATA].newValue || null;
     if (changes[PREFS]) prefs = { ...prefs, ...(changes[PREFS].newValue || {}) };
     if (changes[DATA] || changes[PREFS]) render();
@@ -90,6 +97,7 @@
     $('#refresh').querySelector('span').textContent = busy ? t('refreshing') : t('refresh');
     $('#open-side').hidden = panelMode || !chrome.sidePanel?.open;
     renderChips();
+    renderSyncPill();
   }
   function renderChips() {
     const box = $('#course-chips');
@@ -104,6 +112,79 @@
   function setCourse(id) { ui.course = id; saveUi(); render(); }
   function setView(view) { ui.view = view; saveUi(); render(); scrollToToday(); }
   function scrollToToday() { if (ui.view === 'list') requestAnimationFrame(() => $('#tl-today')?.scrollIntoView({ block: 'start' })); }
+
+  // ---------- Overview: sync status and this week's numbers ----------
+  // One state per service, worst first: attention > syncing > paused > not connected/off > never > up to date.
+  function serviceState(service) {
+    if (!service) return { key: 'none', label: t('stNotConnected') };
+    if (!service.connected) return { key: 'none', label: t('stNotConnected'), hint: t('connectHint') };
+    if (!service.on) return { key: 'off', label: t('stOff') };
+    if (service.error || service.attention) return { key: 'bad', label: t('stAttention'), hint: service.error || service.attention + ' ' + t('needAttention') };
+    if (service.running) return { key: 'run', label: t('stSyncing'), progress: service.total ? service.cursor / service.total : null };
+    if (service.paused) return { key: 'pause', label: t('stPaused') };
+    if (!service.lastSuccess) return { key: 'never', label: t('stNever') };
+    return { key: 'ok', label: t('stSynced') };
+  }
+  const RANK = { bad: 5, run: 4, pause: 3, none: 2, off: 1, never: 2, ok: 0 };
+  function ago(ms) { return !ms ? '' : Date.now() - ms < 60000 ? t('justNow') : relative(ms); }
+  function renderSyncPill() {
+    const pill = $('#sync-pill');
+    const states = [serviceState(sync?.drive), serviceState(sync?.calendar)].filter(s => sync?.account || s.key !== 'none');
+    if (!sync?.account) { pill.hidden = true; return; }
+    const worst = states.sort((a, b) => RANK[b.key] - RANK[a.key])[0];
+    pill.hidden = false;
+    pill.className = 'sync-pill ' + worst.key;
+    const running = sync.drive?.running ? sync.drive : sync.calendar?.running ? sync.calendar : null;
+    pill.replaceChildren(h('i', { 'aria-hidden': 'true' }), running && running.total ? t('stSyncing') + ' ' + running.cursor + '/' + running.total : worst.key === 'ok' ? t('allGood') : worst.label);
+    pill.title = t('syncStatus');
+    pill.onclick = () => { if (ui.view === 'settings') setView('calendar'); requestAnimationFrame(() => $('#overview')?.scrollIntoView({ block: 'start', behavior: 'smooth' })); };
+  }
+  function serviceRow(kind, service) {
+    const state = serviceState(service);
+    const icon = h('img', { src: '../icons/' + (kind === 'drive' ? 'google-drive.svg' : 'google-calendar.svg'), alt: '', width: 22, height: 22 });
+    const detail = [];
+    if (state.key === 'run' && service.total) detail.push(service.cursor + ' / ' + service.total + ' ' + (kind === 'drive' ? t('items') : t('dates')) + (service.background ? ' ' + t('inBackground') : ''));
+    else if (service?.lastSuccess) detail.push(t('lastSync') + ' ' + ago(service.lastSuccess));
+    if (kind === 'drive' && service?.summary && state.key !== 'run') detail.push(service.summary.created + service.summary.updated + service.summary.skipped + ' ' + t('files') + ' · ' + service.summary.linked + ' links');
+    if (kind === 'calendar' && service?.dates && state.key !== 'run') detail.push(service.dates + ' ' + t('dates'));
+    const link = kind === 'drive' && service?.folderId ? h('a', { class: 'btn small', href: 'https://drive.google.com/drive/folders/' + encodeURIComponent(service.folderId), target: '_blank', rel: 'noopener noreferrer' }, t('openFolder'))
+      : kind === 'calendar' && service?.calendarId ? h('a', { class: 'btn small', href: 'https://calendar.google.com/calendar/r', target: '_blank', rel: 'noopener noreferrer' }, t('openCalendar')) : null;
+    return h('div', { class: 'svc ' + state.key },
+      h('span', { class: 'svc-ico' }, icon),
+      h('div', { class: 'svc-body' },
+        h('div', { class: 'svc-top' }, h('strong', { text: kind === 'drive' ? t('drive') : t('gcal') }), h('span', { class: 'badge ' + state.key }, h('i', { 'aria-hidden': 'true' }), state.label)),
+        h('div', { class: 'svc-meta', text: [detail.join(' · '), state.hint].filter(Boolean).join(' — ') }),
+        state.key === 'run' && state.progress != null ? h('div', { class: 'bar', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': Math.round(state.progress * 100) }, h('span', { style: 'width:' + Math.max(3, Math.round(state.progress * 100)) + '%' })) : null),
+      link);
+  }
+  function stat(label, value, tone, sub) {
+    return h('div', { class: 'stat ' + (tone || '') }, h('span', { class: 'stat-label', text: label }), h('strong', { class: 'stat-value', text: String(value) }), sub ? h('span', { class: 'stat-sub', text: sub }) : null);
+  }
+  function renderOverview() {
+    const box = $('#overview');
+    if (!box) return;
+    box.hidden = ui.view === 'settings';
+    if (box.hidden) return;
+    const now = Date.now(), list = items();
+    const deadline = i => i.kind === 'assignment' || i.kind === 'quiz';
+    const dueWeek = list.filter(i => deadline(i) && i.start >= now && i.start - now <= 7 * DAY && C.itemState(i, now) !== 'done').length;
+    const overdue = list.filter(i => C.itemState(i, now) === 'overdue').length;
+    const today = C.dayKey(now);
+    const classes = list.filter(i => i.kind === 'attendance' && C.dayKey(i.start) === today).length;
+    const mats = (data?.materials || []).filter(m => ui.course === 'all' || m.courseId === ui.course);
+    const inDrive = mats.filter(m => driveKeys.has(m.courseId + ':' + m.cmid)).length;
+    const services = sync?.account ? [serviceRow('drive', sync.drive), serviceRow('calendar', sync.calendar)] : [serviceRow('drive', null)];
+    box.replaceChildren(
+      h('div', { class: 'stats' },
+        stat(t('dueWeek'), dueWeek, dueWeek ? 'warn' : ''),
+        stat(t('overdueNow'), overdue, overdue ? 'bad' : 'good'),
+        stat(t('classesToday'), classes, ''),
+        stat(t('filesSynced'), inDrive, '', mats.length ? inDrive + ' / ' + mats.length : '')),
+      h('div', { class: 'sync-card' },
+        h('div', { class: 'sync-head' }, h('h2', { text: t('syncStatus') }), sync?.account ? h('span', { class: 'sync-acct', text: sync.account }) : null),
+        ...services,
+        h('div', { class: 'svc-foot', text: data?.collectedAt ? t('plannerData') + ' · ' + t('lastUpdated') + ' ' + ago(data.collectedAt) : '' })));
+  }
 
   // ---------- Cards ----------
   function relative(ms, now = Date.now()) {
@@ -126,7 +207,7 @@
     } else if (item.kind === 'assignment' || item.kind === 'quiz') {
       meta.append(h('span', { class: 'state ' + state, text: state === 'overdue' ? t('overdue') + ' ' + relative(item.start, now).replace(t('ago'), '').trim() : t(state) }),
         h('span', { text: fmt(item.start, { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) }),
-        state === 'todo' ? h('span', { text: relative(item.start, now) }) : null);
+        state === 'todo' ? h('span', { text: item.opensOnly ? t('noDeadline') : relative(item.start, now) }) : null);
       const label = state === 'done' ? t('viewSubmission') : state === 'overdue' ? t('submitLate') + ' →' : state === 'past' ? t('openSpectrum') + ' ↗' : t('submit') + ' →';
       side.push(h('a', { class: 'act' + (state === 'todo' || state === 'overdue' ? ' solid' : ''), href: item.url, target: '_blank', rel: 'noopener noreferrer', text: label }));
     } else {
@@ -545,7 +626,9 @@
         } catch {}
       }
       if (!done) {
-        const fresh = await collector.collect({ progress: (stage, percent) => notice(t('refreshing') + ' ' + percent + '%') });
+        const knownOcc = {};
+        for (const c of courses()) { const occ = occFor(c.id); if (occ) knownOcc[c.id] = occ; }
+        const fresh = await collector.collect({ knownOcc, progress: (stage, percent) => notice(t('refreshing') + ' ' + percent + '%') });
         const saved = await chrome.runtime.sendMessage({ type: 'PLANNER_SAVE', data: fresh });
         if (!saved?.ok) throw new Error(saved?.error?.message || 'Could not save planner data.');
       }
@@ -568,6 +651,7 @@
   function render() {
     if (!prefs) return;
     renderShell();
+    renderOverview();
     const view = $('#view'); view.replaceChildren();
     if (ui.view === 'calendar') renderCalendar(view);
     else if (ui.view === 'list') renderList(view);
@@ -598,6 +682,9 @@
 
   load().then(() => {
     render();
+    loadSync();
+    // Relative times ("5M ago") stay current.
+    setInterval(() => { if (!document.hidden) loadSync(); }, 30000);
     scrollToToday();
     if (!data || Date.now() - data.collectedAt > 30 * 60000) refresh();
   });

@@ -274,3 +274,142 @@ test('folderFiles extracts all Moodle folder files and ignores avatars/theme lin
     { url: 'https://spectrum.um.edu.my/pluginfile.php/10/mod_folder/content/0/Lab%20Sheet%201.docx', name: 'Lab Sheet 1.docx' }
   ]);
 });
+
+// Shapes below follow names and fields seen on the live Spectrum calendar (Nov 2026); values are synthetic.
+test('live Spectrum attendance names, Turnitin deadlines and not-yet-open submissions classify correctly', () => {
+  const t = Math.floor(Date.UTC(2026, 10, 30, 15, 59) / 1000);
+  const turnitin = C.classifyEvent({ id: 1271175, name: 'FINAL SUBMISSION #1 (November)', modulename: 'turnitintooltwo', instance: 1007088, eventtype: 'due', timestart: t, timeduration: 0,
+    course: { id: 26842 }, action: { name: 'Add Submission', actionable: true } }, new Set());
+  assert.equal(turnitin.kind, 'assignment'); assert.equal(turnitin.status, 'todo');
+  const later = C.outstandingFromActionEvents([{ modulename: 'assign', instance: 1150762, action: { name: 'Add submission', actionable: false } }]);
+  assert.equal(C.classifyEvent({ id: 9, name: 'Final report is due', modulename: 'assign', instance: 1150762, eventtype: 'due', timestart: t, timeduration: 0, course: { id: 5372 } }, later).status, 'todo');
+  const opens = C.classifyEvent({ id: 1272390, name: 'QUIZ: Barriers to Communication opens', modulename: 'quiz', instance: 1146671, eventtype: 'open', timestart: t - 30 * 86400, timeduration: 0,
+    course: { id: 141 }, action: { name: 'Attempt quiz now' } }, new Set());
+  assert.equal(opens.opensOnly, true); assert.equal(C.itemState(opens, t * 1000), 'todo');
+  assert.equal(C.classifyEvent({ id: 3, name: 'Quiz opens', modulename: 'quiz', instance: 4, eventtype: 'open', timestart: t, timeduration: 0, course: { id: 141 } }, new Set()), null);
+  assert.deepEqual(C.parseOcc('Attendance Lecture Group 2 (OCC3-OCC5-OCC8-OCC9)'), ['3', '5', '8', '9']);
+  assert.deepEqual(C.parseOcc('Attendance (OCC4) (Group GROUP 4 2026/2027_1)'), ['4']);
+  assert.deepEqual(C.parseOcc('Attendance Tutorial Occurrence 2'), ['2']);
+  assert.equal(C.parseOcc('Lecture Attendance-DK1, Thursday, 4-6pm'), null);
+  assert.deepEqual(C.sanitizePlannerData({ courses: [{ id: 1, fullName: 'Turnitin Course Submission', shortName: 'TCS00' }, { id: 2, fullName: 'WIX2001 THINKING AND COMMUNICATION SKILLS' }] }).courses.map(c => c.abbrev), ['TCS00', 'TCS']);
+  assert.deepEqual(C.newsForums([{ modtype: 'forum', cmid: '304', name: 'Announcements' }, { modtype: 'forum', cmid: '1128997', name: 'Announcement from Dr. Tarak Nandy' }, { modtype: 'forum', cmid: '5', name: 'Company Website' }]),
+    ['https://spectrum.um.edu.my/mod/forum/view.php?id=304', 'https://spectrum.um.edu.my/mod/forum/view.php?id=1128997']);
+});
+
+test('quick refresh finds attendance activities in the calendar and reads only the student OCC', () => {
+  const event = (cmid, name) => ({ kind: 'attendance', courseId: '5372', title: name, url: 'https://spectrum.um.edu.my/mod/attendance/view.php?id=' + cmid });
+  const items = [event(1126547, 'Attendance for Lecture (OCC 3, 4, 5, 6, 7)'), event(1128975, 'Attendance for Tutorial (OCC 3)'), event(1128975, 'Attendance for Tutorial (OCC 3)'),
+    event(1128899, 'Attendance (Occ5)'), event(1072792, 'Attendance OCC 2 (Group GROUP 2 2026/2027_1)'), { ...event(1, 'x'), courseId: '129' }];
+  const found = C.attendanceFromCalendar(items, '5372');
+  assert.deepEqual(found.map(a => a.cmid), ['1126547', '1128975', '1128899', '1072792']);
+  assert.equal(found[3].name, 'Attendance OCC 2');
+  assert.deepEqual(C.attendanceToRead(found, '3').map(a => a.cmid), ['1126547', '1128975']);
+  assert.equal(C.attendanceToRead(found, null).length, 4);
+  assert.equal(C.cmidFromUrl('https://spectrum.um.edu.my/mod/attendance/view.php?id=1128975'), '1128975');
+});
+
+test('a quick save keeps files and announcements from the last full pass for the same account only', async () => {
+  const store = {};
+  global.chrome = {
+    runtime: { id: 'ext', getURL: path => 'chrome-extension://ext/' + path },
+    storage: { local: { get: async keys => Object.fromEntries([].concat(keys).filter(k => k in store).map(k => [k, structuredClone(store[k])])), set: async v => Object.assign(store, structuredClone(v)) } },
+    alarms: { getAll: async () => [], clear: async () => {}, create: async () => {} },
+    action: { setBadgeText: async () => {}, setBadgeBackgroundColor: async () => {} }
+  };
+  delete require.cache[require.resolve('../background/planner.js')];
+  const worker = require('../background/planner.js');
+  const content = { id: 'ext', url: 'https://spectrum.um.edu.my/my/', tab: { id: 1 } };
+  const now = Date.now();
+  const base = { userHash: 'a', courses: [{ id: '129', fullName: 'WIA2001 DATABASE' }] };
+  const news = { key: 'news:1', kind: 'notice', courseId: '129', title: 'Mid Term Test', start: now - 3600000, url: 'https://spectrum.um.edu.my/mod/forum/discuss.php?d=1' };
+  const material = { courseId: '129', cmid: '5', name: 'Slides', section: 'Week 1', type: 'pdf', url: 'https://spectrum.um.edu.my/mod/resource/view.php?id=5' };
+  await worker.handle({ type: 'PLANNER_SAVE', data: { ...base, collectedAt: now - 7 * 3600000, fullAt: now - 7 * 3600000, items: [news], materials: [material], detectedOcc: { 129: { occ: '4', source: 'attendance' } } } }, content);
+  await worker.handle({ type: 'PLANNER_SAVE', data: { ...base, collectedAt: now, items: [], materials: [], detectedOcc: {} } }, content);
+  assert.equal(store.umspecPlanner.materials.length, 1);
+  assert.deepEqual(store.umspecPlanner.items.map(i => i.key), ['news:1']);
+  assert.equal(store.umspecPlanner.detectedOcc['129'].occ, '4');
+  assert.equal(store.umspecPlanner.fullAt, now - 7 * 3600000);
+  assert.equal((await worker.handle({ type: 'PLANNER_META' }, content)).fullAt, now - 7 * 3600000);
+  await worker.handle({ type: 'PLANNER_SAVE', data: { ...base, userHash: 'b', collectedAt: now, items: [], materials: [] } }, content);
+  assert.equal(store.umspecPlanner.materials.length, 0);
+  assert.equal(store.umspecPlanner.items.length, 0);
+  delete global.chrome;
+});
+
+// Mirrors the live WIA2001 course page (Nov 2026): every OCC has its own attendance activity, locked to that OCC's group.
+test('locked OCC activities are skipped and the one open OCC activity identifies the student', () => {
+  const activities = [
+    { modtype: 'attendance', cmid: '894047', name: 'Attendance Lecture DK1', restricted: true },
+    { modtype: 'attendance', cmid: '894051', name: 'Attendance Lecture DK2', restricted: false },
+    { modtype: 'attendance', cmid: '1130605', name: 'Tutorial Attendance (OCC7)', restricted: true },
+    { modtype: 'attendance', cmid: '1130610', name: 'Tutorial Attendance (OCC4)', restricted: false },
+    { modtype: 'attendance', cmid: '1126804', name: 'Tutorial Attendance (OCC 3), Thursday 10am - 11am', restricted: true },
+    { modtype: 'resource', cmid: '5', name: 'OCC7 slides', url: 'https://spectrum.um.edu.my/mod/resource/view.php?id=5', restricted: true }
+  ];
+  assert.deepEqual(C.attendanceActivities(activities, '129').map(a => a.cmid), ['894051', '1130610']);
+  assert.equal(C.occFromAccess(activities), '4');
+  assert.equal(C.occFromAccess(activities.map(a => ({ ...a, restricted: false }))), null);
+  assert.deepEqual(C.detectOcc({ sessions: [], activities }), { occ: '4', source: 'attendance' });
+  // Attended sessions still win over access when both exist.
+  assert.deepEqual(C.detectOcc({ sessions: [{ statusKind: 'present', occ: ['4'] }], activities }).occ, '4');
+  assert.equal(C.normaliseMaterials(activities, '129').length, 0);
+  assert.equal(C.sanitizePlannerData({ courses: [] }).version, C.DATA_VERSION);
+});
+
+test('OCC labels and announcement forums are recognised in the forms lecturers actually write', () => {
+  assert.deepEqual(C.parseOcc('Announcement for OCC-6 , OCC-8 and OCC-9'), ['6', '8', '9']);
+  assert.deepEqual(C.parseOcc('Lecture Group 1 (OCCs 1, 2, 4, 6, 7, 10)'), ['1', '2', '4', '6', '7', '10']);
+  assert.deepEqual(C.parseOcc('Important Announcement for OCC-3 (18-11-2025)'), ['3']);
+  assert.deepEqual(C.parseOcc('Tutorial Kump. 2'), ['2']);
+  assert.equal(C.parseOcc('Group 3 presentation slides'), null, 'project group numbers are not OCCs');
+  assert.equal(C.parseOcc('Occasionally 3 students'), null);
+  const forums = C.newsForumEntries([
+    { modtype: 'forum', cmid: '1', name: 'Announcements' },
+    { modtype: 'forum', cmid: '2', name: 'Important Announcement for OCC-3 (18-11-2025)' },
+    { modtype: 'forum', cmid: '3', name: 'Makluman Kursus' },
+    { modtype: 'forum', cmid: '4', name: 'Group Project: System Testing Planning' },
+    { modtype: 'forum', cmid: '5', name: 'Company Website' }
+  ]);
+  assert.deepEqual(forums.map(forum => forum.url.split('=')[1]), ['1', '2', '3']);
+  assert.deepEqual(forums[1].occ, ['3']);
+  const [post] = C.announcementItems([{ id: 9, title: 'Class moved to Friday' }], '7', 0, ['3']);
+  assert.deepEqual(post.occ, ['3'], 'a post without its own OCC label takes its forum\'s OCC');
+  assert.equal(C.occMatches(post.occ, '4'), false);
+});
+
+test('OCC is detected from the student\'s calendar groups, or from the one OCC whose items are not locked', () => {
+  const items = [{ courseId: '25562', title: 'Attendance (Group GROUP 3 2026/2027_1)' }, { courseId: '25562', title: 'Quiz 1 is due' }, { courseId: '9', title: 'Attendance (Group GROUP 1 2026/2027_1)' }];
+  assert.deepEqual(C.calendarGroups(items, '25562'), ['GROUP 3 2026/2027_1']);
+  assert.deepEqual(C.detectOcc({ groups: C.calendarGroups(items, '25562') }), { occ: '3', source: 'group' });
+  // KIG2013: sections "…_OCC_1_…", "…_OCC_2_…", "…_OCC_3_…"; OCC 1 and 2 items are locked to their groups.
+  const activities = [
+    { name: 'Lecture notes', section: 'KIG2013_SEM 1_26/27_ OCC_1_Dr. Meor/Dr. Judha' },
+    { name: 'WhatsApp Group for Occ_2', section: 'General' },
+    { name: 'Week 1', section: 'KIG2013_SEM 1_26/27_OCC_3_Dr. Nashrul/Dr.Abdo' },
+    { name: 'Quiz 2', section: 'KIG2013_SEM 1_26/27_ OCC_1_Dr. Meor/Dr. Judha', restricted: true, lockOcc: ['1'] },
+    { name: 'Tutorial 2 Assignment submission', section: 'KIG2013_SEM 1_26/27_OCC_2_Dr. Abdo/Dr. Meor', restricted: true, lockOcc: ['2'] }];
+  assert.deepEqual(C.detectOcc({ activities }), { occ: '3', source: 'attendance' });
+  assert.equal(C.occFromLocks(activities.slice(0, 3)), null, 'nothing locked means nothing to rule out');
+  assert.equal(C.occFromLocks([...activities, { name: 'Lab', section: 'OCC 4', restricted: false }]), null, 'two OCCs left is not an answer');
+  assert.deepEqual(C.parseOcc('KIG2013_SEM 1_26/27_OCC_3_Dr. Nashrul'), ['3']);
+  assert.equal(C.parseOcc('Soccer 3'), null);
+});
+
+test('reading a course page with an activity locked to another group keeps the lock\'s OCC instead of failing', () => {
+  const collect = require('../shared/planner-collect.js');
+  const node = (props = {}) => ({ textContent: '', classList: [], id: '', children: {}, attrs: {}, ...props,
+    getAttribute(name) { return this.attrs[name] ?? null; }, querySelector(sel) { return this.children[sel] || null; },
+    querySelectorAll(sel) { return this.children[sel] ? [this.children[sel]] : []; }, closest() { return this.parent || null; },
+    cloneNode() { return node({ textContent: this.textContent }); } });
+  const section = node({ children: { '.sectionname': node({ textContent: 'Topic 3' }) } });
+  const lock = node({ textContent: 'Not available unless: You belong to GROUP 2 2026/2027_1' });
+  const locked = node({ id: 'module-1146064', classList: ['activity', 'modtype_assign'], parent: section,
+    textContent: 'Technical Memo 1 Submission for Occ2/Group 2 Not available unless: You belong to GROUP 2 2026/2027_1',
+    children: { '.instancename': node({ textContent: 'Technical Memo 1 Submission for Occ2/Group 2' }), '.availabilityinfo, [data-region="availabilityinfo"]': lock } });
+  locked.closest = sel => sel.startsWith('li.activity') ? locked : section;
+  const doc = { querySelectorAll: sel => sel.startsWith('li.activity') ? [locked] : [] };
+  const [activity] = collect.courseActivities(doc);
+  assert.equal(activity.restricted, true);
+  assert.deepEqual(activity.lockOcc, ['2']);
+  assert.equal(activity.section, 'Topic 3');
+});

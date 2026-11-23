@@ -4,6 +4,7 @@
   const ORIGIN = 'https://spectrum.um.edu.my';
   const MYT = 8 * 3600000, DAY = 86400000, MINUTE = 60000;
   const KINDS = ['assignment', 'quiz', 'attendance', 'notice', 'event'];
+  const DATA_VERSION = 4;
   const clip = (value, max = 300) => String(value ?? '').replace(/[\x00-\x08\x0b-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
   const positiveId = value => /^[1-9]\d{0,12}$/.test(String(value ?? ''));
 
@@ -33,9 +34,14 @@
   const hhmm = minutes => String(Math.floor(minutes / 60)).padStart(2, '0') + ':' + String(minutes % 60).padStart(2, '0');
 
   // ---------- Occurrence (OCC) groups ----------
-  const OCC_PATTERN = /\b(?:occ(?:urrence)?|kumpulan)\s*[:#.]?\s*((?:[0-9]{1,2}[A-Z]?\b)(?:(?:\s*(?:,|&|\/|\band\b|\bdan\b|-|–|\bto\b))+\s*[0-9]{1,2}[A-Z]?\b)*)/gi;
+  // Lecturers write "OCC 4", "Occ4", "OCC-6", "OCCs 1, 2, 4", "Occurrence 3", "Kumpulan 2" or "Kump. 2". "Group N" is left
+  // out on purpose: it usually names a project group, and Moodle itself hides activities locked to other groups.
+  const OCC_PATTERN = /(?<![A-Za-z0-9])(?:occ(?:urrence)?s?|kumpulan|kump\.?)\s*[:#._\-–]?\s*((?:[0-9]{1,2}[A-Z]?(?![A-Za-z0-9]))(?:(?:\s*(?:,|&|\/|\band\b|\bdan\b|-|–|\bto\b))+\s*[0-9]{1,2}[A-Z]?(?![A-Za-z0-9]))*)/gi;
+  // Moodle names UM's class groups "GROUP 3 2026/2027_1" (with the academic year), which is the OCC number.
+  const GROUP_YEAR = /\bgroup\s+(\d{1,2}[A-Z]?)\s+20\d\d\s*\/\s*20\d\d/gi;
   function parseOcc(text) {
     const tokens = new Set();
+    for (const match of String(text || '').matchAll(GROUP_YEAR)) tokens.add(match[1].toUpperCase().replace(/^0+(?=\d)/, ''));
     for (const match of String(text || '').matchAll(OCC_PATTERN)) {
       const parts = match[1].toUpperCase().split(/\s*(?:,|&|\/|\bAND\b|\bDAN\b)\s*/);
       for (const part of parts) {
@@ -53,7 +59,7 @@
     return !tokens || !tokens.length || tokens.includes(String(mine).toUpperCase());
   }
   // Group membership is the most reliable signal; otherwise the sessions the student actually attended decide.
-  function detectOcc({ groups = [], sessions = [] } = {}) {
+  function detectOcc({ groups = [], sessions = [], activities = null } = {}) {
     for (const name of groups) {
       const tokens = parseOcc(name);
       if (tokens?.length === 1) return { occ: tokens[0], source: 'group' };
@@ -70,6 +76,10 @@
     };
     const attended = pick(sessions.filter(s => s.statusKind === 'present' || s.statusKind === 'late'));
     if (attended) return { occ: attended, source: 'attendance' };
+    const access = occFromAccess(activities);
+    if (access) return { occ: access, source: 'attendance' };
+    const left = occFromLocks(activities);
+    if (left) return { occ: left, source: 'attendance' };
     const taken = pick(sessions.filter(s => ['present', 'late', 'absent', 'excused'].includes(s.statusKind)));
     return taken ? { occ: taken, source: 'attendance' } : null;
   }
@@ -171,37 +181,42 @@
   }
 
   // ---------- Calendar events ----------
+  // Modules whose "due" date is a student submission (Spectrum also uses Turnitin for final submissions).
+  const SUBMISSION_MODULES = new Set(['assign', 'turnitintooltwo', 'turnitintool', 'workshop', 'lesson', 'h5pactivity', 'scorm']);
   function classifyEvent(raw, outstanding) {
     if (!raw || !positiveId(raw.id) || !Number.isInteger(raw.timestart)) return null;
     const module = String(raw.modulename || '').toLowerCase(), type = String(raw.eventtype || '').toLowerCase();
-    const kind = module === 'assign' ? 'assignment' : module === 'quiz' ? 'quiz' : module === 'attendance' ? 'attendance' :
+    const opensOnly = module === 'quiz' && type === 'open';
+    const kind = SUBMISSION_MODULES.has(module) && ['due', 'close', 'expectcompletionon'].includes(type) ? 'assignment' : module === 'quiz' ? 'quiz' : module === 'attendance' ? 'attendance' :
       module ? 'event' : ['course', 'site', 'category', 'group'].includes(type) ? 'notice' : 'event';
-    if ((kind === 'assignment' || kind === 'quiz') && !['due', 'close', 'gradingdue'].includes(type)) return null;
     if (type === 'gradingdue') return null;
+    if (kind === 'quiz' && !['due', 'close'].includes(type) && !(opensOnly && raw.action)) return null;
     const start = raw.timestart * 1000, duration = Math.max(0, Number(raw.timeduration) || 0) * 1000;
     const courseId = String(raw.course?.id ?? raw.courseid ?? '');
     const actionKey = module && raw.instance ? module + ':' + raw.instance : null;
     let status = null;
     if (kind === 'assignment' || kind === 'quiz') {
-      if (!outstanding) status = 'unknown';
-      else if (actionKey && outstanding.has(actionKey)) status = 'todo';
-      else status = 'done';
+      // The calendar's own "Add submission" action also means the work is still outstanding.
+      if (raw.action || (actionKey && outstanding?.has(actionKey))) status = 'todo';
+      else status = outstanding ? 'done' : 'unknown';
     }
     return {
       key: 'cal:' + raw.id, kind, courseId: positiveId(courseId) ? courseId : '', title: clip(String(raw.name || '').replace(/<[^>]*>/g, ' '), 200),
       start, end: duration ? start + duration : null, url: safeUrl(raw.url, { spectrumOnly: true }) || ORIGIN + '/calendar/view.php?view=event&id=' + raw.id,
       module: module || null, instance: raw.instance ? String(raw.instance) : null, status,
-      occ: parseOcc(raw.name), detail: clip(String(raw.description || '').replace(/<[^>]*>/g, ' '), 280)
+      occ: parseOcc(raw.name), detail: clip(String(raw.description || '').replace(/<[^>]*>/g, ' '), 280), opensOnly
     };
   }
+  // Every action event is unfinished work; "actionable: false" only means it is not open for submission yet.
   function outstandingFromActionEvents(events) {
     const keys = new Set();
-    for (const event of events || []) if (event?.modulename && event.instance && event.action?.actionable !== false) keys.add(String(event.modulename).toLowerCase() + ':' + event.instance);
+    for (const event of events || []) if (event?.modulename && event.instance && event.action) keys.add(String(event.modulename).toLowerCase() + ':' + event.instance);
     return keys;
   }
   function itemState(item, now = Date.now()) {
     if (item.kind === 'assignment' || item.kind === 'quiz') {
       if (item.status === 'done') return 'done';
+      if (item.opensOnly) return 'todo';
       if (item.status === 'todo') return item.start < now ? 'overdue' : 'todo';
       return item.start < now ? 'past' : 'todo';
     }
@@ -232,7 +247,7 @@
   function normaliseMaterials(activities, courseId) {
     const out = [], seen = new Set();
     for (const a of activities || []) {
-      if (!MATERIAL_TYPES.has(a.modtype) || !positiveId(a.cmid) || seen.has(a.cmid)) continue;
+      if (!MATERIAL_TYPES.has(a.modtype) || a.restricted || !positiveId(a.cmid) || seen.has(a.cmid)) continue;
       const url = safeUrl(a.url);
       if (!url) continue;
       seen.add(a.cmid);
@@ -242,18 +257,68 @@
     }
     return out;
   }
+  function cmidFromUrl(value) {
+    try { const url = new URL(value, ORIGIN); return positiveId(url.searchParams.get('id')) ? url.searchParams.get('id') : null; } catch { return null; }
+  }
+  // Calendar attendance events name every OCC's activity, so a quick refresh can find them without opening course pages.
+  function attendanceFromCalendar(items, courseId) {
+    const found = new Map();
+    for (const item of items) {
+      if (item.kind !== 'attendance' || item.courseId !== String(courseId)) continue;
+      const cmid = cmidFromUrl(item.url);
+      if (cmid && !found.has(cmid)) found.set(cmid, { cmid, courseId: String(courseId), name: clip(String(item.title).replace(/\s*\(Group [^)]*\)\s*$/i, ''), 160) });
+    }
+    return [...found.values()];
+  }
+  function attendanceToRead(activities, occ) {
+    return occ ? activities.filter(activity => occMatches(activity.name, occ)) : activities;
+  }
+  // Locked attendance activities (other groups' OCCs) only redirect to a "restricted" page, so they are not opened.
   function attendanceActivities(activities, courseId) {
-    return (activities || []).filter(a => a.modtype === 'attendance' && positiveId(a.cmid)).map(a => ({ cmid: String(a.cmid), name: clip(a.name, 160), courseId: String(courseId) }));
+    return (activities || []).filter(a => a.modtype === 'attendance' && !a.restricted && positiveId(a.cmid)).map(a => ({ cmid: String(a.cmid), name: clip(a.name, 160), courseId: String(courseId) }));
   }
-  function newsForum(activities) {
-    const forum = (activities || []).find(a => a.modtype === 'forum' && /^(announcements?|news(?: forum)?|pengumuman(?: kursus)?|notices?)(?:\s+forum)?$/i.test(clip(a.name, 80)));
-    return forum && positiveId(forum.cmid) ? ORIGIN + '/mod/forum/view.php?id=' + forum.cmid : null;
+  // Moodle names group events after the group ("Attendance (Group GROUP 3 2026/2027_1)") and shows a student only the
+  // events of their own groups, so those names say which OCC the student is in.
+  function calendarGroups(items, courseId) {
+    return (items || []).filter(item => item.courseId === String(courseId))
+      .map(item => String(item.title || '').match(/\(Group ([^)]*)\)?\s*$/i)?.[1]).filter(Boolean).map(name => clip(name, 80));
   }
-  function announcementItems(discussions, courseId, collectedAt) {
+  // Every OCC the course labels, minus those whose activities are locked to their group ("You belong to GROUP 1 …"):
+  // when exactly one is left, it is the student's.
+  function occFromLocks(activities) {
+    const all = new Set(), locked = new Set();
+    for (const a of activities || []) {
+      for (const token of parseOcc([a.name, a.section].join(' ')) || []) all.add(token);
+      if (a.restricted) for (const token of a.lockOcc || []) locked.add(token);
+    }
+    if (!locked.size) return null;
+    const left = [...all].filter(token => !locked.has(token));
+    return left.length === 1 ? left[0] : null;
+  }
+  // When other OCCs' attendance is locked to their groups, the one OCC activity the student can open is theirs.
+  function occFromAccess(activities) {
+    const attendance = (activities || []).filter(a => a.modtype === 'attendance');
+    if (!attendance.some(a => a.restricted && parseOcc(a.name))) return null;
+    const open = new Set(attendance.filter(a => !a.restricted).map(a => parseOcc(a.name)).filter(tokens => tokens?.length === 1).map(tokens => tokens[0]));
+    return open.size === 1 ? [...open][0] : null;
+  }
+  // Lecturers add extra forums such as "Announcement from Dr. …" or "Announcement on MID-SEM Examination"; read up to three.
+  // Lecturers add their own announcement forums ("Announcement from Dr. X", "Important Announcement for OCC-3"), so
+  // the word may appear anywhere in the name. Discussion forums ("Company Website", "Review Questions") are not read.
+  const ANNOUNCEMENT_WORDS = /\b(?:announcements?|pengumuman|makluman|hebahan|news|notices?|berita)\b/i;
+  function isAnnouncementForum(name) { return ANNOUNCEMENT_WORDS.test(String(name || '')); }
+  // Each forum keeps the OCC its name is labelled for, so its posts are filtered like any other OCC item.
+  function newsForumEntries(activities) {
+    return (activities || []).filter(a => a.modtype === 'forum' && positiveId(a.cmid) && isAnnouncementForum(clip(a.name, 120)))
+      .slice(0, 5).map(forum => ({ url: ORIGIN + '/mod/forum/view.php?id=' + forum.cmid, occ: parseOcc(forum.name) }));
+  }
+  function newsForums(activities) { return newsForumEntries(activities).map(forum => forum.url); }
+  function newsForum(activities) { return newsForums(activities)[0] || null; }
+  function announcementItems(discussions, courseId, collectedAt, forumOcc = null) {
     return (discussions || []).filter(d => positiveId(d.id)).slice(0, 8).map(d => ({
       key: 'news:' + d.id, kind: 'notice', courseId: String(courseId), title: clip(d.title, 200) || 'Announcement',
       start: Number.isFinite(d.time) ? d.time : collectedAt, end: null, url: ORIGIN + '/mod/forum/discuss.php?d=' + d.id,
-      status: null, occ: parseOcc(d.title), detail: clip(d.author, 80), datedFromList: Number.isFinite(d.time)
+      status: null, occ: parseOcc(d.title) || forumOcc || null, detail: clip(d.author, 80), datedFromList: Number.isFinite(d.time)
     }));
   }
 
@@ -261,6 +326,8 @@
   function sanitizePlannerData(data, now = Date.now()) {
     if (!data || typeof data !== 'object') throw new Error('Invalid planner data');
     const courses = (Array.isArray(data.courses) ? data.courses : []).filter(c => positiveId(c.id)).slice(0, 40).map(courseMeta);
+    // Two courses can share initials (e.g. "Turnitin Course Submission" and "Thinking and Communication Skills"); fall back to the code.
+    for (const course of courses) if (courses.filter(other => other.abbrev === course.abbrev).length > 1) course.abbrev = course.code.slice(0, 8);
     const ids = new Set(courses.map(c => c.id));
     const time = value => Number.isFinite(value) && Math.abs(value - now) < 400 * DAY ? value : null;
     const items = (Array.isArray(data.items) ? data.items : []).slice(0, 1500).map(item => {
@@ -271,7 +338,7 @@
       return { key: clip(item.key, 120), kind: item.kind, courseId: ids.has(String(item.courseId)) ? String(item.courseId) : '',
         title: clip(item.title, 200), start, end: time(item.end), url, module: item.module ? clip(item.module, 30) : null,
         instance: item.instance ? clip(item.instance, 20) : null, status: ['todo', 'done', 'unknown'].includes(item.status) ? item.status : null,
-        occ: Array.isArray(item.occ) ? item.occ.slice(0, 12).map(t => clip(t, 4)) : null, detail: clip(item.detail, 280),
+        occ: Array.isArray(item.occ) ? item.occ.slice(0, 12).map(t => clip(t, 4)) : null, detail: clip(item.detail, 280), opensOnly: Boolean(item.opensOnly),
         ...(item.kind === 'attendance' ? { statusKind: ['present', 'late', 'absent', 'excused', 'open', 'unmarked'].includes(item.statusKind) ? item.statusKind : 'unmarked',
           sessionType: ['LEC', 'TUT', 'LAB', 'CLS'].includes(item.sessionType) ? item.sessionType : 'CLS', canSelfMark: Boolean(item.canSelfMark) } : {}) };
     }).filter(Boolean);
@@ -283,7 +350,8 @@
     }).filter(Boolean);
     const detected = {};
     for (const [id, value] of Object.entries(data.detectedOcc || {})) if (ids.has(id) && /^\d{1,2}[A-Z]?$/.test(value?.occ || '')) detected[id] = { occ: value.occ, source: value.source === 'group' ? 'group' : 'attendance' };
-    return { version: 1, collectedAt: time(data.collectedAt) ?? now, userHash: clip(data.userHash, 64), courses, items, materials, detectedOcc: detected,
+    // Version 2: activity names are read per <li id="module-N">; version-1 data may pair an ID with a neighbour's name.
+    return { version: DATA_VERSION, collectedAt: time(data.collectedAt) ?? now, fullAt: time(data.fullAt), userHash: clip(data.userHash, 64), courses, items, materials, detectedOcc: detected,
       statusKnown: Boolean(data.statusKnown), warnings: (Array.isArray(data.warnings) ? data.warnings : []).slice(0, 10).map(w => clip(w, 200)) };
   }
   function attendanceItems(sessions) {
@@ -400,7 +468,7 @@
     for (const item of visibleItems(data, prefs)) {
       const course = courses.get(item.courseId);
       const label = course ? course.code + ' · ' : '';
-      if ((item.kind === 'assignment' || item.kind === 'quiz') && item.status !== 'done' && item.start > now) {
+      if ((item.kind === 'assignment' || item.kind === 'quiz') && item.status !== 'done' && !item.opensOnly && item.start > now) {
         for (const lead of r.deadlineLeads || []) {
           const when = item.start - lead * MINUTE;
           if (when > now) plan.push({ key: 'd:' + item.key + ':' + lead, when, title: label + item.title, url: item.url, kind: item.kind, lead, due: item.start });
@@ -461,11 +529,33 @@
       courses: '课程', type: '类型', all: '全部', zipping: '正在打包', of: '/', previewUnavailable: '此文件类型无法预览。', close: '关闭', permissionDenied: '通知权限未获允许。', coursePack: '课程资料包 (.zip)' }
   };
   const LANGS = { en: 'en-MY', ms: 'ms-MY', zh: 'zh-CN' };
+  // Overview and sync status strings.
+  Object.assign(STRINGS.en, { overview: 'Overview', syncStatus: 'Sync status', drive: 'Google Drive', gcal: 'Google Calendar', plannerData: 'Planner',
+    stSynced: 'Up to date', stSyncing: 'Syncing', stPaused: 'Paused', stAttention: 'Needs attention', stNotConnected: 'Not connected', stOff: 'Turned off', stNever: 'Not synced yet',
+    connectHint: 'Connect it from the UM Spec toolbar button.', lastSync: 'Last sync', items: 'items', dates: 'dates saved', inBackground: 'in the background',
+    openFolder: 'Open folder', openCalendar: 'Open calendar', dueWeek: 'Due in 7 days', overdueNow: 'Overdue', classesToday: 'Classes today', filesSynced: 'Files in Drive',
+    allGood: 'All synced', justNow: 'just now', needAttention: 'need attention' });
+  Object.assign(STRINGS.ms, { overview: 'Ringkasan', syncStatus: 'Status penyegerakan', drive: 'Google Drive', gcal: 'Google Calendar', plannerData: 'Perancang',
+    stSynced: 'Terkini', stSyncing: 'Sedang disegerakkan', stPaused: 'Dijeda', stAttention: 'Perlu perhatian', stNotConnected: 'Belum disambung', stOff: 'Dimatikan', stNever: 'Belum disegerakkan',
+    connectHint: 'Sambungkan melalui butang UM Spec di bar alat.', lastSync: 'Penyegerakan terakhir', items: 'item', dates: 'tarikh disimpan', inBackground: 'di latar belakang',
+    openFolder: 'Buka folder', openCalendar: 'Buka kalendar', dueWeek: 'Tamat dalam 7 hari', overdueNow: 'Lewat', classesToday: 'Kelas hari ini', filesSynced: 'Fail dalam Drive',
+    allGood: 'Semua disegerakkan', justNow: 'baru sahaja', needAttention: 'perlu perhatian' });
+  Object.assign(STRINGS.zh, { overview: '概览', syncStatus: '同步状态', drive: 'Google 云端硬盘', gcal: 'Google 日历', plannerData: '计划',
+    stSynced: '已是最新', stSyncing: '同步中', stPaused: '已暂停', stAttention: '需要处理', stNotConnected: '未连接', stOff: '已关闭', stNever: '尚未同步',
+    connectHint: '请通过工具栏的 UM Spec 按钮连接。', lastSync: '上次同步', items: '项', dates: '个日期已保存', inBackground: '（后台）',
+    openFolder: '打开文件夹', openCalendar: '打开日历', dueWeek: '7 天内截止', overdueNow: '已逾期', classesToday: '今日课程', filesSynced: '已存入云端硬盘',
+    allGood: '全部已同步', justNow: '刚刚', needAttention: '项需要处理' });
+  // The planner keeps one account's data. This tag (also stored with the data) tells whose it is, without storing the ID.
+  async function accountTag(userId) {
+    if (!/^[1-9]\d*$/.test(String(userId || ''))) return '';
+    const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('umspec-planner:' + userId));
+    return [...new Uint8Array(bytes)].map(b => b.toString(16).padStart(2, '0')).join('');
+  }
   function t(lang, key) { return (STRINGS[lang] || STRINGS.en)[key] ?? STRINGS.en[key] ?? key; }
 
-  const api = { ORIGIN, DAY, MINUTE, KINDS, STRINGS, LANGS, t, clip, safeUrl, mytParts, mytInstant, dayKey, startOfDay, startOfWeek, hhmm,
+  const api = { ORIGIN, DAY, MINUTE, KINDS, DATA_VERSION, STRINGS, LANGS, t, clip, safeUrl, mytParts, mytInstant, dayKey, startOfDay, startOfWeek, hhmm,
     parseOcc, occMatches, detectOcc, courseMeta, parseDateText, parseTimeRange, parseSessionTime, statusKind, sessionType, parseAttendanceRows,
-    classifyEvent, outstandingFromActionEvents, itemState, fileType, normaliseMaterials, attendanceActivities, newsForum, announcementItems,
+    classifyEvent, outstandingFromActionEvents, itemState, fileType, normaliseMaterials, attendanceActivities, occFromAccess, attendanceFromCalendar, attendanceToRead, accountTag, calendarGroups, occFromLocks, cmidFromUrl, newsForum, newsForums, newsForumEntries, isAnnouncementForum, announcementItems,
     attendanceItems, sanitizePlannerData, visibleItems, effectiveOcc, uniquePath, layoutDaySlots, buildTimetable, timetableCSV, sessionsICS, semesterWeek, reminderPlan, dueSoonCount };
   root.UmSpecPlannerCore = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

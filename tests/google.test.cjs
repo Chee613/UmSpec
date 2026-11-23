@@ -36,6 +36,36 @@ test('an excessively long provider retry delay returns an actionable error witho
   await assert.rejects(google.googleFetch('/drive/v3/files', {}, 'drive'), { code: 'RETRY_LATER' });
 });
 
+test('a token refused twice asks the student to reconnect instead of reporting a raw 401', async t => {
+  environment(t);
+  let issued = 0, removed = 0, calls = 0;
+  global.chrome.identity.getAuthToken = async () => ({ token: 'token-' + (++issued) });
+  global.chrome.identity.removeCachedAuthToken = async () => { removed++; };
+  global.fetch = async url => {
+    if (new URL(url).pathname.includes('userinfo')) return Response.json({ sub: 'account', email: 'student@example.com' });
+    calls++;
+    return new Response('{}', { status: 401, headers: { 'WWW-Authenticate': 'Bearer realm="https://accounts.google.com/", error="invalid_token"' } });
+  };
+  await google.verifyAccount('account', 'calendar');
+  await assert.rejects(google.googleFetch('/calendar/v3/users/me/calendarList', {}, 'calendar'), error =>
+    error.code === 'RECONNECT_REQUIRED' && error.status === 401 && /connect Google Calendar again/.test(error.message) && /invalid_token/.test(error.message));
+  assert.equal(calls, 2);
+  assert.equal(removed, 2);
+});
+test('one refused token is replaced silently', async t => {
+  environment(t);
+  let issued = 1, calls = 0;
+  global.chrome.identity.getAuthToken = async () => ({ token: 'token-' + issued });
+  global.chrome.identity.removeCachedAuthToken = async () => { issued++; };
+  global.fetch = async (url, options) => {
+    if (new URL(url).pathname.includes('userinfo')) return Response.json({ sub: 'account', email: 'student@example.com' });
+    calls++;
+    return options.headers.get('Authorization') === 'Bearer token-1' ? new Response('{}', { status: 401 }) : Response.json({ items: [] });
+  };
+  await google.verifyAccount('account', 'calendar');
+  assert.equal((await google.googleFetch('/calendar/v3/users/me/calendarList', {}, 'calendar')).status, 200);
+  assert.equal(calls, 2);
+});
 test('Google reporting email as its userinfo scope URL still connects Drive', async t => {
   environment(t);
   global.chrome.identity.getAuthToken = async () => ({ token: 'scoped-token', grantedScopes: ['openid',

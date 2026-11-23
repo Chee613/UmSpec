@@ -21,7 +21,7 @@ function environment(t, { loseCalendarReply = false, hideCalendars = false, sour
   let stored = {}, token = 'integration-token-' + ++sequence;
   const users = new Map([[token, { sub: 'sub-one', email: 'one@example.test' }]]);
   const calendars = new Map(), events = new Map(), eventPosts = [], calendarPosts = [], files = new Map();
-  const calendarList = new Map(), visibilityPatches = [];
+  const calendarList = new Map(), visibilityPatches = [], visibilityChecks = [];
   const uploadSessions = new Map();
   let fileNumber = 0;
   let snapshotAtCalendarPost = null;
@@ -53,7 +53,7 @@ function environment(t, { loseCalendarReply = false, hideCalendars = false, sour
     if (url.pathname === '/oauth2/v3/userinfo') return reply(200, users.get(new Headers(options.headers).get('Authorization').slice(7)));
     if (url.pathname === '/drive/v3/files/generateIds') return reply(200, { ids: ['file-' + ++fileNumber] });
     if (url.pathname === '/drive/v3/files') {
-      if (method === 'GET') return reply(200, { files: [...files.values()] });
+      if (method === 'GET') { const wanted = (url.searchParams.get('q') || '').match(/key='sourceKey' and value='([^']+)'/)?.[1]; return reply(200, { files: [...files.values()].filter(file => !wanted || (file.appProperties?.sourceKey === wanted && !file.trashed)) }); }
       const body = JSON.parse(options.body); files.set(body.id, body); return reply(200, body);
     }
     if (url.pathname.startsWith('/drive/v3/files/')) {
@@ -64,6 +64,14 @@ function environment(t, { loseCalendarReply = false, hideCalendars = false, sour
         files.set(id, { ...file, ...body, appProperties: { ...file.appProperties, ...body.appProperties } });
       }
       return reply(200, files.get(id));
+    }
+    if (url.searchParams.get('uploadType') === 'multipart') {
+      // Links Docs: JSON metadata, then HTML that Drive converts into a Google Doc.
+      const boundary = new Headers(options.headers).get('Content-Type').split('boundary=')[1];
+      const [meta, html] = String(options.body).split('--' + boundary).slice(1, 3).map(part => part.split(/\r?\n\r?\n/).slice(1).join('\n\n').trim());
+      const data = JSON.parse(meta), fileId = url.pathname.split('/')[5] || data.id || 'doc-' + ++fileNumber;
+      files.set(fileId, { ...files.get(fileId), ...data, id: fileId, appProperties: { ...files.get(fileId)?.appProperties, ...data.appProperties }, html });
+      return reply(200, files.get(fileId));
     }
     if (url.pathname.startsWith('/upload/drive/v3/files')) {
       if (method === 'PATCH') {
@@ -90,12 +98,12 @@ function environment(t, { loseCalendarReply = false, hideCalendars = false, sour
     if (url.pathname === '/calendar/v3/users/me/calendarList') return reply(200, { items: hideCalendars ? [] : [...calendarList.values()]
       .filter(entry => !entry.hidden || url.searchParams.get('showHidden') === 'true') });
     if (url.pathname.startsWith('/calendar/v3/users/me/calendarList/')) {
-      assert.equal(method, 'PATCH');
+      // Like Google with calendarlist.readonly: a change is refused with 401, so UM Spec must only read the entry.
+      if (method !== 'GET') { visibilityPatches.push(method); return reply(401, { error: { code: 401, errors: [{ reason: 'authError' }] } }); }
       const entry = calendarList.get(decodeURIComponent(url.pathname.split('/').at(-1)));
       if (!entry) return reply(404);
-      const patch = JSON.parse(options.body); visibilityPatches.push(patch);
+      visibilityChecks.push(entry.id);
       if (visibilityFailures > 0) { visibilityFailures--; return reply(403); }
-      Object.assign(entry, patch);
       return reply(200, entry);
     }
     if (url.pathname === '/calendar/v3/calendars' && method === 'POST') {
@@ -104,7 +112,7 @@ function environment(t, { loseCalendarReply = false, hideCalendars = false, sour
       assert.equal(active.calendarCreateIntent.state, 'uncertain', 'uncertain intent must be durable before issuing POST');
       const calendar = { ...JSON.parse(options.body), id: 'calendar-' + calendars.size, etag: 'cal-etag' };
       calendars.set(calendar.id, calendar); calendarPosts.push(calendar);
-      calendarList.set(calendar.id, { ...calendar, selected: false, hidden: true });
+      calendarList.set(calendar.id, { ...calendar, selected: true, hidden: false });
       if (loseCalendarReply) { loseCalendarReply = false; throw new Error('Lost calendar creation reply'); }
       return reply(200, calendar);
     }
@@ -124,7 +132,7 @@ function environment(t, { loseCalendarReply = false, hideCalendars = false, sour
     return reply(200, body);
   };
   return {
-    state: () => stored.umspecState, eventPosts, calendarPosts, calendarList, visibilityPatches, files, closeTab: id => closedTabs.add(id),
+    state: () => stored.umspecState, eventPosts, calendarPosts, calendarList, visibilityPatches, visibilityChecks, files, closeTab: id => closedTabs.add(id),
     snapshotAtCalendarPost: () => snapshotAtCalendarPost,
     restore: snapshot => { stored = { umspecState: structuredClone(snapshot) }; },
     showCalendars: () => { hideCalendars = false; },
@@ -159,9 +167,9 @@ test('calendar integration persists creation intent between steps before remote 
   assert.equal(finished.data.calendarJob.done, true);
   assert.equal(env.eventPosts.length, 1);
   assert.ok(finished.data.syncTimes.calendar.lastSuccessfulSyncAt);
-  assert.equal(env.calendarList.get(finished.data.calendarId).selected, true);
-  assert.equal(env.calendarList.get(finished.data.calendarId).hidden, false);
   assert.equal(env.state().bindings[finished.data.bindingHash].calendarVisibilityId, finished.data.calendarId);
+  assert.deepEqual(env.visibilityChecks, [finished.data.calendarId]);
+  assert.deepEqual(env.visibilityPatches, [], 'the calendar list is only read');
 });
 
 test('Calendar visibility refusal syncs events without pausing, reports the status, then retries on the next sync without overriding later user hiding', async t => {
@@ -178,14 +186,13 @@ test('Calendar visibility refusal syncs events without pausing, reports the stat
   assert.equal(env.state().bindings[connected.bindingHash].calendarVisibilityId, undefined);
   assert.equal(env.state().bindings[connected.bindingHash].calendarVisibilityIssue.status, 403);
   assert.equal(env.calendarPosts.length, 1);
-  assert.equal(env.calendarList.get('calendar-0').selected, false);
   await send({ type: 'CALENDAR_STEP', jobId });
   const synced = await send({ type: 'CALENDAR_STEP', jobId });
   assert.equal(synced.data.calendarJob.done, true);
   assert.equal(synced.data.calendarJob.status, 'complete');
   assert.ok(synced.data.syncTimes.calendar.lastSuccessfulSyncAt);
   assert.equal(env.eventPosts.length, 1);
-  assert.equal(env.visibilityPatches.length, 1, 'a refusal is not retried within the same job');
+  assert.equal(env.visibilityChecks.length, 1, 'a refusal is not retried within the same job');
   assert.match(synced.data.calendarVisibilityNotice, /My calendars/);
   const retryJob = await beginCalendar();
   await send({ type: 'CALENDAR_STEP', jobId: retryJob });
@@ -194,16 +201,14 @@ test('Calendar visibility refusal syncs events without pausing, reports the stat
   assert.equal(retried.data.calendarVisibilityNotice, null);
   assert.equal(env.state().bindings[connected.bindingHash].calendarVisibilityId, 'calendar-0');
   assert.equal(env.state().bindings[connected.bindingHash].calendarVisibilityIssue, undefined);
-  assert.equal(env.calendarList.get('calendar-0').selected, true);
-  assert.equal(env.calendarList.get('calendar-0').hidden, false);
-  assert.deepEqual(env.visibilityPatches, [{ selected: true, hidden: false }, { selected: true, hidden: false }]);
+  assert.equal(env.visibilityChecks.length, 2);
   Object.assign(env.calendarList.get('calendar-0'), { selected: false, hidden: true });
   const repeatedJob = await beginCalendar();
   await send({ type: 'CALENDAR_STEP', jobId: repeatedJob });
   await send({ type: 'CALENDAR_STEP', jobId: repeatedJob });
-  assert.equal(env.calendarList.get('calendar-0').selected, false);
   assert.equal(env.calendarList.get('calendar-0').hidden, true);
-  assert.equal(env.visibilityPatches.length, 2);
+  assert.equal(env.visibilityChecks.length, 2, 'a calendar once shown is not checked again');
+  assert.deepEqual(env.visibilityPatches, []);
   assert.equal(env.calendarPosts.length, 1);
   assert.equal(env.eventPosts.length, 1);
 });
@@ -213,11 +218,11 @@ test('a persistently refused calendar lets an empty scan finish instead of loopi
   const initial = await beginCalendar();
   for (let step = 0; step < 4; step++) await send({ type: 'CALENDAR_STEP', jobId: initial });
   const empty = await send({ type: 'BEGIN_CALENDAR_SYNC', records: [], complete: true });
-  const patches = env.visibilityPatches.length;
+  const patches = env.visibilityChecks.length;
   let result;
   for (let step = 0; step < 2; step++) result = await send({ type: 'CALENDAR_STEP', jobId: empty.data.calendarJob.id });
   assert.equal(result.data.calendarJob.done, true);
-  assert.equal(env.visibilityPatches.length, patches + 1);
+  assert.equal(env.visibilityChecks.length, patches + 1);
   assert.match(result.data.calendarVisibilityNotice, /HTTP 403/);
   const stale = structuredClone(env.state());
   const next = { ...record, sourceKey: 'moodle:course:123:event:stale' };
@@ -235,12 +240,12 @@ test('a persistently refused calendar lets an empty scan finish instead of loopi
   assert.equal(env.eventPosts.length, 2);
 });
 
-test('an empty current scan activates a legacy calendar with saved events without creating empty calendars or overriding later hiding', async t => {
+test('an empty current scan checks a legacy calendar with saved events without creating empty calendars or overriding later hiding', async t => {
   const env = environment(t), connected = await connectCalendar();
   const empty = await send({ type: 'BEGIN_CALENDAR_SYNC', records: [], complete: true });
   await send({ type: 'CALENDAR_STEP', jobId: empty.data.calendarJob.id });
   assert.equal(env.calendarPosts.length, 0, 'an empty scan must not create a new calendar');
-  assert.equal(env.visibilityPatches.length, 0);
+  assert.equal(env.visibilityChecks.length, 0);
   const initialJob = await beginCalendar();
   for (let step = 0; step < 4; step++) await send({ type: 'CALENDAR_STEP', jobId: initialJob });
   const legacy = structuredClone(env.state());
@@ -249,21 +254,26 @@ test('an empty current scan activates a legacy calendar with saved events withou
   assert.equal(Object.keys(binding.events).length, 1);
   env.restore(legacy);
   Object.assign(env.calendarList.get(binding.calendarId), { selected: false, hidden: true });
-  const patchCount = env.visibilityPatches.length;
+  const checkCount = env.visibilityChecks.length;
   const next = await send({ type: 'BEGIN_CALENDAR_SYNC', records: [], complete: true });
   let result;
   for (let step = 0; step < 2; step++) result = await send({ type: 'CALENDAR_STEP', jobId: next.data.calendarJob.id });
   assert.equal(result.data.calendarJob.done, true);
-  assert.equal(env.calendarList.get(binding.calendarId).selected, true);
-  assert.equal(env.calendarList.get(binding.calendarId).hidden, false);
+  assert.equal(result.data.calendarJob.error ?? null, null, 'a hidden calendar never pauses the sync');
+  assert.match(result.data.calendarVisibilityNotice, /Tick UM Spec under My calendars/);
+  assert.equal(env.state().bindings[connected.bindingHash].calendarVisibilityId, undefined);
+  assert.equal(env.visibilityChecks.length, checkCount + 1);
+  Object.assign(env.calendarList.get(binding.calendarId), { selected: true, hidden: false });
+  const shown = await send({ type: 'BEGIN_CALENDAR_SYNC', records: [], complete: true });
+  for (let step = 0; step < 2; step++) result = await send({ type: 'CALENDAR_STEP', jobId: shown.data.calendarJob.id });
+  assert.equal(result.data.calendarVisibilityNotice, null);
   assert.equal(env.state().bindings[connected.bindingHash].calendarVisibilityId, binding.calendarId);
-  assert.equal(env.visibilityPatches.length, patchCount + 1);
   Object.assign(env.calendarList.get(binding.calendarId), { selected: false, hidden: true });
   const later = await send({ type: 'BEGIN_CALENDAR_SYNC', records: [], complete: true });
   await send({ type: 'CALENDAR_STEP', jobId: later.data.calendarJob.id });
-  assert.equal(env.calendarList.get(binding.calendarId).selected, false);
   assert.equal(env.calendarList.get(binding.calendarId).hidden, true);
-  assert.equal(env.visibilityPatches.length, patchCount + 1);
+  assert.equal(env.visibilityChecks.length, checkCount + 2);
+  assert.deepEqual(env.visibilityPatches, []);
   assert.equal(env.calendarPosts.length, 1);
   assert.equal(env.eventPosts.length, 1);
 });
@@ -1114,4 +1124,179 @@ test('saved academic degree syncs between options and Spectrum content script vi
   assert.equal((await send({ type: 'GET_DEGREE' }, content)).data.degree, '');
   const foreign = await send({ type: 'GET_DEGREE' }, { id: 'ext', url: 'https://evil.example/' });
   assert.equal(foreign.ok, false);
+});
+
+test('one Drive step settles many linked or unchanged files instead of one round trip each', async t => {
+  const env = environment(t);
+  await connectCalendar();
+  assert.equal((await send({ type: 'CONNECT_GOOGLE', feature: 'drive' }, popup)).ok, true);
+  await send({ type: 'SAVE_SETTINGS', settings: { archiveId: '2026 Semester 1' } });
+  const materials = Array.from({ length: 25 }, (_, index) => ({
+    sourceKey: (index.toString(16).padStart(2, '0')).repeat(32), sourceUrl: 'https://spectrum.um.edu.my/mod/url/view.php?id=' + (100 + index),
+    courseId: '123', moduleId: String(100 + index), name: 'Recording ' + index, category: 'Notes', kind: 'link'
+  }));
+  const start = await send({ type: 'BEGIN_DRIVE_SYNC', materials });
+  assert.equal(start.ok, true, JSON.stringify(start));
+  let status = start;
+  const settledPerStep = [];
+  for (let step = 0; step < 60 && !status.data.job.done; step++) {
+    const before = env.state().activeJob.results?.length || 0;
+    status = await send({ type: 'DRIVE_STEP', jobId: start.data.job.id });
+    settledPerStep.push((env.state().activeJob.results?.length || 0) - before);
+  }
+  assert.equal(status.data.job.done, true);
+  assert.equal(status.data.job.summary.linked, 25);
+  // Folder setup and the generated link index still take their own Drive steps; the 25 links settle in one.
+  assert.equal(Math.max(...settledPerStep), 25, settledPerStep.join(','));
+  assert.equal(env.state().bindings[status.data.bindingHash].driveLinks['2026 Semester 1'].length, 25);
+});
+
+test('a background Drive sync reads Spectrum through the hidden page and uploads with no Spectrum tab open', async t => {
+  const env = environment(t);
+  await connectDrive();
+  const lecture = material({ courseName: 'WIA2001/WIB2001 DATABASE', courseFolder: 'WIA2001 Database' });
+  const first = await send({ type: 'BEGIN_DRIVE_SYNC', materials: [lecture] });
+  assert.equal(first.ok, true, JSON.stringify(first));
+  let status = first;
+  for (let step = 0; step < 60 && !status.data.job.done; step++) status = await send({ type: 'DRIVE_STEP', jobId: first.data.job.id });
+  assert.equal(status.data.job.done, true);
+  const requests = [];
+  globalThis.chrome.offscreen = { createDocument: async () => { requests.push('open'); }, closeDocument: async () => { requests.push('close'); } };
+  globalThis.chrome.runtime.getContexts = async () => [];
+  globalThis.chrome.alarms = { create: async () => {}, clear: async () => {} };
+  globalThis.chrome.runtime.sendMessage = async message => {
+    assert.equal(message.target, 'umspec-offscreen');
+    requests.push(message.type);
+    if (message.type === 'CONTEXT') return { ok: true, data: { userId: '42', origin: 'https://spectrum.um.edu.my' } };
+    assert.deepEqual(message.courses.map(course => course.folderName), ['WIA2001 Database']);
+    return { ok: true, data: { skipped: 0, materials: [lecture, material({ sourceKey: 'c'.repeat(64), moduleId: '5', name: 'Tutorial 6.pdf',
+      sourceUrl: 'https://spectrum.um.edu.my/pluginfile.php/1/mod_resource/content/3/tutorial6.pdf', courseName: lecture.courseName, courseFolder: lecture.courseFolder })] } };
+  };
+  // The Spectrum tab that started it is gone: only the hidden page may be asked.
+  globalThis.chrome.tabs.sendMessage = async () => { throw new Error('No Spectrum tab is open'); };
+  const kicked = await send({ type: 'BACKGROUND_DRIVE_SYNC', force: true });
+  assert.equal(kicked.ok, true, JSON.stringify(kicked));
+  for (let wait = 0; wait < 400 && !(env.state().activeJob?.background && env.state().activeJob.done && requests.includes('close')); wait++) await new Promise(resolve => setTimeout(resolve, 5));
+  const job = env.state().activeJob;
+  assert.equal(job.background, true);
+  assert.equal(job.tabId, null);
+  assert.equal(job.done, true, JSON.stringify(job.error));
+  const summary = (await send({ type: 'GET_STATUS' })).data.job.summary;
+  assert.equal(summary.created, 1);
+  assert.equal(summary.skipped, 1);
+  assert.deepEqual(requests.filter(type => type === 'SCAN'), ['SCAN']);
+  assert.ok(requests.includes('CONTEXT') && requests.at(-1) === 'close');
+  assert.equal(Object.values(env.state().bindings).find(binding => binding.background).background.phase, 'complete');
+  assert.ok([...env.files.values()].some(file => file.name === 'Tutorial 6.pdf'));
+});
+
+test('background sync waits for its cooldown and needs one finished manual sync first', () => {
+  const now = Date.parse('2026-11-21T08:00:00Z');
+  const binding = { features: ['drive'], settings: { mode: 'drive', autoSync: true, archiveId: 'Sem 1', courseIds: ['123'] }, syncTimes: { drive: { lastSuccessfulSyncAt: now - 86400000, lastAttemptAt: now - 20 * 60000 } } };
+  assert.equal(worker.backgroundDue(binding, now), true);
+  assert.equal(worker.backgroundDue({ ...binding, syncTimes: { drive: { ...binding.syncTimes.drive, lastAttemptAt: now - 5 * 60000 } } }, now), false);
+  assert.equal(worker.backgroundDue({ ...binding, syncTimes: { drive: { lastAttemptAt: 0 } } }, now), false);
+  assert.equal(worker.backgroundDue({ ...binding, settings: { ...binding.settings, autoSync: false } }, now), false);
+});
+
+test('a material whose Spectrum identity drifted reuses its identical Drive file instead of uploading a duplicate', async t => {
+  const env = environment(t);
+  await connectDrive();
+  const run = async materials => {
+    const begun = await send({ type: 'BEGIN_DRIVE_SYNC', materials, retry: true, freshInventory: true });
+    assert.equal(begun.ok, true, JSON.stringify(begun));
+    let status = begun;
+    for (let step = 0; step < 80 && !status.data.job.done; step++) status = await send({ type: 'DRIVE_STEP', jobId: begun.data.job.id });
+    assert.equal(status.data.job.done, true);
+    return env.state().activeJob;
+  };
+  await run([material({ name: 'WIA2003-Course-Map.png', sourceUrl: 'https://spectrum.um.edu.my/pluginfile.php/1/mod_page/content/12/WIA2003-Course-Map.png' })]);
+  const before = [...env.files.values()].filter(file => file.name === 'WIA2003-Course-Map.png').length;
+  // The lecturer edited the page: its revision (12 → 13) changes the material's identity, but not the image.
+  const second = await run([material({ sourceKey: 'd'.repeat(64), name: 'WIA2003-Course-Map.png', sourceUrl: 'https://spectrum.um.edu.my/pluginfile.php/1/mod_page/content/13/WIA2003-Course-Map.png' })]);
+  assert.equal([...env.files.values()].filter(file => file.name === 'WIA2003-Course-Map.png').length, before);
+  const result = second.results.find(item => item.name === 'WIA2003-Course-Map.png');
+  assert.deepEqual([result.action, result.detail], ['skipped', 'Reused identical copy already in Drive']);
+  assert.equal([...env.files.values()].find(file => file.name === 'WIA2003-Course-Map.png').appProperties.sourceKey, 'd'.repeat(64));
+});
+
+test('repeat syncs reuse the links index folder instead of adding an empty "Materials" folder each time', async t => {
+  const env = environment(t);
+  await connectDrive();
+  const run = async () => {
+    const begun = await send({ type: 'BEGIN_DRIVE_SYNC', materials: [{ sourceKey: 'b'.repeat(64), sourceUrl: 'https://spectrum.um.edu.my/mod/url/view.php?id=4',
+      courseId: '123', moduleId: '4', name: 'Lecture recording', category: 'Notes', kind: 'link' }], retry: true, freshInventory: true });
+    assert.equal(begun.ok, true, JSON.stringify(begun));
+    let status = begun;
+    for (let step = 0; step < 60 && !status.data.job.done; step++) status = await send({ type: 'DRIVE_STEP', jobId: begun.data.job.id });
+    assert.equal(status.data.job.done, true);
+  };
+  await run(); await run(); await run();
+  const folders = [...env.files.values()].filter(file => file.mimeType === 'application/vnd.google-apps.folder' && file.name === 'Materials');
+  assert.equal(folders.length, 0, 'the links Doc lives in the course folder and needs no Materials folder');
+  assert.equal([...env.files.values()].filter(file => file.name === 'Links').length, 1, 'repeat syncs update one Links Doc');
+  assert.equal([...env.files.values()].filter(file => file.name === 'Spectrum links.md').length, 0);
+});
+
+test('activities that show the same image share one Drive file, also after clean-up trashed an extra copy', async t => {
+  const env = environment(t);
+  await connectDrive();
+  const image = (key, module) => material({ sourceKey: key.repeat(64), moduleId: module, name: 'WIA2003-Course-Map.png',
+    sourceUrl: 'https://spectrum.um.edu.my/pluginfile.php/' + module + '/mod_label/intro/WIA2003-Course-Map.png' });
+  const run = async materials => {
+    const begun = await send({ type: 'BEGIN_DRIVE_SYNC', materials, retry: true, freshInventory: true });
+    assert.equal(begun.ok, true, JSON.stringify(begun));
+    let status = begun;
+    for (let step = 0; step < 80 && !status.data.job.done; step++) status = await send({ type: 'DRIVE_STEP', jobId: begun.data.job.id });
+    assert.equal(status.data.job.done, true);
+    return env.state().activeJob;
+  };
+  const maps = () => [...env.files.values()].filter(file => file.name === 'WIA2003-Course-Map.png' && !file.trashed);
+  const first = await run([image('e', '11'), image('f', '12')]);
+  assert.equal(maps().length, 1);
+  assert.equal(first.results.find(result => result.detail === 'Same file already in this folder')?.action, 'skipped');
+  // A copy made by an older version for the second activity, which clean-up then moved to trash.
+  env.files.set('old-copy', { ...maps()[0], id: 'old-copy', appProperties: { ...maps()[0].appProperties, sourceKey: 'f'.repeat(64) }, trashed: true });
+  const again = await run([image('e', '11'), image('f', '12')]);
+  assert.equal(maps().length, 1);
+  assert.equal(again.results.some(result => result.action === 'trashed' || result.action === 'conflict'), false);
+});
+
+test('a trashed empty twin of a folder in use does not stop the next sync', async t => {
+  const env = environment(t);
+  await connectDrive();
+  const run = async () => {
+    const begun = await send({ type: 'BEGIN_DRIVE_SYNC', materials: [material()], retry: true, freshInventory: true });
+    assert.equal(begun.ok, true, JSON.stringify(begun));
+    let status = begun;
+    for (let step = 0; step < 60 && !status.data.job.done; step++) status = await send({ type: 'DRIVE_STEP', jobId: begun.data.job.id });
+    return status.data.job;
+  };
+  assert.equal((await run()).done, true);
+  const course = [...env.files.values()].find(file => file.mimeType === 'application/vnd.google-apps.folder' && file.appProperties?.purpose === 'course');
+  env.files.set('trashed-twin', { ...course, id: 'trashed-twin', trashed: true });
+  const again = await run();
+  assert.equal(again.done, true, JSON.stringify(again.error));
+  assert.equal(again.error, null);
+});
+
+test('a trashed extra copy is not flagged after the kept copy was renamed to its Spectrum title', async t => {
+  const env = environment(t);
+  await connectDrive();
+  const image = (key, module, displayName) => material({ sourceKey: key.repeat(64), moduleId: module, name: 'WIA2003-Course-Map.png', displayName,
+    sourceUrl: 'https://spectrum.um.edu.my/pluginfile.php/' + module + '/mod_label/intro/WIA2003-Course-Map.png' });
+  const run = async materials => {
+    const begun = await send({ type: 'BEGIN_DRIVE_SYNC', materials, retry: true, freshInventory: true });
+    assert.equal(begun.ok, true, JSON.stringify(begun));
+    let status = begun;
+    for (let step = 0; step < 80 && !status.data.job.done; step++) status = await send({ type: 'DRIVE_STEP', jobId: begun.data.job.id });
+    assert.equal(status.data.job.done, true);
+    return env.state().activeJob;
+  };
+  await run([image('e', '11')]);
+  const kept = [...env.files.values()].find(file => file.name === 'WIA2003-Course-Map.png');
+  env.files.set('old-copy', { ...kept, id: 'old-copy', appProperties: { ...kept.appProperties, sourceKey: 'f'.repeat(64) }, trashed: true });
+  const again = await run([image('e', '11', 'W01 Course Map.png'), image('f', '12', 'W01 Teaching Team.png')]);
+  assert.equal(env.files.get(kept.id).name, 'W01 Course Map.png');
+  assert.equal(again.results.some(result => ['trashed', 'conflict'].includes(result.action)), false, JSON.stringify(again.results));
 });

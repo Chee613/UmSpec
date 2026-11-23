@@ -7,7 +7,7 @@ const core = require('../shared/sync-core.js');
 test('replacement revisions keep one source identity and preserve course folders', async () => {
   const materials = require('../content/materials.js');
   const course = { id: 123, fullName: 'WIA1001 Computing', folderName: 'WIA1001_Computing' };
-  const item = { url: 'https://spectrum.um.edu.my/mod/resource/view.php?id=7', name: 'Notes', category: '1.Lecture Slide' };
+  const item = { url: 'https://spectrum.um.edu.my/mod/resource/view.php?id=7', name: 'Notes', category: 'Lecture Slides' };
   const a = await materials.describeMaterial(course, item, {
     url: 'https://spectrum.um.edu.my/pluginfile.php/44/mod_resource/content/1/notes.pdf', kind: 'binary'
   }, 'semester');
@@ -27,7 +27,7 @@ test('exporter never turns an unreviewed AI date into a confirmed calendar event
     location: { origin: 'https://spectrum.um.edu.my', pathname: '/my/' },
     localStorage: { getItem: () => null, setItem: () => {} },
     document: { readyState: 'loading', addEventListener() {}, querySelector: () => null },
-    UmSpecSync: core, UmSpecCalendarCore: require('../shared/calendar-core.js')
+    UmSpecSync: core, UmSpecCalendarCore: require('../shared/calendar-core.js'), UmSpecCourseScan: require('../shared/course-scan.js')
   };
   context.window = context;
   vm.runInNewContext(fs.readFileSync('content/content.js', 'utf8'), context);
@@ -131,4 +131,28 @@ test('a hung material page times out even when the sync passes its own cancel si
     assert.deepEqual(timeouts, [25000]);
     assert.notEqual(received, signal, 'the fetch signal must combine cancel and timeout');
   } finally { AbortSignal.timeout = realTimeout; global.fetch = realFetch; }
+});
+
+test('submission tools stay links without being opened, and left-out items say why', async t => {
+  const materials = require('../content/materials.js');
+  const previous = globalThis.fetch;
+  t.after(() => { globalThis.fetch = previous; });
+  let fetched = 0;
+  globalThis.fetch = async () => { fetched++; throw new TypeError('Failed to fetch'); };
+  const files = await materials.resolveItemFiles({ type: 'turnitintooltwo', name: 'Turnitin Assignment 2',
+    url: 'https://spectrum.um.edu.my/mod/turnitintooltwo/view.php?id=5' });
+  assert.deepEqual(files.map(file => file.kind), ['link']);
+  assert.equal(fetched, 0);
+  globalThis.fetch = async url => Object.defineProperty(new Response('', { status: 404 }), 'url', { value: url });
+  const error = await materials.resolveItemFiles({ type: 'resource', name: 'Old slides', url: 'https://spectrum.um.edu.my/mod/resource/view.php?id=9' }).catch(e => e);
+  assert.deepEqual(materials.skippedItem({ name: 'Old\nslides' }, error), { name: 'Old slides', reason: 'broken link on Spectrum', permanent: true });
+  assert.equal(materials.skippedItem({ name: 'Notes' }, new TypeError('Failed to fetch')).permanent, false);
+});
+
+test('a link whose address was pasted as "Join: https://…" keeps the real https address', async () => {
+  const materials = require('../content/materials.js');
+  const files = await materials.resolveItemFiles({ type: 'label', name: 'Teams class', isExternal: true,
+    url: 'join: https://teams.microsoft.com/meet/123?p=abc' });
+  assert.deepEqual(files.map(file => [file.kind, file.url]), [['link', 'https://teams.microsoft.com/meet/123?p=abc']]);
+  await assert.rejects(materials.resolveItemFiles({ type: 'url', name: 'Old site', url: 'http://example.com/page' }), /Unsupported material URL/);
 });

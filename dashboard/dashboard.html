@@ -13,6 +13,7 @@
       <div class="brand"><img src="../icons/icon48.png" alt="" width="26" height="26"><strong>UM Spec</strong><span class="brand-sub" data-t="planner">Planner</span></div>
       <span class="pill mono" id="week-pill" hidden></span>
       <div class="topbar-spacer"></div>
+      <button type="button" class="sync-pill" id="sync-pill" hidden></button>
       <span class="updated mono" id="updated"></span>
       <button type="button" class="btn" id="refresh"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg><span data-t="refresh">Refresh</span></button>
       <div class="seg" role="group" aria-label="Language" id="lang-switch">
@@ -31,6 +32,7 @@
     </nav>
     <main class="main">
       <div class="banner" id="notice" role="status" aria-live="polite" hidden></div>
+      <section class="overview" id="overview" aria-label="Overview"></section>
       <div class="chips" id="course-chips" role="group" aria-label="Courses"></div>
       <section id="view" class="view"></section>
     </main>
