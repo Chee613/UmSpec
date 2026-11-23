@@ -135,3 +135,46 @@ test('Cloudflare Worker API Routes & Global Campus Cache', async (t) => {
   });
 });
 
+
+test('course layout: the AI labels G1/Group 1M as OCCs, bad answers are filtered, and the answer is cached per course page', async t => {
+  const worker = (await import('../backend/cloudflare-worker.js')).default;
+  const store = new Map();
+  const kv = { async get(key, type) { const v = store.get(key); return v === undefined ? null : type === 'json' ? JSON.parse(v) : v; }, async put(key, value) { store.set(key, value); } };
+  const env = { GEMINI_API_KEYS: 'AIzaFake', UMSPEC_CACHE: kv };
+  const originalFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
+  let calls = 0, prompt = '';
+  globalThis.fetch = async (url, options) => {
+    calls++;
+    prompt = JSON.parse(options.body).contents[0].parts[0].text;
+    return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({
+      groupStyle: 'G1 and Group 1M name OCC 1 and 1M',
+      activities: [{ id: '11', occ: ['1', '1M'], why: 'title says G1, G1M' }, { id: '12', occ: ['3'] },
+        { id: '999', occ: ['2'] }, { id: '13', occ: ['W3-1', '<b>'] }],
+      sections: [{ name: 'AP DR MUMTAZ\'S SECTION', occ: ['4', '7'] }, { name: 'Made up section', occ: ['2'] }]
+    }) }] } }] });
+  };
+  const body = { courseId: 25559, courseCode: 'KIG2012', activities: [
+    { id: 11, type: 'url', name: 'Online class G1, G1M', section: 'General' },
+    { id: 12, type: 'attendance', name: 'Attendance (Occ3)', section: 'General', lock: '' },
+    { id: 13, type: 'assign', name: 'Lab Report (Group W3-1 Only)', section: 'General' },
+    { id: 14, type: 'resource', name: 'Tutorial 5', section: 'AP DR MUMTAZ\'S SECTION' }] };
+  const send = () => worker.fetch(new Request('https://umspec.internal/api/v1/course/layout', { method: 'POST', body: JSON.stringify(body) }), env);
+  const first = await (await send()).json();
+  assert.deepEqual(first.activities, { 11: { occ: ['1', '1M'], why: 'title says G1, G1M' }, 12: { occ: ['3'], why: '' } }, 'unknown ids and non-OCC values are dropped');
+  assert.deepEqual(Object.keys(first.sections), ['AP DR MUMTAZ\'S SECTION'], 'sections must exist in the course');
+  assert.equal(first.cached, false);
+  assert.match(prompt, /Online class G1, G1M/);
+  assert.doesNotMatch(prompt, /tankeat|matric/i);
+  const second = await (await send()).json();
+  assert.equal(second.cached, true);
+  assert.equal(calls, 1, 'the next student gets the cached answer');
+  // GIG1013's real answer came wrapped in a list.
+  globalThis.fetch = async () => Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify([{ groupStyle: 'OCC in attendance titles',
+    activities: [{ id: '12', occ: ['3'], why: 'title says Occ3' }] }]) }] } }] });
+  const wrapped = await (await worker.fetch(new Request('https://umspec.internal/api/v1/course/layout', { method: 'POST',
+    body: JSON.stringify({ ...body, courseId: 22233 }) }), env)).json();
+  assert.deepEqual(wrapped.activities, { 12: { occ: ['3'], why: 'title says Occ3' } });
+  const bad = await worker.fetch(new Request('https://umspec.internal/api/v1/course/layout', { method: 'POST', body: JSON.stringify({ courseId: 'x', activities: [] }) }), env);
+  assert.equal(bad.status, 400);
+});
