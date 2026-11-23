@@ -35,6 +35,7 @@
         "shared/sync-core.js",
         "shared/calendar-core.js",
         "shared/announcement-core.js",
+        "shared/course-scan.js",
         "content/materials.js",
         "content/content.js",
         "content/student-sync.js",
@@ -68,7 +69,8 @@
     "activeTab",
     "scripting",
     "alarms",
-    "sidePanel"
+    "sidePanel",
+    "offscreen"
   ],
   "optional_permissions": [
     "notifications"

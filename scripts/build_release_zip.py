@@ -18,6 +18,7 @@ def build_zip():
         'lib',
         'popup',
         'dashboard',
+        'offscreen',
         'options',
         'content',
         'shared',

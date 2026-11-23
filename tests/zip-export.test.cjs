@@ -33,7 +33,7 @@ async function zipHarness(activities, sources, deselected = [], options = {}) {
   }
   const context = {
     console, URL: FixtureURL, TextEncoder, TextDecoder, crypto, AbortSignal, AbortController,
-    JSZip, Blob, ArrayBuffer, Uint8Array, DOMException, UmSpecSync: require('../shared/sync-core.js'),
+    JSZip, Blob, ArrayBuffer, Uint8Array, DOMException, UmSpecSync: require('../shared/sync-core.js'), UmSpecCourseScan: require('../shared/course-scan.js'),
     setTimeout(callback, delay) { const timer = setTimeout(callback, delay); timer.unref(); return timer; }, clearTimeout,
     location: { origin: ORIGIN, pathname: '/my/' },
     localStorage: { getItem: key => preferences.get(key) ?? null, setItem: (key, value) => preferences.set(key, value) },
@@ -172,17 +172,17 @@ test('ZIP runtime retains same-name folder children and assignment paths without
     [attachment]: { bytes: new TextEncoder().encode('assignment attachment') }
   }, [excluded]);
   const paths = Object.keys(archive.files).filter(path => !archive.files[path].dir);
-  const notes = paths.filter(path => /^WIX1001 Computing\/1\.Lecture Slide\/(?:[a-f0-9]{8}_)?notes\.pdf$/.test(path));
+  const notes = paths.filter(path => /^WIX1001 Computing\/Lecture Slides\/(?:[a-f0-9]{8}_)?notes\.pdf$/.test(path));
   assert.equal(notes.length, 2);
   assert.deepEqual((await Promise.all(notes.map(path => archive.file(path).async('string')))).sort(), ['first child', 'second child']);
-  assert.equal(await archive.file('WIX1001 Computing/5.Assignments & Projects/brief.pdf').async('string'), 'assignment attachment');
+  assert.equal(await archive.file('WIX1001 Computing/Assignments & Projects/brief.pdf').async('string'), 'assignment attachment');
   assert.equal(requested.includes(excluded), false);
   assert.ok(archive.file('SEMESTER_AUDIT_REPORT.md'));
 });
 
 test('ZIP linked-only videos do not write raw Spectrum session credentials into the archive', async () => {
   const { archive } = await zipHarness([activity('resource', 10, 'Lecture recording', '&sesskey=private-session&logintoken=private-login&MoodleSession=private-cookie')], {});
-  const links = await archive.file('WIX1001 Computing/7.Recordings & Media/Lecture_Videos_and_Links.md').async('string');
+  const links = await archive.file('WIX1001 Computing/Recordings & Media/Lecture_Videos_and_Links.md').async('string');
   assert.match(links, /\/mod\/resource\/view\.php\?id=10/);
   assert.doesNotMatch(links, /sesskey|private-session|logintoken|private-login|MoodleSession|private-cookie/);
 });
@@ -200,11 +200,11 @@ test('ZIP links folder videos and opaque video bodies when video downloads are o
   const linked = await zipHarness(activities, sources);
   assert.equal(linked.requested.includes(video), false, 'recognised video should need no binary request');
   assert.deepEqual(linked.binaryReads, [], 'video Content-Type must be rejected before reading its body');
-  const links = await linked.archive.file('WIX1001 Computing/7.Recordings & Media/Lecture_Videos_and_Links.md').async('string');
+  const links = await linked.archive.file('WIX1001 Computing/Recordings & Media/Lecture_Videos_and_Links.md').async('string');
   assert.ok(links.includes(video) && links.includes(opaque));
   const included = await zipHarness(activities, sources, [], { videoPolicy: 'include' });
-  assert.equal(await included.archive.file('WIX1001 Computing/1.Lecture Slide/lesson.m4v').async('string'), 'video bytes');
-  assert.equal(await included.archive.file('WIX1001 Computing/1.Lecture Slide/Course material').async('string'), 'opaque video bytes');
+  assert.equal(await included.archive.file('WIX1001 Computing/Lecture Slides/lesson.m4v').async('string'), 'video bytes');
+  assert.equal(await included.archive.file('WIX1001 Computing/Lecture Slides/Course material').async('string'), 'opaque video bytes');
 });
 
 test('ZIP link boundary escapes titles and destinations, rejects tokens and retains meeting passcodes', async () => {
@@ -214,7 +214,7 @@ test('ZIP link boundary escapes titles and destinations, rejects tokens and reta
     external('https://zoom.us/j/123456789?pwd=join-passcode&note=a>b', 'Meeting ](https://attacker.example)\n# Injected'),
     external('https://www.youtube.com/watch?v=lecture&access_token=private-external-token', 'Private lecture')
   ], {});
-  const links = await archive.file('WIX1001 Computing/7.Recordings & Media/Lecture_Videos_and_Links.md').async('string');
+  const links = await archive.file('WIX1001 Computing/Recordings & Media/Lecture_Videos_and_Links.md').async('string');
   assert.doesNotMatch(links, /private-external-token|access_token/);
   assert.match(links, /pwd=join-passcode/);
   assert.doesNotMatch(links, /\n# Injected/);

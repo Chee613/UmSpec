@@ -35,7 +35,7 @@ function exporterHarness({ courseResponse = {}, document: sourceDocument, wrappe
   const empty = { querySelector: () => null, querySelectorAll: () => [] };
   const context = {
     console, URL, TextEncoder, TextDecoder, crypto, setTimeout, clearTimeout,
-    AbortSignal, AbortController, DOMException, UmSpecSync: core,
+    AbortSignal, AbortController, DOMException, UmSpecSync: core, UmSpecCourseScan: require('../shared/course-scan.js'),
     location: { origin: ORIGIN, pathname: '/my/' },
     localStorage: { getItem: () => null, setItem() {} },
     document: { readyState: 'loading', addEventListener() {}, querySelector: () => null },

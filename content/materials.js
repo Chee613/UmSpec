@@ -22,15 +22,31 @@
     return '[' + markdownText(title || 'Material') + '](<' + sanitizeLink(url) + '>)';
   }
   const loginRequired = message => Object.assign(new Error(message), { code: 'LOGIN_REQUIRED' });
+  // Submission, test and discussion tools hold no course files, and some (Turnitin) redirect off Spectrum where they
+  // cannot be read, so they stay links without being opened.
+  const NO_FILES = new Set(['turnitintooltwo', 'quiz', 'lti', 'questionnaire', 'workshop', 'choice', 'feedback', 'attendance', 'forum']);
+  // A short, student-facing reason for an item the Drive scan had to leave out.
+  function skipReason(error) {
+    if (error?.status === 404 || error?.status === 410) return { reason: 'broken link on Spectrum', permanent: true };
+    if (error?.status) return { reason: 'Spectrum answered ' + error.status, permanent: false };
+    if (error?.name === 'TimeoutError') return { reason: 'timed out', permanent: false };
+    if (/Unsupported material URL/.test(error?.message)) return { reason: 'not a secure https link', permanent: true };
+    if (/Secret-bearing/.test(error?.message)) return { reason: 'link contains a password or token', permanent: true };
+    if (/stable Spectrum module|resolved Spectrum file/.test(error?.message)) return { reason: 'unusual Spectrum layout', permanent: true };
+    return { reason: 'could not be read', permanent: false };
+  }
+  const skippedItem = (item, error) => ({ name: String(item?.name || 'Material').replace(/[\x00-\x1f]+/g, ' ').trim().slice(0, 80), ...skipReason(error) });
   async function resolveItemFiles(item, signal, videoPolicy = 'links') {
-    const url = safeURL(item.url);
+    // The course reader already repairs "Join: https://…" addresses; repeating it covers items saved before that.
+    const url = safeURL(scanApi()?.repairLink(item.url) ?? item.url);
+    if (NO_FILES.has(item.type)) return [{ url: url.href, name: item.name, kind: 'link' }];
     if (videoPolicy !== 'include' && core().isVideoMaterial(item)) return [{ url: url.href, name: item.name, kind: 'link', isVideo: true }];
     if (item.isExternal || url.origin !== origin || item.type === 'url') return [{ url: url.href, name: item.name, kind: 'link' }];
     if (url.pathname.includes('/pluginfile.php/')) return [{ url: url.href, name: item.name, kind: 'binary' }];
     const timeout = AbortSignal.timeout(25000);
     const response = await fetch(url.href, { credentials: 'include', signal: signal ? AbortSignal.any([signal, timeout]) : timeout });
     if (new URL(response.url).origin !== origin || /\/login[/.]/.test(new URL(response.url).pathname)) throw loginRequired('Sign in to Spectrum to read this material.');
-    if (!response.ok) throw new Error('Spectrum material request failed (' + response.status + ').');
+    if (!response.ok) throw Object.assign(new Error('Spectrum material request failed (' + response.status + ').'), { status: response.status });
     const type = response.headers.get('Content-Type') || '';
     if (!type.includes('text/html')) {
       await response.body?.cancel();
@@ -57,6 +73,7 @@
     }
     return files.length ? files : [{ url: url.href, name: item.name, kind: 'link' }];
   }
+  const scanApi = () => root.UmSpecCourseScan || (typeof require === 'function' ? require('../shared/course-scan.js') : null);
   async function describeMaterial(course, item, file, archiveId) {
     const url = safeURL(file.url);
     const activity = new URL(item.url, origin);
@@ -71,18 +88,25 @@
       if (!url.pathname.includes('/pluginfile.php/')) throw new Error('Material is not a resolved Spectrum file.');
     }
     const pathName = decodeURIComponent(url.pathname.split('/').pop() || '');
+    const scan = root.UmSpecCourseScan || (typeof require === 'function' ? require('../shared/course-scan.js') : null);
+    // What the student sees in Drive: "W04 <Spectrum title>.pptx". `name` keeps the uploaded file name, which earlier
+    // versions used, so Drive sync can recognise and rename those files.
+    const displayName = scan?.displayName({ title: item.name, section: item.section, fileName: file.kind === 'binary' && pathName.includes('.') ? pathName : '',
+      // Only an activity that really holds several files adds each file's own name to its title.
+      multiple: ['folder', 'assign'].includes(item.type) && (item.fileCount ?? 2) > 1 }) || null;
     return {
       sourceKey: await core().hashParts([origin, String(course.id), String(moduleId), identity]),
       courseId: String(course.id), moduleId: String(moduleId), sourceUrl: url.href,
       courseName: course.fullName, courseFolder: course.folderName,
       name: file.kind === 'binary' && pathName.includes('.') ? pathName : file.name || item.name,
-      category: item.category || '9.Reference', archiveId, kind: file.kind,
+      displayName, section: String(item.section || ''),
+      category: item.category || 'Lecture Slides', archiveId, kind: file.kind,
       isVideo: core().isVideoMaterial({ ...item, ...file }), mimeType: file.mimeType || item.mimeType || '',
       sourceFingerprint: revision === null ? null : await core().hashParts(['resource-revision', revision]),
       contentSha256: null, sizeBytes: null
     };
   }
-  const api = { resolveItemFiles, describeMaterial, sanitizeLink, markdownText, markdownLink };
+  const api = { resolveItemFiles, describeMaterial, sanitizeLink, markdownText, markdownLink, skippedItem };
   root.UmSpecMaterials = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(globalThis);

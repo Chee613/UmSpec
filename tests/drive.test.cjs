@@ -58,7 +58,8 @@ function fakeDrive() {
     if (url.pathname.endsWith('/generateIds')) return response({ ids: ['id' + ++id] });
     if (url.pathname === '/drive/v3/files' && method === 'GET') {
       const q = url.searchParams.get('q');
-      return response({ files: [...files.values()].filter(file => q.includes("mimeType =") ? file.mimeType === 'application/vnd.google-apps.folder' : file.appProperties?.sourceKey) });
+      const wanted = q.match(/key='sourceKey' and value='([^']+)'/)?.[1];
+      return response({ files: [...files.values()].filter(file => q.includes("mimeType =") ? file.mimeType === 'application/vnd.google-apps.folder' : wanted ? file.appProperties?.sourceKey === wanted && !file.trashed : file.appProperties?.sourceKey) });
     }
     if (url.pathname === '/drive/v3/files' && method === 'POST') {
       const data = JSON.parse(options.body);
@@ -68,6 +69,16 @@ function fakeDrive() {
       writes.creates++;
       if (loseCreate) { loseCreate = false; throw new Error('lost create response'); }
       return response(data);
+    }
+    if (url.searchParams.get('uploadType') === 'multipart') {
+      // Links Docs: JSON metadata part, then the HTML that Drive converts into a Google Doc.
+      const boundary = new Headers(options.headers).get('Content-Type').split('boundary=')[1];
+      const [meta, html] = String(options.body).split('--' + boundary).slice(1, 3).map(part => part.split('\r\n\r\n').slice(1).join('\r\n\r\n').trim());
+      const data = JSON.parse(meta), existingId = url.pathname.split('/')[5];
+      const fileId = existingId || data.id || 'doc' + ++id;
+      files.set(fileId, { ...files.get(fileId), ...data, id: fileId, appProperties: { ...files.get(fileId)?.appProperties, ...data.appProperties }, html });
+      writes[existingId ? 'updates' : 'creates']++;
+      return response(files.get(fileId));
     }
     if (url.pathname.startsWith('/upload/drive/v3/files') && method !== 'PUT') {
       const existingId = url.pathname.split('/')[5];
@@ -106,7 +117,9 @@ function fakeDrive() {
       if (!file) return response({}, 404);
       if (ifMatchRejected(options)) return response({}, 412);
       const data = JSON.parse(options.body);
-      files.set(fileId, { ...file, ...data, appProperties: { ...file.appProperties, ...data.appProperties } });
+      const add = url.searchParams.get('addParents'), remove = (url.searchParams.get('removeParents') || '').split(',');
+      const moved = add ? { parents: [...(file.parents || []).filter(id => !remove.includes(id)), add] } : {};
+      files.set(fileId, { ...file, ...data, ...moved, appProperties: { ...file.appProperties, ...data.appProperties } });
       return response(files.get(fileId));
     }
     throw new Error('Unexpected Google request: ' + method + ' ' + path);
@@ -233,7 +246,7 @@ test('default Drive video policy writes links before fetching AVI, named videos 
   for (const fields of [
     { name: 'lecture.avi', sourceUrl: 'https://spectrum.um.edu.my/pluginfile.php/12/mod_resource/content/1/lecture.avi' },
     { name: 'lecture.m4v', sourceUrl: 'https://spectrum.um.edu.my/pluginfile.php/12/mod_resource/content/1/file' },
-    { name: 'Session 1', category: '7.Recordings & Media' }
+    { name: 'Session 1', category: 'Recordings & Media' }
   ]) {
     const fake = fakeDrive(), drive = loadDrive(), job = freshJob();
     delete job.binding.settings.videoPolicy;
@@ -242,7 +255,10 @@ test('default Drive video policy writes links before fetching AVI, named videos 
     const result = await complete(drive, job);
     assert.equal(result.results[0].action, 'linked');
     assert.equal([...fake.files.values()].some(file => file.name === fields.name), false);
-    assert.ok([...fake.files.values()].some(file => file.name === 'Spectrum links.md'));
+    const doc = [...fake.files.values()].find(file => file.name === 'Links' && file.mimeType === 'application/vnd.google-apps.document');
+    assert.ok(doc, 'the course gets a clickable Links Doc');
+    assert.ok(doc.html.includes(fields.name));
+    assert.deepEqual(doc.parents, [result.folders['course:123']]);
   }
 });
 
@@ -332,9 +348,9 @@ test('login HTML becomes failure and oversized files produce a usable link index
   job.materials[0].sizeBytes = 51 * 1024 * 1024;
   const linked = await complete(drive, job);
   assert.equal(linked.results.some(result => result.action === 'linked'), true);
-  const index = [...fake.files.values()].find(file => file.name === 'Spectrum links.md');
-  assert.ok(index);
-  assert.equal(index.appProperties.uploadedMd5, index.md5Checksum);
+  const doc = [...fake.files.values()].find(file => file.name === 'Links');
+  assert.ok(doc);
+  assert.match(doc.html, /href="https:\/\/spectrum\.um\.edu\.my\/pluginfile\.php/);
 });
 
 test('an interrupted replacement does not publish its new revision before bytes succeed', async () => {
@@ -451,26 +467,89 @@ test('course folders retain the existing exporter folder name and expose the man
   assert.equal(reused.binding.driveRootId, result.folders.root);
 });
 
-test('syncing one course keeps the links of the other courses in the shared index', async () => {
+test('each course gets its own Links Doc; syncing one course leaves the other course Doc alone', async () => {
   const fake = fakeDrive();
   const drive = loadDrive();
-  const link = (courseId, name) => ({ sourceKey: 'link-' + name, courseId, moduleId: '7', sourceUrl: 'https://spectrum.um.edu.my/mod/url/view.php?id=' + courseId, name, category: 'Notes', archiveId: '2026-1', kind: 'link', sourceFingerprint: null, contentSha256: null, sizeBytes: null });
+  const link = (courseId, name, url = 'https://www.youtube.com/watch?v=' + courseId) => ({ sourceKey: 'link-' + name, courseId, moduleId: '7', sourceUrl: url, name, section: 'Week 2 : Data Models', category: 'Notes', archiveId: '2026-1', kind: 'link', sourceFingerprint: null, contentSha256: null, sizeBytes: null });
   const job = (id, courseIds, materials, previous) => {
     const settings = { ...binding.settings, courseIds };
     return { id, bindingHash: 'binding', binding: { ...binding, settings, ...(previous ? { driveLinks: previous.binding.driveLinks } : {}) }, materials };
   };
-  const everything = await complete(drive, job('all', ['123', '456'], [link('123', 'Lecture recording'), link('456', 'Turnitin box')]));
-  assert.deepEqual(everything.binding.driveLinks['2026-1'].map(item => item.name), ['Lecture recording', 'Turnitin box']);
-  const partial = await complete(drive, job('one', ['456'], [link('456', 'Turnitin box 2')], everything));
-  assert.deepEqual(partial.binding.driveLinks['2026-1'].map(item => item.name), ['Lecture recording', 'Turnitin box 2'],
-    'the unselected course keeps its links and the selected course is replaced');
-  const indexMaterial = partial.materials.find(item => item.name === 'Spectrum links.md');
-  assert.match(indexMaterial.text, /Lecture recording/);
-  assert.match(indexMaterial.text, /Turnitin box 2/);
-  assert.doesNotMatch(indexMaterial.text, /Turnitin box\]/);
-  assert.ok([...fake.files.values()].some(file => file.name === 'Spectrum links.md'));
-  const elsewhere = await complete(drive, { ...job('other-archive', ['456'], [{ ...link('456', 'New term'), archiveId: '2026-2' }], partial),
-    binding: { ...binding, settings: { ...binding.settings, archiveId: '2026-2', courseIds: ['456'] }, driveLinks: partial.binding.driveLinks } });
-  assert.deepEqual(elsewhere.binding.driveLinks['2026-2'].map(item => item.name), ['New term'], 'another semester folder has its own list');
-  assert.equal(elsewhere.binding.driveLinks['2026-1'].length, 2);
+  const docs = () => [...fake.files.values()].filter(file => file.name === 'Links');
+  const everything = await complete(drive, job('all', ['123', '456'], [link('123', 'Lecture recording'), link('456', 'MS Teams class'),
+    link('456', 'Tutorial 6 Submission Link', 'https://spectrum.um.edu.my/mod/assign/view.php?id=9')]));
+  assert.equal(docs().length, 2);
+  const doc456 = docs().find(file => file.parents[0] === everything.folders['course:456']);
+  assert.match(doc456.html, /<h2>Week 2 : Data Models<\/h2>/);
+  assert.match(doc456.html, /MS Teams class/);
+  assert.doesNotMatch(doc456.html, /Submission/, 'submission pages are tasks, not materials');
+  const before123 = structuredClone(docs().find(file => file.parents[0] === everything.folders['course:123']));
+  const partial = await complete(drive, job('one', ['456'], [link('456', 'MS Teams class 2')], everything));
+  assert.equal(docs().length, 2, 'the Doc is updated in place');
+  assert.match(docs().find(file => file.id === doc456.id).html, /MS Teams class 2/);
+  assert.deepEqual(docs().find(file => file.id === before123.id), before123);
+  assert.deepEqual(partial.binding.driveLinks['2026-1'].map(item => item.name), ['Lecture recording', 'MS Teams class 2']);
+});
+
+test('files from earlier versions are renamed to their Spectrum title and moved in place, without re-uploading', async () => {
+  const fake = fakeDrive();
+  const drive = loadDrive();
+  const old = freshJob('old');
+  old.materials[0] = { ...old.materials[0], category: '1.Lecture Slide', name: 'Normalization_modern (1).pptx' };
+  const first = await complete(drive, old);
+  const legacyFolder = first.folders['category:123:1.Lecture Slide'];
+  const uploads = fake.writes.uploads;
+  const next = freshJob('new');
+  next.materials[0] = { ...next.materials[0], category: 'Lecture Slides', name: 'Normalization_modern (1).pptx', displayName: 'W04 Normalization - Compact Notes.pptx', section: 'Week 4 : Normalization' };
+  const second = await complete(drive, next);
+  assert.equal(second.folders['category:123:Lecture Slides'], legacyFolder, 'the numbered folder is renamed, not replaced');
+  assert.equal(fake.files.get(legacyFolder).name, 'Lecture Slides');
+  const file = () => [...fake.files.values()].find(item => item.appProperties?.sourceKey === 'source');
+  assert.equal(file().name, 'W04 Normalization - Compact Notes.pptx');
+  assert.deepEqual(file().parents, [legacyFolder]);
+  assert.equal(fake.writes.uploads, uploads, 'no bytes are uploaded again');
+  assert.equal(second.results[0].action, 'skipped');
+  assert.equal(second.reorganised, 1);
+  // A file sorted into the wrong type earlier moves to the right folder.
+  const moved = await complete(drive, { ...freshJob('move'), materials: [{ ...next.materials[0], category: 'Tutorials', displayName: 'W04 Tutorial 3.pdf' }] });
+  assert.deepEqual(file().parents, [moved.folders['category:123:Tutorials']]);
+  assert.equal(file().name, 'W04 Tutorial 3.pdf');
+});
+
+test('a file the student renamed or moved elsewhere keeps its name and place', async () => {
+  const fake = fakeDrive();
+  const drive = loadDrive();
+  await complete(drive, freshJob('first'));
+  const original = [...fake.files.values()].find(item => item.appProperties?.sourceKey === 'source');
+  fake.files.set(original.id, { ...original, name: 'My own notes.pdf' });
+  const renamedMaterial = { ...freshJob().materials[0], displayName: 'W05 Notes.pdf', category: 'Lecture Slides' };
+  await complete(drive, { ...freshJob('renamed'), materials: [renamedMaterial] });
+  assert.equal(fake.files.get(original.id).name, 'My own notes.pdf');
+  assert.deepEqual(fake.files.get(original.id).parents, original.parents);
+  fake.files.set(original.id, { ...fake.files.get(original.id), name: 'notes.pdf', parents: ['my-private-folder'] });
+  await complete(drive, { ...freshJob('moved'), materials: [renamedMaterial] });
+  assert.deepEqual(fake.files.get(original.id).parents, ['my-private-folder']);
+  assert.equal(fake.files.get(original.id).name, 'notes.pdf');
+});
+
+test('a Links Doc keeps only links for the student\'s OCC and links meant for everyone', async t => {
+  const fake = fakeDrive();
+  const drive = loadDrive();
+  const previous = global.chrome;
+  t.after(() => { global.chrome = previous; });
+  let prefs = { occ: { '456': '4' } };
+  global.chrome = { ...previous, storage: { local: { get: async () => ({ umspecPlannerPrefs: prefs, umspecPlanner: { detectedOcc: {} } }) } } };
+  const link = (name, section = 'Week 2', n = name) => ({ sourceKey: 'link-' + n, courseId: '456', moduleId: '7', sourceUrl: 'https://meet.google.com/' + encodeURIComponent(n),
+    name, section, category: 'Notes', archiveId: '2026-1', kind: 'link', sourceFingerprint: null, contentSha256: null, sizeBytes: null });
+  const materials = [link('Google Meet (OCC 1)'), link('Google Meet (OCC 4)'), link('Lecture recording'), link('Class link', 'OCC 1 & 2 only')];
+  const settings = { ...binding.settings, courseIds: ['456'] };
+  await complete(drive, { id: 'occ', bindingHash: 'binding', binding: { ...binding, settings }, materials });
+  const doc = () => [...fake.files.values()].find(file => file.name === 'Links').html;
+  assert.match(doc(), /Google Meet \(OCC 4\)/);
+  assert.match(doc(), /Lecture recording/);
+  assert.doesNotMatch(doc(), /OCC 1\)|Class link/);
+  assert.match(doc(), /Showing links for OCC 4/);
+  prefs = { occ: { '456': '4' }, showAllOcc: true };
+  await complete(drive, { id: 'all', bindingHash: 'binding', binding: { ...binding, settings }, materials });
+  assert.match(doc(), /Google Meet \(OCC 1\)/, 'choosing every OCC in the planner shows every link');
 });
